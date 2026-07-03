@@ -7,7 +7,7 @@ using TravelHub.Api.Models;
 namespace TravelHub.Api.Controllers;
 
 [ApiController]
-[Route("places")]
+[Route("api/places")]
 public class PlacesController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
