@@ -34,6 +34,9 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
                 CheckOutDate = booking.CheckOutDate,
                 GuestsCount = booking.GuestsCount,
                 Status = booking.Status.ToString(),
+                PaidAt = booking.PaidAt,
+                CancelledAt = booking.CancelledAt,
+                SavedCardLast4 = booking.SavedCardLast4,
                 TotalPrice = booking.TotalPrice
             })
             .ToListAsync();
@@ -57,6 +60,9 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
                 CheckOutDate = booking.CheckOutDate,
                 GuestsCount = booking.GuestsCount,
                 Status = booking.Status.ToString(),
+                PaidAt = booking.PaidAt,
+                CancelledAt = booking.CancelledAt,
+                SavedCardLast4 = booking.SavedCardLast4,
                 TotalPrice = booking.TotalPrice
             })
             .FirstOrDefaultAsync();
@@ -135,6 +141,39 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetBookingRequest), new { id = bookingRequest.Id }, ToResponse(bookingRequest, room));
     }
 
+    [HttpPost("{id:int}/pay")]
+    public async Task<ActionResult<BookingRequestResponseDto>> PayBookingRequest(int id, BookingPaymentDto paymentDto)
+    {
+        var booking = await db.BookingRequests
+            .Include(booking => booking.HotelRoom)
+            .FirstOrDefaultAsync(booking => booking.Id == id);
+
+        if (booking is null)
+        {
+            return NotFound();
+        }
+
+        if (booking.Status != BookingStatus.PendingPayment)
+        {
+            return Conflict("Only pending bookings can be paid.");
+        }
+
+        var cardDigits = new string(paymentDto.CardNumber.Where(char.IsDigit).ToArray());
+
+        if (paymentDto.SaveCard && cardDigits.Length < 4)
+        {
+            return BadRequest("CardNumber must contain at least 4 digits to save card.");
+        }
+
+        booking.Status = BookingStatus.Paid;
+        booking.PaidAt = DateTime.UtcNow;
+        booking.SavedCardLast4 = paymentDto.SaveCard ? cardDigits[^4..] : null;
+
+        await db.SaveChangesAsync();
+
+        return ToResponse(booking, booking.HotelRoom);
+    }
+
     [HttpPut("{id:int}/cancel")]
     public async Task<IActionResult> CancelBookingRequest(int id)
     {
@@ -146,6 +185,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         }
 
         booking.Status = BookingStatus.Cancelled;
+        booking.CancelledAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
         return NoContent();
@@ -164,6 +204,9 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         CheckOutDate = booking.CheckOutDate,
         GuestsCount = booking.GuestsCount,
         Status = booking.Status.ToString(),
+        PaidAt = booking.PaidAt,
+        CancelledAt = booking.CancelledAt,
+        SavedCardLast4 = booking.SavedCardLast4,
         TotalPrice = booking.TotalPrice
     };
 }

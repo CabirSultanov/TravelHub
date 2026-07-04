@@ -24,5 +24,11 @@ public class BookingRequestResponseDto
 
     public string Status { get; set; } = string.Empty;
 
+    public DateTime? PaidAt { get; set; }
+
+    public DateTime? CancelledAt { get; set; }
+
+    public string? SavedCardLast4 { get; set; }
+
     public decimal TotalPrice { get; set; }
 }

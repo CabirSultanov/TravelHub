@@ -31,6 +31,13 @@ public class BookingRequest
 
     public BookingStatus Status { get; set; } = BookingStatus.PendingPayment;
 
+    public DateTime? PaidAt { get; set; }
+
+    public DateTime? CancelledAt { get; set; }
+
+    [MaxLength(4)]
+    public string? SavedCardLast4 { get; set; }
+
     [Precision(18, 2)]
     public decimal TotalPrice { get; set; }
 }
