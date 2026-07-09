@@ -1,6 +1,62 @@
 @TravelHub.Api_HostAddress = http://localhost:5207
+@HotelRoomId = 1
+@BookingId = 1
 
-GET {{TravelHub.Api_HostAddress}}/weatherforecast/
+GET {{TravelHub.Api_HostAddress}}/health
 Accept: application/json
+
+###
+
+GET {{TravelHub.Api_HostAddress}}/health/db
+Accept: application/json
+
+###
+
+GET {{TravelHub.Api_HostAddress}}/api/hotels
+Accept: application/json
+
+###
+
+GET {{TravelHub.Api_HostAddress}}/api/hotel-rooms
+Accept: application/json
+
+###
+
+GET {{TravelHub.Api_HostAddress}}/api/hotel-rooms?hotelId=1
+Accept: application/json
+
+###
+
+GET {{TravelHub.Api_HostAddress}}/api/taxi-services
+Accept: application/json
+
+###
+
+POST {{TravelHub.Api_HostAddress}}/api/booking-requests
+Content-Type: application/json
+
+{
+  "hotelRoomId": {{HotelRoomId}},
+  "customerName": "Test Customer",
+  "phoneNumber": "+994501234567",
+  "email": "test@example.com",
+  "checkInDate": "2026-08-01",
+  "checkOutDate": "2026-08-03",
+  "guestsCount": 2
+}
+
+###
+
+POST {{TravelHub.Api_HostAddress}}/api/booking-requests/{{BookingId}}/pay
+Content-Type: application/json
+
+{
+  "cardNumber": "4111111111111111",
+  "cardHolderName": "Test Customer",
+  "expiryMonth": 12,
+  "expiryYear": 2028,
+  "cvv": "123",
+  "saveCard": true
+}
 
 ###

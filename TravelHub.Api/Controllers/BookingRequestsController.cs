@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
@@ -7,6 +9,7 @@ using TravelHub.Api.Models;
 namespace TravelHub.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/booking-requests")]
 public class BookingRequestsController(AppDbContext db) : ControllerBase
 {
@@ -14,6 +17,18 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<List<BookingRequestResponseDto>>> GetBookingRequests(int? hotelRoomId)
     {
         var query = db.BookingRequests.AsNoTracking();
+
+        if (!IsAdmin())
+        {
+            var userId = GetCurrentUserId();
+
+            if (userId is null)
+            {
+                return Unauthorized();
+            }
+
+            query = query.Where(booking => booking.UserId == userId.Value);
+        }
 
         if (hotelRoomId is not null)
         {
@@ -24,6 +39,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             .Select(booking => new BookingRequestResponseDto
             {
                 Id = booking.Id,
+                UserId = booking.UserId,
                 HotelRoomId = booking.HotelRoomId,
                 HotelId = booking.HotelRoom.HotelId,
                 RoomType = booking.HotelRoom.RoomType,
@@ -45,11 +61,26 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<BookingRequestResponseDto>> GetBookingRequest(int id)
     {
-        var booking = await db.BookingRequests.AsNoTracking()
-            .Where(booking => booking.Id == id)
+        var query = db.BookingRequests.AsNoTracking()
+            .Where(booking => booking.Id == id);
+
+        if (!IsAdmin())
+        {
+            var userId = GetCurrentUserId();
+
+            if (userId is null)
+            {
+                return Unauthorized();
+            }
+
+            query = query.Where(booking => booking.UserId == userId.Value);
+        }
+
+        var booking = await query
             .Select(booking => new BookingRequestResponseDto
             {
                 Id = booking.Id,
+                UserId = booking.UserId,
                 HotelRoomId = booking.HotelRoomId,
                 HotelId = booking.HotelRoom.HotelId,
                 RoomType = booking.HotelRoom.RoomType,
@@ -78,6 +109,13 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
     [HttpPost]
     public async Task<ActionResult<BookingRequestResponseDto>> CreateBookingRequest(BookingRequestCreateDto bookingDto)
     {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
         if (string.IsNullOrWhiteSpace(bookingDto.CustomerName) || string.IsNullOrWhiteSpace(bookingDto.PhoneNumber) || string.IsNullOrWhiteSpace(bookingDto.Email))
         {
             return BadRequest("CustomerName, PhoneNumber and Email are required.");
@@ -124,6 +162,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         var nights = bookingDto.CheckOutDate.DayNumber - bookingDto.CheckInDate.DayNumber;
         var bookingRequest = new BookingRequest
         {
+            UserId = userId.Value,
             HotelRoomId = bookingDto.HotelRoomId,
             CustomerName = bookingDto.CustomerName.Trim(),
             PhoneNumber = bookingDto.PhoneNumber.Trim(),
@@ -151,6 +190,11 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         if (booking is null)
         {
             return NotFound();
+        }
+
+        if (!CanAccess(booking))
+        {
+            return Forbid();
         }
 
         if (booking.Status != BookingStatus.PendingPayment)
@@ -184,6 +228,11 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             return NotFound();
         }
 
+        if (!CanAccess(booking))
+        {
+            return Forbid();
+        }
+
         booking.Status = BookingStatus.Cancelled;
         booking.CancelledAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
@@ -194,6 +243,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
     private static BookingRequestResponseDto ToResponse(BookingRequest booking, HotelRoom room) => new()
     {
         Id = booking.Id,
+        UserId = booking.UserId,
         HotelRoomId = booking.HotelRoomId,
         HotelId = room.HotelId,
         RoomType = room.RoomType,
@@ -209,4 +259,18 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         SavedCardLast4 = booking.SavedCardLast4,
         TotalPrice = booking.TotalPrice
     };
+
+    private bool IsAdmin() => User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.SuperAdmin);
+
+    private bool CanAccess(BookingRequest booking)
+    {
+        var userId = GetCurrentUserId();
+        return IsAdmin() || userId == booking.UserId;
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(value, out var userId) ? userId : null;
+    }
 }

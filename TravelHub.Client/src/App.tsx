@@ -1,6 +1,18 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
-import type { Booking, BookingCreate, BookingPayment, Hotel, HotelRoom, TaxiService } from './types';
+import type {
+  AuthUser,
+  Booking,
+  BookingCreate,
+  BookingPayment,
+  Hotel,
+  HotelRoom,
+  Place,
+  TaxiService,
+} from './types';
+
+type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth';
+type AuthMode = 'login' | 'register';
 
 type BookingForm = Omit<BookingCreate, 'hotelRoomId' | 'guestsCount'> & {
   guestsCount: string;
@@ -11,8 +23,13 @@ type PaymentForm = Omit<BookingPayment, 'expiryMonth' | 'expiryYear'> & {
   expiryYear: string;
 };
 
-const today = new Date().toISOString().slice(0, 10);
+type AuthForm = {
+  name: string;
+  email: string;
+  password: string;
+};
 
+const today = new Date().toISOString().slice(0, 10);
 const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
 const emptyBookingForm: BookingForm = {
@@ -33,13 +50,24 @@ const emptyPaymentForm: PaymentForm = {
   saveCard: false,
 };
 
+const emptyAuthForm: AuthForm = {
+  name: '',
+  email: '',
+  password: '',
+};
+
 function App() {
+  const [page, setPage] = useState<Page>('home');
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
   const [taxiServices, setTaxiServices] = useState<TaxiService[]>([]);
+  const [places, setPlaces] = useState<Place[]>([]);
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>('register');
+  const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
   const [bookingForm, setBookingForm] = useState<BookingForm>(emptyBookingForm);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [cityFilter, setCityFilter] = useState('');
@@ -50,9 +78,14 @@ function App() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [hotelData, taxiData] = await Promise.all([api.getHotels(), api.getTaxiServices()]);
+        const [hotelData, taxiData, placeData] = await Promise.all([
+          api.getHotels(),
+          api.getTaxiServices(),
+          api.getPlaces(),
+        ]);
         setHotels(hotelData);
         setTaxiServices(taxiData);
+        setPlaces(placeData);
       } catch (error) {
         setMessage(getErrorMessage(error));
       } finally {
@@ -61,6 +94,7 @@ function App() {
     }
 
     void loadInitialData();
+    void api.getMe().then(setCurrentUser).catch(() => undefined);
   }, []);
 
   const cities = useMemo(() => {
@@ -91,6 +125,13 @@ function App() {
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!currentUser) {
+      setAuthMode('login');
+      setPage('auth');
+      setMessage('Please sign in to create a booking.');
+      return;
+    }
 
     if (!selectedRoom) {
       return;
@@ -161,6 +202,51 @@ function App() {
     }
   }
 
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const user =
+        authMode === 'register'
+          ? await api.register(authForm)
+          : await api.login({ email: authForm.email, password: authForm.password });
+
+      setCurrentUser(user);
+      setAuthForm(emptyAuthForm);
+      setMessage(authMode === 'register' ? 'Registration completed.' : 'Logged in.');
+      setPage('home');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function logout() {
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      await api.logout();
+      setCurrentUser(null);
+      setBooking(null);
+      setPage('home');
+      setMessage('Logged out.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function openAuth() {
+    setAuthMode('register');
+    setPage('auth');
+    setMessage('');
+  }
+
   function resetFlow() {
     setSelectedRoom(null);
     setBooking(null);
@@ -171,221 +257,89 @@ function App() {
 
   return (
     <main className="app">
-      <section className="topbar">
-        <div>
-          <p className="eyebrow">TravelHub Client</p>
-          <h1>Book stays and finish payment in one simple flow.</h1>
-        </div>
+      <header className="site-header">
+        <button className="brand" onClick={() => setPage('home')} type="button">
+          TravelHub
+        </button>
 
-        <label className="filter">
-          City
-          <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}>
-            <option value="">All cities</option>
-            {cities.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
+        {page !== 'home' && (
+          <button className="back-home" onClick={() => setPage('home')} type="button">
+            Назад
+          </button>
+        )}
+
+        <nav className="site-nav">
+          <button className={page === 'taxi' ? 'active' : ''} onClick={() => setPage('taxi')} type="button">
+            Такси
+          </button>
+          <button className={page === 'hotels' ? 'active' : ''} onClick={() => setPage('hotels')} type="button">
+            Отели
+          </button>
+          <button className={page === 'places' ? 'active' : ''} onClick={() => setPage('places')} type="button">
+            Места
+          </button>
+        </nav>
+
+        <div className="header-actions">
+          {currentUser && <span>{currentUser.name}</span>}
+          {currentUser ? (
+            <button disabled={submitting} onClick={() => void logout()} type="button">
+              Выйти
+            </button>
+          ) : (
+            <button onClick={openAuth} type="button">
+              Регистрация
+            </button>
+          )}
+        </div>
+      </header>
 
       {message && <div className="notice">{message}</div>}
 
-      <section className="layout">
-        <div className="panel">
+      {page === 'home' && (
+        <>
+          <section className="hero">
+            <p className="eyebrow">TravelHub</p>
+            <h1>Планируйте поездку в пару кликов.</h1>
+            <p>Такси, отели и интересные места собраны в одном простом черновом интерфейсе.</p>
+          </section>
+
+          <section className="home-steps" aria-label="TravelHub services">
+            <button className="feature-card" onClick={() => setPage('taxi')} type="button">
+              <span className="feature-icon">T</span>
+              <strong>Бронь такси</strong>
+              <small>Выберите службу такси и посмотрите контакты для поездки.</small>
+            </button>
+
+            <button className="feature-card" onClick={() => setPage('hotels')} type="button">
+              <span className="feature-icon">H</span>
+              <strong>Бронь отеля</strong>
+              <small>Откройте отели, выберите номер и оформите бронирование.</small>
+            </button>
+
+            <button className="feature-card" onClick={() => setPage('places')} type="button">
+              <span className="feature-icon">P</span>
+              <strong>Интересные места</strong>
+              <small>Посмотрите города и места, которые стоит добавить в маршрут.</small>
+            </button>
+          </section>
+        </>
+      )}
+
+      {page === 'taxi' && (
+        <section className="page-section">
           <div className="section-title">
-            <h2>Hotels</h2>
-            <span>{loading ? 'Loading' : `${visibleHotels.length} available`}</span>
-          </div>
-
-          <div className="hotel-list">
-            {visibleHotels.map((hotel) => (
-              <button
-                className={`hotel-card ${selectedHotel?.id === hotel.id ? 'active' : ''}`}
-                key={hotel.id}
-                onClick={() => void selectHotel(hotel)}
-                type="button"
-              >
-                <img src={hotel.imageUrl || fallbackImage(hotel.name)} alt="" />
-                <span>
-                  <strong>{hotel.name}</strong>
-                  <small>
-                    {hotel.city} / from {formatMoney(hotel.pricePerNight)}
-                  </small>
-                </span>
-              </button>
-            ))}
-
-            {!loading && visibleHotels.length === 0 && <p className="empty">No hotels yet.</p>}
-          </div>
-        </div>
-
-        <div className="panel wide">
-          <div className="section-title">
-            <h2>{selectedHotel ? selectedHotel.name : 'Select a hotel'}</h2>
-            {selectedHotel && <span>{selectedHotel.city}</span>}
-          </div>
-
-          {selectedHotel ? (
-            <>
-              <p className="description">{selectedHotel.description || selectedHotel.address}</p>
-
-              <div className="rooms">
-                {rooms.map((room) => (
-                  <button
-                    className={`room-card ${selectedRoom?.id === room.id ? 'active' : ''}`}
-                    disabled={!room.isAvailable}
-                    key={room.id}
-                    onClick={() => setSelectedRoom(room)}
-                    type="button"
-                  >
-                    <img src={room.imageUrl || fallbackImage(room.roomType)} alt="" />
-                    <span>
-                      <strong>{room.roomType}</strong>
-                      <small>
-                        {room.capacity} guests / {room.totalRooms} rooms / {formatMoney(room.pricePerNight)}
-                      </small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {rooms.length === 0 && <p className="empty">No rooms for this hotel yet.</p>}
-
-              {selectedRoom && !booking && (
-                <form className="form-grid" onSubmit={(event) => void submitBooking(event)}>
-                  <h3>{selectedRoom.roomType} booking</h3>
-                  <input
-                    placeholder="Customer name"
-                    value={bookingForm.customerName}
-                    onChange={(event) => setBookingForm({ ...bookingForm, customerName: event.target.value })}
-                    required
-                  />
-                  <input
-                    placeholder="Phone number"
-                    value={bookingForm.phoneNumber}
-                    onChange={(event) => setBookingForm({ ...bookingForm, phoneNumber: event.target.value })}
-                    required
-                  />
-                  <input
-                    placeholder="Email"
-                    type="email"
-                    value={bookingForm.email}
-                    onChange={(event) => setBookingForm({ ...bookingForm, email: event.target.value })}
-                    required
-                  />
-                  <input
-                    type="date"
-                    value={bookingForm.checkInDate}
-                    onChange={(event) => setBookingForm({ ...bookingForm, checkInDate: event.target.value })}
-                    required
-                  />
-                  <input
-                    type="date"
-                    value={bookingForm.checkOutDate}
-                    onChange={(event) => setBookingForm({ ...bookingForm, checkOutDate: event.target.value })}
-                    required
-                  />
-                  <input
-                    min="1"
-                    placeholder="Guests"
-                    type="number"
-                    value={bookingForm.guestsCount}
-                    onChange={(event) => setBookingForm({ ...bookingForm, guestsCount: event.target.value })}
-                    required
-                  />
-                  <button className="primary" disabled={submitting} type="submit">
-                    Create booking
-                  </button>
-                </form>
-              )}
-
-              {booking && (
-                <div className="booking-box">
-                  <div>
-                    <p className="eyebrow">Booking #{booking.id}</p>
-                    <h3>{booking.status}</h3>
-                    <p>{formatMoney(booking.totalPrice)} total</p>
-                    {booking.savedCardLast4 && <p>Saved card: **** {booking.savedCardLast4}</p>}
-                  </div>
-
-                  {booking.status === 'PendingPayment' && (
-                    <form className="payment-form" onSubmit={(event) => void submitPayment(event)}>
-                      <input
-                        placeholder="Card number"
-                        value={paymentForm.cardNumber}
-                        onChange={(event) => setPaymentForm({ ...paymentForm, cardNumber: event.target.value })}
-                        required
-                      />
-                      <input
-                        placeholder="Card holder"
-                        value={paymentForm.cardHolderName}
-                        onChange={(event) => setPaymentForm({ ...paymentForm, cardHolderName: event.target.value })}
-                        required
-                      />
-                      <input
-                        min="1"
-                        max="12"
-                        placeholder="Month"
-                        type="number"
-                        value={paymentForm.expiryMonth}
-                        onChange={(event) => setPaymentForm({ ...paymentForm, expiryMonth: event.target.value })}
-                        required
-                      />
-                      <input
-                        min="2026"
-                        placeholder="Year"
-                        type="number"
-                        value={paymentForm.expiryYear}
-                        onChange={(event) => setPaymentForm({ ...paymentForm, expiryYear: event.target.value })}
-                        required
-                      />
-                      <input
-                        placeholder="CVV"
-                        value={paymentForm.cvv}
-                        onChange={(event) => setPaymentForm({ ...paymentForm, cvv: event.target.value })}
-                        required
-                      />
-                      <label className="checkbox">
-                        <input
-                          checked={paymentForm.saveCard}
-                          type="checkbox"
-                          onChange={(event) => setPaymentForm({ ...paymentForm, saveCard: event.target.checked })}
-                        />
-                        Save card last 4 digits
-                      </label>
-                      <button className="primary" disabled={submitting} type="submit">
-                        Pay now
-                      </button>
-                      <button disabled={submitting} onClick={() => void cancelBooking()} type="button">
-                        Cancel booking
-                      </button>
-                    </form>
-                  )}
-
-                  {booking.status !== 'PendingPayment' && (
-                    <button className="primary" onClick={resetFlow} type="button">
-                      New booking
-                    </button>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="empty">Choose a hotel to see rooms and booking options.</p>
-          )}
-        </div>
-
-        <div className="panel">
-          <div className="section-title">
-            <h2>Taxi</h2>
+            <div>
+              <p className="eyebrow">Taxi</p>
+              <h2>Бронь такси</h2>
+            </div>
             <span>{taxiServices.length} services</span>
           </div>
 
-          <div className="taxi-list">
+          <div className="card-grid">
             {taxiServices.map((taxi) => (
-              <article className="taxi-card" key={taxi.id}>
+              <article className="service-card" key={taxi.id}>
+                <img src={taxi.imageUrl || fallbackImage(taxi.companyName, 'taxi')} alt="" />
                 <strong>{taxi.companyName}</strong>
                 <span>{taxi.city}</span>
                 <small>
@@ -394,10 +348,288 @@ function App() {
               </article>
             ))}
 
-            {taxiServices.length === 0 && <p className="empty">No taxi services yet.</p>}
+            {!loading && taxiServices.length === 0 && <p className="empty">No taxi services yet.</p>}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {page === 'hotels' && (
+        <section className="hotel-page">
+          <aside className="panel">
+            <div className="section-title">
+              <div>
+                <p className="eyebrow">Hotels</p>
+                <h2>Бронь отеля</h2>
+              </div>
+              <span>{loading ? 'Loading' : `${visibleHotels.length} available`}</span>
+            </div>
+
+            <label className="filter">
+              City
+              <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}>
+                <option value="">All cities</option>
+                {cities.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="hotel-list">
+              {visibleHotels.map((hotel) => (
+                <button
+                  className={`hotel-card ${selectedHotel?.id === hotel.id ? 'active' : ''}`}
+                  key={hotel.id}
+                  onClick={() => void selectHotel(hotel)}
+                  type="button"
+                >
+                  <img src={hotel.imageUrl || fallbackImage(hotel.name, 'hotel')} alt="" />
+                  <span>
+                    <strong>{hotel.name}</strong>
+                    <small>
+                      {hotel.city} / from {formatMoney(hotel.pricePerNight)}
+                    </small>
+                  </span>
+                </button>
+              ))}
+
+              {!loading && visibleHotels.length === 0 && <p className="empty">No hotels yet.</p>}
+            </div>
+          </aside>
+
+          <section className="panel wide">
+            <div className="section-title">
+              <h2>{selectedHotel ? selectedHotel.name : 'Select a hotel'}</h2>
+              {selectedHotel && <span>{selectedHotel.city}</span>}
+            </div>
+
+            {selectedHotel ? (
+              <>
+                <img
+                  className="selected-hotel-image"
+                  src={selectedHotel.imageUrl || fallbackImage(selectedHotel.name, 'hotel')}
+                  alt=""
+                />
+                <p className="description">{selectedHotel.description || selectedHotel.address}</p>
+
+                <div className="rooms">
+                  {rooms.map((room) => (
+                    <button
+                      className={`room-card ${selectedRoom?.id === room.id ? 'active' : ''}`}
+                      disabled={!room.isAvailable}
+                      key={room.id}
+                      onClick={() => setSelectedRoom(room)}
+                      type="button"
+                    >
+                      <img src={room.imageUrl || fallbackImage(room.roomType, 'room')} alt="" />
+                      <span>
+                        <strong>{room.roomType}</strong>
+                        <small>
+                          {room.capacity} guests / {room.totalRooms} rooms / {formatMoney(room.pricePerNight)}
+                        </small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {rooms.length === 0 && <p className="empty">No rooms for this hotel yet.</p>}
+
+                {selectedRoom && !booking && (
+                  <form className="form-grid" onSubmit={(event) => void submitBooking(event)}>
+                    <h3>{selectedRoom.roomType} booking</h3>
+                    <input
+                      placeholder="Customer name"
+                      value={bookingForm.customerName}
+                      onChange={(event) => setBookingForm({ ...bookingForm, customerName: event.target.value })}
+                      required
+                    />
+                    <input
+                      placeholder="Phone number"
+                      value={bookingForm.phoneNumber}
+                      onChange={(event) => setBookingForm({ ...bookingForm, phoneNumber: event.target.value })}
+                      required
+                    />
+                    <input
+                      placeholder="Email"
+                      type="email"
+                      value={bookingForm.email}
+                      onChange={(event) => setBookingForm({ ...bookingForm, email: event.target.value })}
+                      required
+                    />
+                    <input
+                      type="date"
+                      value={bookingForm.checkInDate}
+                      onChange={(event) => setBookingForm({ ...bookingForm, checkInDate: event.target.value })}
+                      required
+                    />
+                    <input
+                      type="date"
+                      value={bookingForm.checkOutDate}
+                      onChange={(event) => setBookingForm({ ...bookingForm, checkOutDate: event.target.value })}
+                      required
+                    />
+                    <input
+                      min="1"
+                      placeholder="Guests"
+                      type="number"
+                      value={bookingForm.guestsCount}
+                      onChange={(event) => setBookingForm({ ...bookingForm, guestsCount: event.target.value })}
+                      required
+                    />
+                    <button className="primary" disabled={submitting} type="submit">
+                      Create booking
+                    </button>
+                  </form>
+                )}
+
+                {booking && (
+                  <div className="booking-box">
+                    <div>
+                      <p className="eyebrow">Booking #{booking.id}</p>
+                      <h3>{booking.status}</h3>
+                      <p>{formatMoney(booking.totalPrice)} total</p>
+                      {booking.savedCardLast4 && <p>Saved card: **** {booking.savedCardLast4}</p>}
+                    </div>
+
+                    {booking.status === 'PendingPayment' && (
+                      <form className="payment-form" onSubmit={(event) => void submitPayment(event)}>
+                        <input
+                          placeholder="Card number"
+                          value={paymentForm.cardNumber}
+                          onChange={(event) => setPaymentForm({ ...paymentForm, cardNumber: event.target.value })}
+                          required
+                        />
+                        <input
+                          placeholder="Card holder"
+                          value={paymentForm.cardHolderName}
+                          onChange={(event) => setPaymentForm({ ...paymentForm, cardHolderName: event.target.value })}
+                          required
+                        />
+                        <input
+                          min="1"
+                          max="12"
+                          placeholder="Month"
+                          type="number"
+                          value={paymentForm.expiryMonth}
+                          onChange={(event) => setPaymentForm({ ...paymentForm, expiryMonth: event.target.value })}
+                          required
+                        />
+                        <input
+                          min="2026"
+                          placeholder="Year"
+                          type="number"
+                          value={paymentForm.expiryYear}
+                          onChange={(event) => setPaymentForm({ ...paymentForm, expiryYear: event.target.value })}
+                          required
+                        />
+                        <input
+                          placeholder="CVV"
+                          value={paymentForm.cvv}
+                          onChange={(event) => setPaymentForm({ ...paymentForm, cvv: event.target.value })}
+                          required
+                        />
+                        <label className="checkbox">
+                          <input
+                            checked={paymentForm.saveCard}
+                            type="checkbox"
+                            onChange={(event) => setPaymentForm({ ...paymentForm, saveCard: event.target.checked })}
+                          />
+                          Save card last 4 digits
+                        </label>
+                        <button className="primary" disabled={submitting} type="submit">
+                          Pay now
+                        </button>
+                        <button disabled={submitting} onClick={() => void cancelBooking()} type="button">
+                          Cancel booking
+                        </button>
+                      </form>
+                    )}
+
+                    {booking.status !== 'PendingPayment' && (
+                      <button className="primary" onClick={resetFlow} type="button">
+                        New booking
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="empty">Choose a hotel to see rooms and booking options.</p>
+            )}
+          </section>
+        </section>
+      )}
+
+      {page === 'places' && (
+        <section className="page-section">
+          <div className="section-title">
+            <div>
+              <p className="eyebrow">Places</p>
+              <h2>Интересные места</h2>
+            </div>
+            <span>{places.length} places</span>
+          </div>
+
+          <div className="card-grid">
+            {places.map((place) => (
+              <article className="service-card" key={place.id}>
+                <img src={place.imageUrl || fallbackImage(place.name, 'azerbaijan landmark')} alt="" />
+                <strong>{place.name}</strong>
+                <span>{place.city}</span>
+                <small>{place.description}</small>
+              </article>
+            ))}
+
+            {!loading && places.length === 0 && <p className="empty">No places yet.</p>}
+          </div>
+        </section>
+      )}
+
+      {page === 'auth' && (
+        <section className="auth-page">
+          <div className="auth-panel">
+            <p className="eyebrow">Account</p>
+            <h2>{authMode === 'register' ? 'Регистрация' : 'Вход'}</h2>
+
+            <form className="auth-form" onSubmit={(event) => void submitAuth(event)}>
+              {authMode === 'register' && (
+                <input
+                  placeholder="Name"
+                  value={authForm.name}
+                  onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })}
+                  required
+                />
+              )}
+              <input
+                placeholder="Email"
+                type="email"
+                value={authForm.email}
+                onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
+                required
+              />
+              <input
+                minLength={6}
+                placeholder="Password"
+                type="password"
+                value={authForm.password}
+                onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
+                required
+              />
+              <button className="primary" disabled={submitting} type="submit">
+                {authMode === 'register' ? 'Register' : 'Login'}
+              </button>
+              <button
+                className="link-button"
+                type="button"
+                onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
+              >
+                {authMode === 'register' ? 'Use existing account' : 'Create account'}
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
     </main>
   );
 }
@@ -410,8 +642,8 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
-function fallbackImage(seed: string) {
-  return `https://source.unsplash.com/640x420/?hotel,travel&sig=${encodeURIComponent(seed)}`;
+function fallbackImage(seed: string, topic = 'travel') {
+  return `https://source.unsplash.com/640x420/?${encodeURIComponent(topic)}&sig=${encodeURIComponent(seed)}`;
 }
 
 function delay(ms: number) {

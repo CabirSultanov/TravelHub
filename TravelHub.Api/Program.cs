@@ -1,9 +1,14 @@
-using Microsoft.Data.SqlClient;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
+using TravelHub.Api.Models;
 using TravelHub.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -14,8 +19,37 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 builder.Services.AddHostedService<CancelledBookingCleanupService>();
+builder.Services.AddScoped<PasswordHasher<AppUser>>();
 
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("LocalClient", policy =>
+        policy
+            .WithOrigins("http://localhost:5173", "https://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
+});
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "TravelHub.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
+builder.Services.AddAuthorization();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -23,30 +57,45 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await BaselineExistingPlacesMigrationAsync(db);
-    await db.Database.MigrateAsync();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await BaselineExistingPlacesMigrationAsync(db);
+        await db.Database.MigrateAsync();
+        await SeedDemoDataAsync(db);
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher<AppUser>>();
+        await SeedSuperAdminAsync(db, passwordHasher, app.Configuration);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogCritical(ex, "Database startup failed.");
+        Environment.ExitCode = 1;
+        return;
+    }
 }
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseCors("LocalClient");
 }
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .WithName("GetHealth")
     .WithOpenApi();
 
-app.MapGet("/health/db", async () =>
+app.MapGet("/health/db", async (AppDbContext db) =>
 {
-    await using var connection = new SqlConnection(connectionString);
-    await connection.OpenAsync();
+    if (!await db.Database.CanConnectAsync())
+    {
+        return Results.Problem("Database is not connected.");
+    }
 
-    await using var command = new SqlCommand("SELECT 1", connection);
-    var result = await command.ExecuteScalarAsync();
-
-    return Results.Ok(new { status = "ok", database = "connected", result });
+    return Results.Ok(new { status = "ok", database = "connected" });
 })
     .WithName("GetDatabaseHealth")
     .WithOpenApi();
@@ -78,4 +127,132 @@ BEGIN
     VALUES (N'20260703143000_InitialCreate', N'8.0.3');
 END;
 """);
+}
+
+static async Task SeedDemoDataAsync(AppDbContext db)
+{
+    var bakuHotel = await AddHotelAsync(
+        "Baku Grand Hotel",
+        "Baku",
+        "Neftchilar Avenue 12",
+        180,
+        "Central hotel near Baku Boulevard.",
+        "https://placehold.co/600x400?text=Baku+Grand+Hotel");
+
+    var shahdagHotel = await AddHotelAsync(
+        "Shahdag Mountain Resort",
+        "Shahdag",
+        "Shahdag Tourism Complex",
+        220,
+        "Mountain resort close to ski lifts.",
+        "https://placehold.co/600x400?text=Shahdag+Resort");
+
+    await AddRoomAsync(bakuHotel.Id, "Standard Double", 2, 8, 120, "Comfortable room for two guests.", "https://placehold.co/600x400?text=Standard+Double");
+    await AddRoomAsync(bakuHotel.Id, "Family Suite", 4, 4, 210, "Two-room suite for families.", "https://placehold.co/600x400?text=Family+Suite");
+    await AddRoomAsync(shahdagHotel.Id, "Mountain View Double", 2, 6, 160, "Room with mountain view.", "https://placehold.co/600x400?text=Mountain+View");
+    await AddRoomAsync(shahdagHotel.Id, "Chalet Suite", 5, 3, 280, "Large suite for groups and families.", "https://placehold.co/600x400?text=Chalet+Suite");
+
+    await AddTaxiServiceAsync("Baku City Taxi", "Baku", "+994501112233", 0.8m, "Airport and city transfers.", "https://placehold.co/600x400?text=Baku+Taxi");
+    await AddTaxiServiceAsync("Shahdag Transfer", "Shahdag", "+994552223344", 1.2m, "Transfers between Baku and Shahdag.", "https://placehold.co/600x400?text=Shahdag+Transfer");
+
+    await db.SaveChangesAsync();
+
+    async Task<Hotel> AddHotelAsync(string name, string city, string address, decimal price, string description, string imageUrl)
+    {
+        var hotel = await db.Hotels.FirstOrDefaultAsync(hotel => hotel.Name == name);
+
+        if (hotel is not null)
+        {
+            return hotel;
+        }
+
+        hotel = new Hotel
+        {
+            Name = name,
+            City = city,
+            Address = address,
+            PricePerNight = price,
+            Description = description,
+            ImageUrl = imageUrl
+        };
+
+        db.Hotels.Add(hotel);
+        await db.SaveChangesAsync();
+        return hotel;
+    }
+
+    async Task AddRoomAsync(int hotelId, string roomType, int capacity, int totalRooms, decimal price, string description, string imageUrl)
+    {
+        if (await db.HotelRooms.AnyAsync(room => room.HotelId == hotelId && room.RoomType == roomType))
+        {
+            return;
+        }
+
+        db.HotelRooms.Add(new HotelRoom
+        {
+            HotelId = hotelId,
+            RoomType = roomType,
+            Capacity = capacity,
+            TotalRooms = totalRooms,
+            PricePerNight = price,
+            Description = description,
+            ImageUrl = imageUrl,
+            IsAvailable = true
+        });
+    }
+
+    async Task AddTaxiServiceAsync(string companyName, string city, string phoneNumber, decimal pricePerKm, string description, string imageUrl)
+    {
+        if (await db.TaxiServices.AnyAsync(taxiService => taxiService.CompanyName == companyName))
+        {
+            return;
+        }
+
+        db.TaxiServices.Add(new TaxiService
+        {
+            CompanyName = companyName,
+            City = city,
+            PhoneNumber = phoneNumber,
+            PricePerKm = pricePerKm,
+            Description = description,
+            ImageUrl = imageUrl
+        });
+    }
+}
+
+static async Task SeedSuperAdminAsync(AppDbContext db, PasswordHasher<AppUser> passwordHasher, IConfiguration configuration)
+{
+    if (await db.Users.AnyAsync(user => user.Role == UserRoles.SuperAdmin))
+    {
+        return;
+    }
+
+    var section = configuration.GetSection("SeedSuperAdmin");
+    var email = section["Email"]?.Trim().ToLowerInvariant();
+    var password = section["Password"];
+
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+    {
+        return;
+    }
+
+    var user = await db.Users.FirstOrDefaultAsync(user => user.Email == email);
+
+    if (user is null)
+    {
+        user = new AppUser
+        {
+            Name = string.IsNullOrWhiteSpace(section["Name"]) ? "Super Admin" : section["Name"]!.Trim(),
+            Email = email,
+            Role = UserRoles.SuperAdmin
+        };
+        user.PasswordHash = passwordHasher.HashPassword(user, password);
+        db.Users.Add(user);
+    }
+    else
+    {
+        user.Role = UserRoles.SuperAdmin;
+    }
+
+    await db.SaveChangesAsync();
 }

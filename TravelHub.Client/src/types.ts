@@ -1,3 +1,23 @@
+export type UserRole = 'User' | 'Admin' | 'SuperAdmin';
+
+export type AuthUser = {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+};
+
+export type RegisterRequest = {
+  name: string;
+  email: string;
+  password: string;
+};
+
+export type LoginRequest = {
+  email: string;
+  password: string;
+};
+
 export type Hotel = {
   id: number;
   name: string;
@@ -30,8 +50,17 @@ export type TaxiService = {
   imageUrl?: string | null;
 };
 
+export type Place = {
+  id: number;
+  name: string;
+  city: string;
+  description: string;
+  imageUrl?: string | null;
+};
+
 export type Booking = {
   id: number;
+  userId?: number | null;
   hotelRoomId: number;
   hotelId: number;
   roomType: string;

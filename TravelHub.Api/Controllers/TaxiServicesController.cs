@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
@@ -29,6 +30,7 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
         return taxiService;
     }
 
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpPost]
     public async Task<ActionResult<TaxiService>> CreateTaxiService(TaxiServiceCreateDto taxiServiceDto)
     {
@@ -60,6 +62,7 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetTaxiService), new { id = taxiService.Id }, taxiService);
     }
 
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateTaxiService(int id, TaxiServiceUpdateDto taxiServiceDto)
     {
@@ -94,6 +97,7 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteTaxiService(int id)
     {

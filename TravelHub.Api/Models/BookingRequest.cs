@@ -7,6 +7,10 @@ public class BookingRequest
 {
     public int Id { get; set; }
 
+    public int? UserId { get; set; }
+
+    public AppUser? User { get; set; }
+
     public int HotelRoomId { get; set; }
 
     public HotelRoom HotelRoom { get; set; } = null!;

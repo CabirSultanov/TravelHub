@@ -1,8 +1,20 @@
-import type { Booking, BookingCreate, BookingPayment, Hotel, HotelRoom, TaxiService } from './types';
+import type {
+  AuthUser,
+  Booking,
+  BookingCreate,
+  BookingPayment,
+  Hotel,
+  HotelRoom,
+  LoginRequest,
+  Place,
+  RegisterRequest,
+  TaxiService,
+} from './types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...init?.headers,
@@ -22,9 +34,25 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  register: (account: RegisterRequest) =>
+    request<AuthUser>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(account),
+    }),
+  login: (account: LoginRequest) =>
+    request<AuthUser>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(account),
+    }),
+  logout: () =>
+    request<void>('/api/auth/logout', {
+      method: 'POST',
+    }),
+  getMe: () => request<AuthUser>('/api/auth/me'),
   getHotels: () => request<Hotel[]>('/api/hotels'),
   getHotelRooms: (hotelId: number) => request<HotelRoom[]>(`/api/hotel-rooms?hotelId=${hotelId}`),
   getTaxiServices: () => request<TaxiService[]>('/api/taxi-services'),
+  getPlaces: () => request<Place[]>('/api/places'),
   createBooking: (booking: BookingCreate) =>
     request<Booking>('/api/booking-requests', {
       method: 'POST',

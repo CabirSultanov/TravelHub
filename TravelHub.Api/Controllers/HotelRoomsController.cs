@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
@@ -61,6 +62,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return room;
     }
 
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpPost]
     public async Task<ActionResult<HotelRoomResponseDto>> CreateHotelRoom(HotelRoomCreateDto roomDto)
     {
@@ -114,6 +116,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetHotelRoom), new { id = room.Id }, ToResponse(room));
     }
 
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateHotelRoom(int id, HotelRoomUpdateDto roomDto)
     {
@@ -170,6 +173,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteHotelRoom(int id)
     {
