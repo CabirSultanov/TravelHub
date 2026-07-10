@@ -5,6 +5,7 @@ export type AuthUser = {
   name: string;
   email: string;
   role: UserRole;
+  isBlocked: boolean;
 };
 
 export type RegisterRequest = {

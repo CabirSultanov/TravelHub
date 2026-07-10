@@ -14,16 +14,21 @@ namespace TravelHub.Api.Controllers;
 public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordHasher) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<AuthUserDto>>> GetAdmins()
+    public async Task<ActionResult<List<AuthUserDto>>> GetAdmins(string? role)
     {
+        var targetRole = string.Equals(role, UserRoles.User, StringComparison.OrdinalIgnoreCase)
+            ? UserRoles.User
+            : UserRoles.Admin;
+
         return await db.Users.AsNoTracking()
-            .Where(user => user.Role == UserRoles.Admin)
+            .Where(user => user.Role == targetRole)
             .Select(user => new AuthUserDto
             {
                 Id = user.Id,
                 Name = user.Name,
                 Email = user.Email,
-                Role = user.Role
+                Role = user.Role,
+                IsBlocked = user.IsBlocked
             })
             .ToListAsync();
     }
@@ -55,6 +60,48 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
         await db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetAdmins), AuthController.ToDto(user));
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<AuthUserDto>> PromoteUser(int id)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(user => user.Id == id);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (user.Role == UserRoles.SuperAdmin)
+        {
+            return BadRequest("Super admin is already above admin.");
+        }
+
+        user.Role = UserRoles.Admin;
+        await db.SaveChangesAsync();
+
+        return AuthController.ToDto(user);
+    }
+
+    [HttpPut("{id:int}/block")]
+    public async Task<ActionResult<AuthUserDto>> BlockUser(int id)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(user => user.Id == id);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (user.Role == UserRoles.SuperAdmin)
+        {
+            return BadRequest("Super admin cannot be blocked.");
+        }
+
+        user.IsBlocked = true;
+        await db.SaveChangesAsync();
+
+        return AuthController.ToDto(user);
     }
 
     [HttpDelete("{id:int}")]

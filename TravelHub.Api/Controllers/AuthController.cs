@@ -56,6 +56,11 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
             return Unauthorized("Invalid email or password.");
         }
 
+        if (user.IsBlocked)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, "User is blocked.");
+        }
+
         var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
 
         if (result == PasswordVerificationResult.Failed)
@@ -88,7 +93,7 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
 
         var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(user => user.Id == userId.Value);
 
-        if (user is null)
+        if (user is null || user.IsBlocked)
         {
             return Unauthorized();
         }
@@ -144,6 +149,7 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
         Id = user.Id,
         Name = user.Name,
         Email = user.Email,
-        Role = user.Role
+        Role = user.Role,
+        IsBlocked = user.IsBlocked
     };
 }

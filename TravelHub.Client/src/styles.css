@@ -290,7 +290,8 @@ button:focus-visible {
 
 .card-grid,
 .hotel-list,
-.rooms {
+.rooms,
+.user-list {
   display: grid;
   gap: 14px;
 }
@@ -363,6 +364,52 @@ button:focus-visible {
 .service-card span,
 .service-card small {
   margin-inline: 16px;
+}
+
+.user-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.user-row span {
+  display: grid;
+  gap: 4px;
+}
+
+.user-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
+.user-actions button {
+  min-height: 40px;
+  border-radius: 8px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: #1f7a8c;
+  font-weight: 800;
+}
+
+.profile-info {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-info span {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+  background: #f8fbfd;
 }
 
 .selected-hotel-image {
@@ -505,6 +552,15 @@ small {
 
   .site-nav {
     flex-wrap: wrap;
+  }
+
+  .user-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .user-actions {
+    justify-content: stretch;
   }
 
   .form-grid,

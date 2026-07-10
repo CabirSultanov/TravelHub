@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -61,7 +63,9 @@ using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await BaselineExistingPlacesMigrationAsync(db);
+        await EnsureUserBlockingColumnAsync(db);
         await db.Database.MigrateAsync();
+        await EnsureUserBlockingColumnAsync(db);
         await SeedDemoDataAsync(db);
         var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher<AppUser>>();
         await SeedSuperAdminAsync(db, passwordHasher, app.Configuration);
@@ -82,6 +86,28 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated == true)
+    {
+        var value = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (int.TryParse(value, out var userId))
+        {
+            var db = context.RequestServices.GetRequiredService<AppDbContext>();
+            var isBlocked = await db.Users.AsNoTracking().AnyAsync(user => user.Id == userId && user.IsBlocked);
+
+            if (isBlocked)
+            {
+                await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+        }
+    }
+
+    await next();
+});
 app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
@@ -125,6 +151,31 @@ IF OBJECT_ID(N'[dbo].[Places]', N'U') IS NOT NULL
 BEGIN
     INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20260703143000_InitialCreate', N'8.0.3');
+END;
+""");
+}
+
+static async Task EnsureUserBlockingColumnAsync(AppDbContext db)
+{
+    await db.Database.ExecuteSqlRawAsync("""
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
+    AND COL_LENGTH(N'[dbo].[Users]', N'IsBlocked') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Users]
+    ADD [IsBlocked] bit NOT NULL
+        CONSTRAINT [DF_Users_IsBlocked] DEFAULT CAST(0 AS bit);
+END;
+
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
+    AND COL_LENGTH(N'[dbo].[Users]', N'IsBlocked') IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM [dbo].[__EFMigrationsHistory]
+        WHERE [MigrationId] = N'20260710151000_AddUserBlocking'
+    )
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260710151000_AddUserBlocking', N'8.0.3');
 END;
 """);
 }

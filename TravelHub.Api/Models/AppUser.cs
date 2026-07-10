@@ -21,5 +21,7 @@ public class AppUser
     [MaxLength(30)]
     public string Role { get; set; } = UserRoles.User;
 
+    public bool IsBlocked { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

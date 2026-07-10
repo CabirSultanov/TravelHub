@@ -16,7 +16,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },
   });
@@ -49,6 +49,20 @@ export const api = {
       method: 'POST',
     }),
   getMe: () => request<AuthUser>('/api/auth/me'),
+  getAdmins: () => request<AuthUser[]>('/api/admins'),
+  getAdminCandidates: () => request<AuthUser[]>('/api/admins?role=User'),
+  promoteUserToAdmin: (userId: number) =>
+    request<AuthUser>(`/api/admins/${userId}`, {
+      method: 'PUT',
+    }),
+  demoteAdminToUser: (userId: number) =>
+    request<void>(`/api/admins/${userId}`, {
+      method: 'DELETE',
+    }),
+  blockUser: (userId: number) =>
+    request<AuthUser>(`/api/admins/${userId}/block`, {
+      method: 'PUT',
+    }),
   getHotels: () => request<Hotel[]>('/api/hotels'),
   getHotelRooms: (hotelId: number) => request<HotelRoom[]>(`/api/hotel-rooms?hotelId=${hotelId}`),
   getTaxiServices: () => request<TaxiService[]>('/api/taxi-services'),

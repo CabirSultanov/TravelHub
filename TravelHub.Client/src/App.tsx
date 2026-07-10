@@ -11,7 +11,7 @@ import type {
   TaxiService,
 } from './types';
 
-type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth';
+type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth' | 'admin' | 'profile';
 type AuthMode = 'login' | 'register';
 
 type BookingForm = Omit<BookingCreate, 'hotelRoomId' | 'guestsCount'> & {
@@ -63,6 +63,8 @@ function App() {
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
   const [taxiServices, setTaxiServices] = useState<TaxiService[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
+  const [admins, setAdmins] = useState<AuthUser[]>([]);
+  const [adminCandidates, setAdminCandidates] = useState<AuthUser[]>([]);
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -96,6 +98,14 @@ function App() {
     void loadInitialData();
     void api.getMe().then(setCurrentUser).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (page !== 'admin' || currentUser?.role !== 'SuperAdmin') {
+      return;
+    }
+
+    void loadAdminLists();
+  }, [currentUser?.role, page]);
 
   const cities = useMemo(() => {
     return Array.from(new Set(hotels.map((hotel) => hotel.city))).sort((a, b) => a.localeCompare(b));
@@ -247,6 +257,69 @@ function App() {
     setMessage('');
   }
 
+  async function loadAdminLists() {
+    try {
+      const [adminData, userData] = await Promise.all([api.getAdmins(), api.getAdminCandidates()]);
+      setAdmins(adminData);
+      setAdminCandidates(userData);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function promoteToAdmin(userId: number) {
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const admin = await api.promoteUserToAdmin(userId);
+      setAdminCandidates(adminCandidates.filter((user) => user.id !== userId));
+      setAdmins([...admins, admin]);
+      setMessage('User promoted to admin.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function demoteAdmin(userId: number) {
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      await api.demoteAdminToUser(userId);
+      const admin = admins.find((user) => user.id === userId);
+      setAdmins(admins.filter((user) => user.id !== userId));
+
+      if (admin) {
+        setAdminCandidates([...adminCandidates, { ...admin, role: 'User' }]);
+      }
+
+      setMessage('Admin demoted to user.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function blockUser(userId: number) {
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const blockedUser = await api.blockUser(userId);
+      setAdmins(admins.map((user) => (user.id === userId ? blockedUser : user)));
+      setAdminCandidates(adminCandidates.map((user) => (user.id === userId ? blockedUser : user)));
+      setMessage('User blocked.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function resetFlow() {
     setSelectedRoom(null);
     setBooking(null);
@@ -264,31 +337,41 @@ function App() {
 
         {page !== 'home' && (
           <button className="back-home" onClick={() => setPage('home')} type="button">
-            Назад
+            Back
           </button>
         )}
 
         <nav className="site-nav">
           <button className={page === 'taxi' ? 'active' : ''} onClick={() => setPage('taxi')} type="button">
-            Такси
+            Taxi
           </button>
           <button className={page === 'hotels' ? 'active' : ''} onClick={() => setPage('hotels')} type="button">
-            Отели
+            Hotels
           </button>
           <button className={page === 'places' ? 'active' : ''} onClick={() => setPage('places')} type="button">
-            Места
+            Places
           </button>
+          {currentUser?.role === 'SuperAdmin' && (
+            <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} type="button">
+              Admin
+            </button>
+          )}
         </nav>
 
         <div className="header-actions">
           {currentUser && <span>{currentUser.name}</span>}
           {currentUser ? (
-            <button disabled={submitting} onClick={() => void logout()} type="button">
-              Выйти
-            </button>
+            <>
+              <button onClick={() => setPage('profile')} type="button">
+                Profile
+              </button>
+              <button disabled={submitting} onClick={() => void logout()} type="button">
+                Log out
+              </button>
+            </>
           ) : (
             <button onClick={openAuth} type="button">
-              Регистрация
+              Register
             </button>
           )}
         </div>
@@ -300,27 +383,27 @@ function App() {
         <>
           <section className="hero">
             <p className="eyebrow">TravelHub</p>
-            <h1>Планируйте поездку в пару кликов.</h1>
-            <p>Такси, отели и интересные места собраны в одном простом черновом интерфейсе.</p>
+            <h1>Plan your trip in a few clicks.</h1>
+            <p>Taxi, hotels, and interesting places are gathered in one simple draft interface.</p>
           </section>
 
           <section className="home-steps" aria-label="TravelHub services">
             <button className="feature-card" onClick={() => setPage('taxi')} type="button">
               <span className="feature-icon">T</span>
-              <strong>Бронь такси</strong>
-              <small>Выберите службу такси и посмотрите контакты для поездки.</small>
+              <strong>Taxi booking</strong>
+              <small>Choose a taxi service and view contacts for your trip.</small>
             </button>
 
             <button className="feature-card" onClick={() => setPage('hotels')} type="button">
               <span className="feature-icon">H</span>
-              <strong>Бронь отеля</strong>
-              <small>Откройте отели, выберите номер и оформите бронирование.</small>
+              <strong>Hotel booking</strong>
+              <small>Open hotels, choose a room, and create a booking.</small>
             </button>
 
             <button className="feature-card" onClick={() => setPage('places')} type="button">
               <span className="feature-icon">P</span>
-              <strong>Интересные места</strong>
-              <small>Посмотрите города и места, которые стоит добавить в маршрут.</small>
+              <strong>Interesting places</strong>
+              <small>View cities and places worth adding to your route.</small>
             </button>
           </section>
         </>
@@ -331,7 +414,7 @@ function App() {
           <div className="section-title">
             <div>
               <p className="eyebrow">Taxi</p>
-              <h2>Бронь такси</h2>
+              <h2>Taxi booking</h2>
             </div>
             <span>{taxiServices.length} services</span>
           </div>
@@ -359,7 +442,7 @@ function App() {
             <div className="section-title">
               <div>
                 <p className="eyebrow">Hotels</p>
-                <h2>Бронь отеля</h2>
+                <h2>Hotel booking</h2>
               </div>
               <span>{loading ? 'Loading' : `${visibleHotels.length} available`}</span>
             </div>
@@ -566,7 +649,7 @@ function App() {
           <div className="section-title">
             <div>
               <p className="eyebrow">Places</p>
-              <h2>Интересные места</h2>
+              <h2>Interesting places</h2>
             </div>
             <span>{places.length} places</span>
           </div>
@@ -590,7 +673,7 @@ function App() {
         <section className="auth-page">
           <div className="auth-panel">
             <p className="eyebrow">Account</p>
-            <h2>{authMode === 'register' ? 'Регистрация' : 'Вход'}</h2>
+            <h2>{authMode === 'register' ? 'Register' : 'Login'}</h2>
 
             <form className="auth-form" onSubmit={(event) => void submitAuth(event)}>
               {authMode === 'register' && (
@@ -627,6 +710,85 @@ function App() {
                 {authMode === 'register' ? 'Use existing account' : 'Create account'}
               </button>
             </form>
+          </div>
+        </section>
+      )}
+
+      {page === 'profile' && currentUser && (
+        <section className="auth-page">
+          <div className="auth-panel">
+            <p className="eyebrow">Profile</p>
+            <h2>Profile</h2>
+            <div className="profile-info">
+              <span>
+                <strong>Name</strong>
+                {currentUser.name}
+              </span>
+              <span>
+                <strong>Email</strong>
+                {currentUser.email}
+              </span>
+              <span>
+                <strong>Role</strong>
+                {currentUser.role}
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {page === 'admin' && currentUser?.role === 'SuperAdmin' && (
+        <section className="page-section">
+          <div className="section-title">
+            <div>
+              <p className="eyebrow">Super Admin</p>
+              <h2>User management</h2>
+            </div>
+            <span>{admins.length} admins / {adminCandidates.length} users</span>
+          </div>
+
+          <h3>Admins</h3>
+          <div className="user-list">
+            {admins.map((user) => (
+              <article className="user-row" key={user.id}>
+                <span>
+                  <strong>{user.name}</strong>
+                  <small>{user.email}{user.isBlocked ? ' / blocked' : ''}</small>
+                </span>
+                <div className="user-actions">
+                  <button disabled={submitting} onClick={() => void demoteAdmin(user.id)} type="button">
+                    Demote
+                  </button>
+                  <button disabled={submitting || user.isBlocked} onClick={() => void blockUser(user.id)} type="button">
+                    Block
+                  </button>
+                </div>
+              </article>
+            ))}
+
+            {admins.length === 0 && <p className="empty">No admins yet.</p>}
+          </div>
+
+          <h3>Regular users</h3>
+          <div className="user-list">
+            {adminCandidates.map((user) => (
+              <article className="user-row" key={user.id}>
+                <span>
+                  <strong>{user.name}</strong>
+                  <small>{user.email}{user.isBlocked ? ' / blocked' : ''}</small>
+                </span>
+                <div className="user-actions">
+                  <button disabled={submitting || user.isBlocked} onClick={() => void promoteToAdmin(user.id)} type="button">
+                    Make admin
+                  </button>
+                  <button disabled={submitting || user.isBlocked} onClick={() => void blockUser(user.id)} type="button">
+                    Block
+                  </button>
+                </div>
+              </article>
+            ))}
+
+            {adminCandidates.length === 0 && <p className="empty">No regular users yet.</p>}
           </div>
         </section>
       )}
