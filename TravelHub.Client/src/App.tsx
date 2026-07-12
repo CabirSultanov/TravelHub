@@ -9,6 +9,7 @@ import type {
   HotelRoom,
   Place,
   TaxiService,
+  TaxiServiceInput,
 } from './types';
 
 type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth' | 'admin' | 'profile';
@@ -27,6 +28,10 @@ type AuthForm = {
   name: string;
   email: string;
   password: string;
+};
+
+type TaxiForm = Omit<TaxiServiceInput, 'pricePerKm'> & {
+  pricePerKm: string;
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -56,6 +61,15 @@ const emptyAuthForm: AuthForm = {
   password: '',
 };
 
+const emptyTaxiForm: TaxiForm = {
+  companyName: '',
+  city: '',
+  phoneNumber: '',
+  pricePerKm: '',
+  description: '',
+  imageUrl: '',
+};
+
 function App() {
   const [page, setPage] = useState<Page>('home');
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -70,6 +84,8 @@ function App() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('register');
   const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
+  const [taxiForm, setTaxiForm] = useState<TaxiForm>(emptyTaxiForm);
+  const [editingTaxiId, setEditingTaxiId] = useState<number | null>(null);
   const [bookingForm, setBookingForm] = useState<BookingForm>(emptyBookingForm);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [cityFilter, setCityFilter] = useState('');
@@ -119,6 +135,8 @@ function App() {
     return hotels.filter((hotel) => hotel.city === cityFilter);
   }, [cityFilter, hotels]);
 
+  const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+
   async function selectHotel(hotel: Hotel) {
     setSelectedHotel(hotel);
     setSelectedRoom(null);
@@ -130,6 +148,84 @@ function App() {
       setRooms(await api.getHotelRooms(hotel.id));
     } catch (error) {
       setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function submitTaxiService(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canManageTaxi) {
+      return;
+    }
+
+    const taxiService = {
+      ...taxiForm,
+      companyName: taxiForm.companyName.trim(),
+      city: taxiForm.city.trim(),
+      phoneNumber: taxiForm.phoneNumber.trim(),
+      pricePerKm: Number(taxiForm.pricePerKm),
+      description: taxiForm.description.trim(),
+      imageUrl: taxiForm.imageUrl?.trim() || null,
+    };
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      if (editingTaxiId) {
+        await api.updateTaxiService(editingTaxiId, taxiService);
+        setTaxiServices(taxiServices.map((taxi) => (taxi.id === editingTaxiId ? { ...taxiService, id: editingTaxiId } : taxi)));
+        setMessage('Taxi service updated.');
+      } else {
+        const createdTaxiService = await api.createTaxiService(taxiService);
+        setTaxiServices([...taxiServices, createdTaxiService]);
+        setMessage('Taxi service created.');
+      }
+
+      setTaxiForm(emptyTaxiForm);
+      setEditingTaxiId(null);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function editTaxiService(taxiService: TaxiService) {
+    setEditingTaxiId(taxiService.id);
+    setTaxiForm({
+      companyName: taxiService.companyName,
+      city: taxiService.city,
+      phoneNumber: taxiService.phoneNumber,
+      pricePerKm: String(taxiService.pricePerKm),
+      description: taxiService.description,
+      imageUrl: taxiService.imageUrl || '',
+    });
+    setMessage('');
+  }
+
+  async function deleteTaxiService(taxiServiceId: number) {
+    if (!canManageTaxi) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      await api.deleteTaxiService(taxiServiceId);
+      setTaxiServices(taxiServices.filter((taxi) => taxi.id !== taxiServiceId));
+
+      if (editingTaxiId === taxiServiceId) {
+        setTaxiForm(emptyTaxiForm);
+        setEditingTaxiId(null);
+      }
+
+      setMessage('Taxi service deleted.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -320,6 +416,38 @@ function App() {
     }
   }
 
+  async function unblockUser(userId: number) {
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const unblockedUser = await api.unblockUser(userId);
+      setAdmins(admins.map((user) => (user.id === userId ? unblockedUser : user)));
+      setAdminCandidates(adminCandidates.map((user) => (user.id === userId ? unblockedUser : user)));
+      setMessage('User unblocked.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteAccount(userId: number) {
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      await api.deleteAccount(userId);
+      setAdmins(admins.filter((user) => user.id !== userId));
+      setAdminCandidates(adminCandidates.filter((user) => user.id !== userId));
+      setMessage('Account deleted.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function resetFlow() {
     setSelectedRoom(null);
     setBooking(null);
@@ -419,6 +547,65 @@ function App() {
             <span>{taxiServices.length} services</span>
           </div>
 
+          {canManageTaxi && (
+            <form className="form-grid" onSubmit={(event) => void submitTaxiService(event)}>
+              <h3>{editingTaxiId ? 'Edit taxi service' : 'New taxi service'}</h3>
+              <input
+                placeholder="Company name"
+                value={taxiForm.companyName}
+                onChange={(event) => setTaxiForm({ ...taxiForm, companyName: event.target.value })}
+                required
+              />
+              <input
+                placeholder="City"
+                value={taxiForm.city}
+                onChange={(event) => setTaxiForm({ ...taxiForm, city: event.target.value })}
+                required
+              />
+              <input
+                placeholder="Phone number"
+                value={taxiForm.phoneNumber}
+                onChange={(event) => setTaxiForm({ ...taxiForm, phoneNumber: event.target.value })}
+                required
+              />
+              <input
+                min="0"
+                placeholder="Price per km"
+                step="0.01"
+                type="number"
+                value={taxiForm.pricePerKm}
+                onChange={(event) => setTaxiForm({ ...taxiForm, pricePerKm: event.target.value })}
+                required
+              />
+              <input
+                placeholder="Description"
+                value={taxiForm.description}
+                onChange={(event) => setTaxiForm({ ...taxiForm, description: event.target.value })}
+              />
+              <input
+                placeholder="Image URL"
+                value={taxiForm.imageUrl || ''}
+                onChange={(event) => setTaxiForm({ ...taxiForm, imageUrl: event.target.value })}
+              />
+              <button className="primary" disabled={submitting} type="submit">
+                {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}
+              </button>
+              {editingTaxiId && (
+                <button
+                  className="link-button"
+                  disabled={submitting}
+                  onClick={() => {
+                    setEditingTaxiId(null);
+                    setTaxiForm(emptyTaxiForm);
+                  }}
+                  type="button"
+                >
+                  Cancel edit
+                </button>
+              )}
+            </form>
+          )}
+
           <div className="card-grid">
             {taxiServices.map((taxi) => (
               <article className="service-card" key={taxi.id}>
@@ -428,6 +615,16 @@ function App() {
                 <small>
                   {taxi.phoneNumber} / {formatMoney(taxi.pricePerKm)}/km
                 </small>
+                {canManageTaxi && (
+                  <div className="user-actions">
+                    <button disabled={submitting} onClick={() => editTaxiService(taxi)} type="button">
+                      Edit
+                    </button>
+                    <button disabled={submitting} onClick={() => void deleteTaxiService(taxi.id)} type="button">
+                      Delete
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
 
@@ -756,12 +953,28 @@ function App() {
                   <small>{user.email}{user.isBlocked ? ' / blocked' : ''}</small>
                 </span>
                 <div className="user-actions">
-                  <button disabled={submitting} onClick={() => void demoteAdmin(user.id)} type="button">
-                    Demote
-                  </button>
-                  <button disabled={submitting || user.isBlocked} onClick={() => void blockUser(user.id)} type="button">
-                    Block
-                  </button>
+                  {user.isBlocked ? (
+                    <>
+                      <button disabled={submitting} onClick={() => void demoteAdmin(user.id)} type="button">
+                        Demote to user
+                      </button>
+                      <button disabled={submitting} onClick={() => void unblockUser(user.id)} type="button">
+                        Unban
+                      </button>
+                      <button disabled={submitting} onClick={() => void deleteAccount(user.id)} type="button">
+                        Delete account
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button disabled={submitting} onClick={() => void demoteAdmin(user.id)} type="button">
+                        Demote to user
+                      </button>
+                      <button disabled={submitting} onClick={() => void blockUser(user.id)} type="button">
+                        Ban
+                      </button>
+                    </>
+                  )}
                 </div>
               </article>
             ))}
@@ -778,12 +991,28 @@ function App() {
                   <small>{user.email}{user.isBlocked ? ' / blocked' : ''}</small>
                 </span>
                 <div className="user-actions">
-                  <button disabled={submitting || user.isBlocked} onClick={() => void promoteToAdmin(user.id)} type="button">
-                    Make admin
-                  </button>
-                  <button disabled={submitting || user.isBlocked} onClick={() => void blockUser(user.id)} type="button">
-                    Block
-                  </button>
+                  {user.isBlocked ? (
+                    <>
+                      <button disabled={submitting} onClick={() => void promoteToAdmin(user.id)} type="button">
+                        Make admin
+                      </button>
+                      <button disabled={submitting} onClick={() => void unblockUser(user.id)} type="button">
+                        Unban
+                      </button>
+                      <button disabled={submitting} onClick={() => void deleteAccount(user.id)} type="button">
+                        Delete account
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button disabled={submitting} onClick={() => void promoteToAdmin(user.id)} type="button">
+                        Make admin
+                      </button>
+                      <button disabled={submitting} onClick={() => void blockUser(user.id)} type="button">
+                        Ban
+                      </button>
+                    </>
+                  )}
                 </div>
               </article>
             ))}

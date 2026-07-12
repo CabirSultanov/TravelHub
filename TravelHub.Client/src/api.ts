@@ -9,6 +9,7 @@ import type {
   Place,
   RegisterRequest,
   TaxiService,
+  TaxiServiceInput,
 } from './types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -56,16 +57,38 @@ export const api = {
       method: 'PUT',
     }),
   demoteAdminToUser: (userId: number) =>
-    request<void>(`/api/admins/${userId}`, {
-      method: 'DELETE',
+    request<void>(`/api/admins/${userId}/demote`, {
+      method: 'PUT',
     }),
   blockUser: (userId: number) =>
     request<AuthUser>(`/api/admins/${userId}/block`, {
       method: 'PUT',
     }),
+  unblockUser: (userId: number) =>
+    request<AuthUser>(`/api/admins/${userId}/unblock`, {
+      method: 'PUT',
+    }),
+  deleteAccount: (userId: number) =>
+    request<void>(`/api/admins/${userId}/account`, {
+      method: 'DELETE',
+    }),
   getHotels: () => request<Hotel[]>('/api/hotels'),
   getHotelRooms: (hotelId: number) => request<HotelRoom[]>(`/api/hotel-rooms?hotelId=${hotelId}`),
   getTaxiServices: () => request<TaxiService[]>('/api/taxi-services'),
+  createTaxiService: (taxiService: TaxiServiceInput) =>
+    request<TaxiService>('/api/taxi-services', {
+      method: 'POST',
+      body: JSON.stringify(taxiService),
+    }),
+  updateTaxiService: (taxiServiceId: number, taxiService: TaxiServiceInput) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(taxiService),
+    }),
+  deleteTaxiService: (taxiServiceId: number) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}`, {
+      method: 'DELETE',
+    }),
   getPlaces: () => request<Place[]>('/api/places'),
   createBooking: (booking: BookingCreate) =>
     request<Booking>('/api/booking-requests', {

@@ -366,6 +366,12 @@ button:focus-visible {
   margin-inline: 16px;
 }
 
+.service-card .user-actions {
+  justify-content: start;
+  margin-inline: 16px;
+  margin-top: 8px;
+}
+
 .user-row {
   display: flex;
   gap: 12px;

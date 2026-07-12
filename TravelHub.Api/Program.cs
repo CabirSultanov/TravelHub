@@ -203,9 +203,6 @@ static async Task SeedDemoDataAsync(AppDbContext db)
     await AddRoomAsync(shahdagHotel.Id, "Mountain View Double", 2, 6, 160, "Room with mountain view.", "https://placehold.co/600x400?text=Mountain+View");
     await AddRoomAsync(shahdagHotel.Id, "Chalet Suite", 5, 3, 280, "Large suite for groups and families.", "https://placehold.co/600x400?text=Chalet+Suite");
 
-    await AddTaxiServiceAsync("Baku City Taxi", "Baku", "+994501112233", 0.8m, "Airport and city transfers.", "https://placehold.co/600x400?text=Baku+Taxi");
-    await AddTaxiServiceAsync("Shahdag Transfer", "Shahdag", "+994552223344", 1.2m, "Transfers between Baku and Shahdag.", "https://placehold.co/600x400?text=Shahdag+Transfer");
-
     await db.SaveChangesAsync();
 
     async Task<Hotel> AddHotelAsync(string name, string city, string address, decimal price, string description, string imageUrl)
@@ -252,23 +249,6 @@ static async Task SeedDemoDataAsync(AppDbContext db)
         });
     }
 
-    async Task AddTaxiServiceAsync(string companyName, string city, string phoneNumber, decimal pricePerKm, string description, string imageUrl)
-    {
-        if (await db.TaxiServices.AnyAsync(taxiService => taxiService.CompanyName == companyName))
-        {
-            return;
-        }
-
-        db.TaxiServices.Add(new TaxiService
-        {
-            CompanyName = companyName,
-            City = city,
-            PhoneNumber = phoneNumber,
-            PricePerKm = pricePerKm,
-            Description = description,
-            ImageUrl = imageUrl
-        });
-    }
 }
 
 static async Task SeedSuperAdminAsync(AppDbContext db, PasswordHasher<AppUser> passwordHasher, IConfiguration configuration)

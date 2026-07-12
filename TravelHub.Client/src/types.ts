@@ -51,6 +51,8 @@ export type TaxiService = {
   imageUrl?: string | null;
 };
 
+export type TaxiServiceInput = Omit<TaxiService, 'id'>;
+
 export type Place = {
   id: number;
   name: string;

@@ -104,8 +104,55 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
         return AuthController.ToDto(user);
     }
 
+    [HttpPut("{id:int}/unblock")]
+    public async Task<ActionResult<AuthUserDto>> UnblockUser(int id)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(user => user.Id == id);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (user.Role == UserRoles.SuperAdmin)
+        {
+            return BadRequest("Super admin cannot be unblocked here.");
+        }
+
+        user.IsBlocked = false;
+        await db.SaveChangesAsync();
+
+        return AuthController.ToDto(user);
+    }
+
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> RemoveAdmin(int id)
+    [HttpDelete("{id:int}/account")]
+    public async Task<IActionResult> DeleteAccount(int id)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(user => user.Id == id);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (user.Role == UserRoles.SuperAdmin)
+        {
+            return BadRequest("Super admin cannot be deleted here.");
+        }
+
+        await db.BookingRequests
+            .Where(booking => booking.UserId == id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(booking => booking.UserId, (int?)null));
+
+        db.Users.Remove(user);
+        await db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [HttpPut("{id:int}/demote")]
+    public async Task<IActionResult> DemoteAdmin(int id)
     {
         var user = await db.Users.FirstOrDefaultAsync(user => user.Id == id);
 
