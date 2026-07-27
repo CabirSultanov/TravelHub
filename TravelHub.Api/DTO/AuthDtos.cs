@@ -14,6 +14,11 @@ public class RegisterRequestDto
     public string Email { get; set; } = string.Empty;
 
     [Required]
+    [Phone]
+    [MaxLength(50)]
+    public string PhoneNumber { get; set; } = string.Empty;
+
+    [Required]
     [MinLength(6)]
     public string Password { get; set; } = string.Empty;
 }
@@ -29,6 +34,18 @@ public class LoginRequestDto
     public string Password { get; set; } = string.Empty;
 }
 
+public class UpdateProfileRequestDto
+{
+    [Required]
+    [MaxLength(100)]
+    public string Name { get; set; } = string.Empty;
+
+    [Required]
+    [Phone]
+    [MaxLength(50)]
+    public string PhoneNumber { get; set; } = string.Empty;
+}
+
 public class CreateAdminRequestDto : RegisterRequestDto
 {
 }
@@ -40,6 +57,8 @@ public class AuthUserDto
     public string Name { get; set; } = string.Empty;
 
     public string Email { get; set; } = string.Empty;
+
+    public string PhoneNumber { get; set; } = string.Empty;
 
     public string Role { get; set; } = string.Empty;
 

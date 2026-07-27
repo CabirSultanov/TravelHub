@@ -11,11 +11,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<HotelRoom> HotelRooms => Set<HotelRoom>();
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
     public DbSet<TaxiService> TaxiServices => Set<TaxiService>();
+    public DbSet<TaxiCarClass> TaxiCarClasses => Set<TaxiCarClass>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AppUser>()
             .HasIndex(user => user.Email)
             .IsUnique();
+
+        modelBuilder.Entity<TaxiService>()
+            .HasMany(taxiService => taxiService.CarClasses)
+            .WithOne()
+            .HasForeignKey(carClass => carClass.TaxiServiceId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

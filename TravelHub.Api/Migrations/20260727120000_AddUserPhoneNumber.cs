@@ -1,32 +1,30 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using TravelHub.Api.Data;
 
 #nullable disable
 
 namespace TravelHub.Api.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(AppDbContext))]
-    [Migration("20260710151000_AddUserBlocking")]
-    public partial class AddUserBlocking : Migration
+    [Migration("20260727120000_AddUserPhoneNumber")]
+    public partial class AddUserPhoneNumber : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<bool>(
-                name: "IsBlocked",
+            migrationBuilder.AddColumn<string>(
+                name: "PhoneNumber",
                 table: "Users",
-                type: "bit",
+                type: "nvarchar(50)",
+                maxLength: 50,
                 nullable: false,
-                defaultValue: false);
+                defaultValue: "");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "IsBlocked",
+                name: "PhoneNumber",
                 table: "Users");
         }
     }

@@ -16,11 +16,13 @@ public class TaxiServiceCreateDto
     [MaxLength(50)]
     public string PhoneNumber { get; set; } = string.Empty;
 
-    public decimal PricePerKm { get; set; }
-
+    [Required]
     [MaxLength(1000)]
     public string Description { get; set; } = string.Empty;
 
+    [Required]
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
+
+    public List<TaxiCarClassInputDto> CarClasses { get; set; } = new();
 }

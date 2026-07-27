@@ -10,6 +10,8 @@ public class BookingRequestResponseDto
 
     public int HotelId { get; set; }
 
+    public string HotelName { get; set; } = string.Empty;
+
     public string RoomType { get; set; } = string.Empty;
 
     public string CustomerName { get; set; } = string.Empty;

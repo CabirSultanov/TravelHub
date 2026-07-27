@@ -14,6 +14,9 @@ import type {
 
 type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth' | 'admin' | 'profile';
 type AuthMode = 'login' | 'register';
+type BookingGuestMode = 'self' | 'other';
+
+const appPages: Page[] = ['home', 'taxi', 'hotels', 'places', 'auth', 'admin', 'profile'];
 
 type BookingForm = Omit<BookingCreate, 'hotelRoomId' | 'guestsCount'> & {
   guestsCount: string;
@@ -27,12 +30,37 @@ type PaymentForm = Omit<BookingPayment, 'expiryMonth' | 'expiryYear'> & {
 type AuthForm = {
   name: string;
   email: string;
+  phoneNumber: string;
   password: string;
 };
 
-type TaxiForm = Omit<TaxiServiceInput, 'pricePerKm'> & {
+type ProfileForm = {
+  name: string;
+  phoneNumber: string;
+};
+
+type TaxiCarClassForm = {
+  name: string;
   pricePerKm: string;
 };
+
+type TaxiForm = Omit<TaxiServiceInput, 'city' | 'carClasses'> & {
+  cities: string[];
+  carClasses: TaxiCarClassForm[];
+};
+
+const taxiCarClassOptions = [
+  { value: 'Standard', label: 'Standard' },
+  { value: 'Priority', label: 'Priority' },
+  { value: 'Comfort', label: 'Comfort' },
+  { value: 'Business', label: 'Business' },
+  { value: 'Green', label: 'Green' },
+  { value: 'XL', label: 'XL' },
+];
+const phoneNumberPattern = String.raw`\+?[0-9\s()-]{7,30}`;
+const accountPhonePrefix = '+994';
+const accountPhonePattern = String.raw`[0-9\s()-]{7,30}`;
+const pricePattern = String.raw`[0-9]+(\.[0-9]{1,2})?`;
 
 const today = new Date().toISOString().slice(0, 10);
 const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -58,16 +86,22 @@ const emptyPaymentForm: PaymentForm = {
 const emptyAuthForm: AuthForm = {
   name: '',
   email: '',
+  phoneNumber: '',
   password: '',
+};
+
+const emptyProfileForm: ProfileForm = {
+  name: '',
+  phoneNumber: '',
 };
 
 const emptyTaxiForm: TaxiForm = {
   companyName: '',
-  city: '',
+  cities: [''],
   phoneNumber: '',
-  pricePerKm: '',
   description: '',
   imageUrl: '',
+  carClasses: [{ name: 'Standard', pricePerKm: '' }],
 };
 
 function App() {
@@ -82,14 +116,21 @@ function App() {
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [authMode, setAuthMode] = useState<AuthMode>('register');
   const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
+  const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [taxiForm, setTaxiForm] = useState<TaxiForm>(emptyTaxiForm);
   const [editingTaxiId, setEditingTaxiId] = useState<number | null>(null);
+  const [showTaxiForm, setShowTaxiForm] = useState(false);
+  const [bookingGuestMode, setBookingGuestMode] = useState<BookingGuestMode>('self');
   const [bookingForm, setBookingForm] = useState<BookingForm>(emptyBookingForm);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
+  const [payingBookingId, setPayingBookingId] = useState<number | null>(null);
   const [cityFilter, setCityFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -116,12 +157,48 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!isPage(window.history.state?.page)) {
+      window.history.replaceState({ page }, '', window.location.href);
+    }
+
+    function handleBrowserBack(event: PopStateEvent) {
+      const nextPage = isPage(event.state?.page) ? event.state.page : 'home';
+      setPage(nextPage);
+    }
+
+    window.addEventListener('popstate', handleBrowserBack);
+    return () => window.removeEventListener('popstate', handleBrowserBack);
+  }, []);
+
+  useEffect(() => {
     if (page !== 'admin' || currentUser?.role !== 'SuperAdmin') {
       return;
     }
 
     void loadAdminLists();
   }, [currentUser?.role, page]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setBookings([]);
+      return;
+    }
+
+    void loadBookings();
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser || bookingGuestMode !== 'self') {
+      return;
+    }
+
+    setBookingForm((form) => ({
+      ...form,
+      customerName: currentUser.name,
+      phoneNumber: currentUser.phoneNumber,
+      email: currentUser.email,
+    }));
+  }, [bookingGuestMode, currentUser?.email, currentUser?.name, currentUser?.phoneNumber]);
 
   const cities = useMemo(() => {
     return Array.from(new Set(hotels.map((hotel) => hotel.city))).sort((a, b) => a.localeCompare(b));
@@ -136,6 +213,14 @@ function App() {
   }, [cityFilter, hotels]);
 
   const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+
+  function navigateTo(nextPage: Page) {
+    setPage(nextPage);
+
+    if (window.history.state?.page !== nextPage) {
+      window.history.pushState({ page: nextPage }, '', window.location.href);
+    }
+  }
 
   async function selectHotel(hotel: Hotel) {
     setSelectedHotel(hotel);
@@ -158,14 +243,16 @@ function App() {
       return;
     }
 
-    const taxiService = {
-      ...taxiForm,
+    const taxiService: TaxiServiceInput = {
       companyName: taxiForm.companyName.trim(),
-      city: taxiForm.city.trim(),
+      city: taxiForm.cities.map((city) => city.trim()).filter(Boolean).join(', '),
       phoneNumber: taxiForm.phoneNumber.trim(),
-      pricePerKm: Number(taxiForm.pricePerKm),
       description: taxiForm.description.trim(),
       imageUrl: taxiForm.imageUrl?.trim() || null,
+      carClasses: taxiForm.carClasses.map((carClass) => ({
+        name: carClass.name.trim(),
+        pricePerKm: Number(carClass.pricePerKm),
+      })),
     };
 
     setSubmitting(true);
@@ -173,8 +260,8 @@ function App() {
 
     try {
       if (editingTaxiId) {
-        await api.updateTaxiService(editingTaxiId, taxiService);
-        setTaxiServices(taxiServices.map((taxi) => (taxi.id === editingTaxiId ? { ...taxiService, id: editingTaxiId } : taxi)));
+        const updatedTaxiService = await api.updateTaxiService(editingTaxiId, taxiService);
+        setTaxiServices(taxiServices.map((taxi) => (taxi.id === editingTaxiId ? updatedTaxiService : taxi)));
         setMessage('Taxi service updated.');
       } else {
         const createdTaxiService = await api.createTaxiService(taxiService);
@@ -184,6 +271,7 @@ function App() {
 
       setTaxiForm(emptyTaxiForm);
       setEditingTaxiId(null);
+      setShowTaxiForm(false);
     } catch (error) {
       setMessage(getErrorMessage(error));
     } finally {
@@ -195,17 +283,76 @@ function App() {
     setEditingTaxiId(taxiService.id);
     setTaxiForm({
       companyName: taxiService.companyName,
-      city: taxiService.city,
+      cities: splitTaxiCities(taxiService.city),
       phoneNumber: taxiService.phoneNumber,
-      pricePerKm: String(taxiService.pricePerKm),
       description: taxiService.description,
       imageUrl: taxiService.imageUrl || '',
+      carClasses:
+        taxiService.carClasses.length > 0
+          ? taxiService.carClasses.map((carClass) => ({
+              name: carClass.name,
+              pricePerKm: String(carClass.pricePerKm),
+            }))
+          : emptyTaxiForm.carClasses,
     });
+    setShowTaxiForm(true);
     setMessage('');
   }
 
+  function updateTaxiCity(index: number, city: string) {
+    setTaxiForm({
+      ...taxiForm,
+      cities: taxiForm.cities.map((currentCity, currentIndex) => (currentIndex === index ? city : currentCity)),
+    });
+  }
+
+  function removeTaxiCity(index: number) {
+    if (taxiForm.cities.length === 1) {
+      return;
+    }
+
+    setTaxiForm({
+      ...taxiForm,
+      cities: taxiForm.cities.filter((_, currentIndex) => currentIndex !== index),
+    });
+  }
+
+  function updateTaxiCarClass(index: number, carClass: Partial<TaxiCarClassForm>) {
+    setTaxiForm({
+      ...taxiForm,
+      carClasses: taxiForm.carClasses.map((currentCarClass, currentIndex) =>
+        currentIndex === index ? { ...currentCarClass, ...carClass } : currentCarClass,
+      ),
+    });
+  }
+
+  function removeTaxiCarClass(index: number) {
+    if (taxiForm.carClasses.length === 1) {
+      return;
+    }
+
+    setTaxiForm({
+      ...taxiForm,
+      carClasses: taxiForm.carClasses.filter((_, currentIndex) => currentIndex !== index),
+    });
+  }
+
+  function addTaxiCarClass() {
+    const selectedNames = new Set(taxiForm.carClasses.map((carClass) => carClass.name));
+    const nextOption = taxiCarClassOptions.find((option) => !selectedNames.has(option.value));
+
+    if (!nextOption) {
+      return;
+    }
+
+    setTaxiForm({
+      ...taxiForm,
+      carClasses: [...taxiForm.carClasses, { name: nextOption.value, pricePerKm: '' }],
+    });
+  }
+
   async function deleteTaxiService(taxiServiceId: number) {
-    if (!canManageTaxi) {
+    if (!canManageTaxi || !window.confirm('Delete this taxi service?')) {
       return;
     }
 
@@ -215,12 +362,9 @@ function App() {
     try {
       await api.deleteTaxiService(taxiServiceId);
       setTaxiServices(taxiServices.filter((taxi) => taxi.id !== taxiServiceId));
-
-      if (editingTaxiId === taxiServiceId) {
-        setTaxiForm(emptyTaxiForm);
-        setEditingTaxiId(null);
-      }
-
+      setEditingTaxiId(null);
+      setShowTaxiForm(false);
+      setTaxiForm(emptyTaxiForm);
       setMessage('Taxi service deleted.');
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -229,12 +373,41 @@ function App() {
     }
   }
 
+  async function loadBookings() {
+    setBookingsLoading(true);
+
+    try {
+      setBookings(await api.getBookings(true));
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setBookingsLoading(false);
+    }
+  }
+
+  function upsertBooking(nextBooking: Booking) {
+    setBookings((currentBookings) => [
+      nextBooking,
+      ...currentBookings.filter((currentBooking) => currentBooking.id !== nextBooking.id),
+    ]);
+  }
+
+  function selectBookingGuestMode(mode: BookingGuestMode) {
+    setBookingGuestMode(mode);
+    setBookingForm((form) => ({
+      ...form,
+      customerName: mode === 'self' && currentUser ? currentUser.name : '',
+      phoneNumber: mode === 'self' && currentUser ? currentUser.phoneNumber : '',
+      email: mode === 'self' && currentUser ? currentUser.email : '',
+    }));
+  }
+
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!currentUser) {
       setAuthMode('login');
-      setPage('auth');
+      navigateTo('auth');
       setMessage('Please sign in to create a booking.');
       return;
     }
@@ -254,6 +427,7 @@ function App() {
       });
 
       setBooking(createdBooking);
+      upsertBooking(createdBooking);
     } catch (error) {
       setMessage(getErrorMessage(error));
     } finally {
@@ -261,26 +435,27 @@ function App() {
     }
   }
 
-  async function submitPayment(event: FormEvent<HTMLFormElement>) {
+  async function submitBookingPayment(event: FormEvent<HTMLFormElement>, targetBooking: Booking) {
     event.preventDefault();
-
-    if (!booking) {
-      return;
-    }
 
     setSubmitting(true);
     setMessage('Processing payment...');
 
     try {
       await delay(1800);
-      const paidBooking = await api.payBooking(booking.id, {
+      const paidBooking = await api.payBooking(targetBooking.id, {
         ...paymentForm,
         expiryMonth: Number(paymentForm.expiryMonth),
         expiryYear: Number(paymentForm.expiryYear),
       });
 
-      setBooking(paidBooking);
+      if (booking?.id === paidBooking.id) {
+        setBooking(paidBooking);
+      }
+
+      upsertBooking(paidBooking);
       setPaymentForm(emptyPaymentForm);
+      setPayingBookingId(null);
       setMessage('Payment completed.');
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -289,17 +464,25 @@ function App() {
     }
   }
 
-  async function cancelBooking() {
-    if (!booking) {
-      return;
-    }
-
+  async function cancelBooking(targetBooking: Booking) {
     setSubmitting(true);
     setMessage('');
 
     try {
-      await api.cancelBooking(booking.id);
-      setBooking({ ...booking, status: 'Cancelled', cancelledAt: new Date().toISOString() });
+      await api.cancelBooking(targetBooking.id);
+
+      const cancelledBooking: Booking = {
+        ...targetBooking,
+        status: 'Cancelled',
+        cancelledAt: new Date().toISOString(),
+      };
+
+      if (booking?.id === targetBooking.id) {
+        setBooking(cancelledBooking);
+      }
+
+      upsertBooking(cancelledBooking);
+      setPayingBookingId(null);
       setMessage('Booking cancelled.');
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -316,13 +499,13 @@ function App() {
     try {
       const user =
         authMode === 'register'
-          ? await api.register(authForm)
+          ? await api.register({ ...authForm, phoneNumber: toAzerbaijanPhoneNumber(authForm.phoneNumber) })
           : await api.login({ email: authForm.email, password: authForm.password });
 
       setCurrentUser(user);
       setAuthForm(emptyAuthForm);
       setMessage(authMode === 'register' ? 'Registration completed.' : 'Logged in.');
-      setPage('home');
+      navigateTo('home');
     } catch (error) {
       setMessage(getErrorMessage(error));
     } finally {
@@ -338,8 +521,69 @@ function App() {
       await api.logout();
       setCurrentUser(null);
       setBooking(null);
-      setPage('home');
+      setBookings([]);
+      setPayingBookingId(null);
+      setEditingProfile(false);
+      navigateTo('home');
       setMessage('Logged out.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteProfile() {
+    if (!window.confirm('Delete your profile?')) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      await api.deleteProfile();
+      setCurrentUser(null);
+      setBooking(null);
+      setBookings([]);
+      setPayingBookingId(null);
+      setEditingProfile(false);
+      navigateTo('home');
+      setMessage('Profile deleted.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function openProfileEditor() {
+    if (!currentUser) {
+      return;
+    }
+
+    setProfileForm({
+      name: currentUser.name,
+      phoneNumber: stripAzerbaijanPhonePrefix(currentUser.phoneNumber),
+    });
+    setEditingProfile(true);
+    setMessage('');
+  }
+
+  async function submitProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const updatedUser = await api.updateProfile({
+        name: profileForm.name.trim(),
+        phoneNumber: toAzerbaijanPhoneNumber(profileForm.phoneNumber),
+      });
+
+      setCurrentUser(updatedUser);
+      setEditingProfile(false);
+      setMessage('Profile updated.');
     } catch (error) {
       setMessage(getErrorMessage(error));
     } finally {
@@ -349,7 +593,7 @@ function App() {
 
   function openAuth() {
     setAuthMode('register');
-    setPage('auth');
+    navigateTo('auth');
     setMessage('');
   }
 
@@ -451,36 +695,98 @@ function App() {
   function resetFlow() {
     setSelectedRoom(null);
     setBooking(null);
-    setBookingForm(emptyBookingForm);
+    setBookingForm({
+      ...emptyBookingForm,
+      customerName: bookingGuestMode === 'self' && currentUser ? currentUser.name : '',
+      phoneNumber: bookingGuestMode === 'self' && currentUser ? currentUser.phoneNumber : '',
+      email: bookingGuestMode === 'self' && currentUser ? currentUser.email : '',
+    });
     setPaymentForm(emptyPaymentForm);
+    setPayingBookingId(null);
     setMessage('');
+  }
+
+  function renderPaymentForm(targetBooking: Booking) {
+    return (
+      <form className="payment-form" onSubmit={(event) => void submitBookingPayment(event, targetBooking)}>
+        <input
+          placeholder="Card number"
+          value={paymentForm.cardNumber}
+          onChange={(event) => setPaymentForm({ ...paymentForm, cardNumber: event.target.value })}
+          required
+        />
+        <input
+          placeholder="Card holder"
+          value={paymentForm.cardHolderName}
+          onChange={(event) => setPaymentForm({ ...paymentForm, cardHolderName: event.target.value })}
+          required
+        />
+        <input
+          min="1"
+          max="12"
+          placeholder="Month"
+          type="number"
+          value={paymentForm.expiryMonth}
+          onChange={(event) => setPaymentForm({ ...paymentForm, expiryMonth: event.target.value })}
+          required
+        />
+        <input
+          min="2026"
+          placeholder="Year"
+          type="number"
+          value={paymentForm.expiryYear}
+          onChange={(event) => setPaymentForm({ ...paymentForm, expiryYear: event.target.value })}
+          required
+        />
+        <input
+          placeholder="CVV"
+          value={paymentForm.cvv}
+          onChange={(event) => setPaymentForm({ ...paymentForm, cvv: event.target.value })}
+          required
+        />
+        <label className="checkbox">
+          <input
+            checked={paymentForm.saveCard}
+            type="checkbox"
+            onChange={(event) => setPaymentForm({ ...paymentForm, saveCard: event.target.checked })}
+          />
+          Save card last 4 digits
+        </label>
+        <button className="primary" disabled={submitting} type="submit">
+          Pay now
+        </button>
+        <button disabled={submitting} onClick={() => void cancelBooking(targetBooking)} type="button">
+          Cancel booking
+        </button>
+      </form>
+    );
   }
 
   return (
     <main className="app">
       <header className="site-header">
-        <button className="brand" onClick={() => setPage('home')} type="button">
+        <button className="brand" onClick={() => navigateTo('home')} type="button">
           TravelHub
         </button>
 
         {page !== 'home' && (
-          <button className="back-home" onClick={() => setPage('home')} type="button">
+          <button className="back-home" onClick={() => navigateTo('home')} type="button">
             Back
           </button>
         )}
 
         <nav className="site-nav">
-          <button className={page === 'taxi' ? 'active' : ''} onClick={() => setPage('taxi')} type="button">
+          <button className={page === 'taxi' ? 'active' : ''} onClick={() => navigateTo('taxi')} type="button">
             Taxi
           </button>
-          <button className={page === 'hotels' ? 'active' : ''} onClick={() => setPage('hotels')} type="button">
+          <button className={page === 'hotels' ? 'active' : ''} onClick={() => navigateTo('hotels')} type="button">
             Hotels
           </button>
-          <button className={page === 'places' ? 'active' : ''} onClick={() => setPage('places')} type="button">
+          <button className={page === 'places' ? 'active' : ''} onClick={() => navigateTo('places')} type="button">
             Places
           </button>
           {currentUser?.role === 'SuperAdmin' && (
-            <button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')} type="button">
+            <button className={page === 'admin' ? 'active' : ''} onClick={() => navigateTo('admin')} type="button">
               Admin
             </button>
           )}
@@ -490,7 +796,7 @@ function App() {
           {currentUser && <span>{currentUser.name}</span>}
           {currentUser ? (
             <>
-              <button onClick={() => setPage('profile')} type="button">
+              <button onClick={() => navigateTo('profile')} type="button">
                 Profile
               </button>
               <button disabled={submitting} onClick={() => void logout()} type="button">
@@ -516,19 +822,19 @@ function App() {
           </section>
 
           <section className="home-steps" aria-label="TravelHub services">
-            <button className="feature-card" onClick={() => setPage('taxi')} type="button">
+            <button className="feature-card" onClick={() => navigateTo('taxi')} type="button">
               <span className="feature-icon">T</span>
               <strong>Taxi booking</strong>
               <small>Choose a taxi service and view contacts for your trip.</small>
             </button>
 
-            <button className="feature-card" onClick={() => setPage('hotels')} type="button">
+            <button className="feature-card" onClick={() => navigateTo('hotels')} type="button">
               <span className="feature-icon">H</span>
               <strong>Hotel booking</strong>
               <small>Open hotels, choose a room, and create a booking.</small>
             </button>
 
-            <button className="feature-card" onClick={() => setPage('places')} type="button">
+            <button className="feature-card" onClick={() => navigateTo('places')} type="button">
               <span className="feature-icon">P</span>
               <strong>Interesting places</strong>
               <small>View cities and places worth adding to your route.</small>
@@ -538,7 +844,22 @@ function App() {
       )}
 
       {page === 'taxi' && (
-        <section className="page-section">
+        <>
+          {canManageTaxi && !showTaxiForm && (
+            <button
+              className="primary create-service-button"
+              onClick={() => {
+                setTaxiForm(emptyTaxiForm);
+                setEditingTaxiId(null);
+                setShowTaxiForm(true);
+              }}
+              type="button"
+            >
+              Create new service +
+            </button>
+          )}
+
+          <section className="page-section">
           <div className="section-title">
             <div>
               <p className="eyebrow">Taxi</p>
@@ -547,7 +868,7 @@ function App() {
             <span>{taxiServices.length} services</span>
           </div>
 
-          {canManageTaxi && (
+          {canManageTaxi && showTaxiForm && (
             <form className="form-grid" onSubmit={(event) => void submitTaxiService(event)}>
               <h3>{editingTaxiId ? 'Edit taxi service' : 'New taxi service'}</h3>
               <input
@@ -556,69 +877,138 @@ function App() {
                 onChange={(event) => setTaxiForm({ ...taxiForm, companyName: event.target.value })}
                 required
               />
+              <div className="taxi-cities">
+                <strong>Cities</strong>
+                {taxiForm.cities.map((city, index) => (
+                  <div className="taxi-city-row" key={index}>
+                    <input
+                      placeholder="City"
+                      value={city}
+                      onChange={(event) => updateTaxiCity(index, event.target.value)}
+                      required
+                    />
+                    <button disabled={taxiForm.cities.length === 1} onClick={() => removeTaxiCity(index)} type="button">
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="link-button"
+                  onClick={() => setTaxiForm({ ...taxiForm, cities: [...taxiForm.cities, ''] })}
+                  type="button"
+                >
+                  Add city
+                </button>
+              </div>
               <input
-                placeholder="City"
-                value={taxiForm.city}
-                onChange={(event) => setTaxiForm({ ...taxiForm, city: event.target.value })}
-                required
-              />
-              <input
+                inputMode="tel"
+                pattern={phoneNumberPattern}
                 placeholder="Phone number"
+                title="Use digits, spaces, +, -, or parentheses."
+                type="tel"
                 value={taxiForm.phoneNumber}
                 onChange={(event) => setTaxiForm({ ...taxiForm, phoneNumber: event.target.value })}
                 required
               />
-              <input
-                min="0"
-                placeholder="Price per km"
-                step="0.01"
-                type="number"
-                value={taxiForm.pricePerKm}
-                onChange={(event) => setTaxiForm({ ...taxiForm, pricePerKm: event.target.value })}
-                required
-              />
+              <div className="taxi-classes">
+                <strong>Car classes</strong>
+                {taxiForm.carClasses.map((carClass, index) => (
+                  <div className="taxi-class-row" key={index}>
+                    <select
+                      value={carClass.name}
+                      onChange={(event) => updateTaxiCarClass(index, { name: event.target.value })}
+                      required
+                    >
+                      {taxiCarClassOptions.map((option) => (
+                        <option
+                          disabled={taxiForm.carClasses.some(
+                            (currentCarClass, currentIndex) => currentIndex !== index && currentCarClass.name === option.value,
+                          )}
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="taxi-price-input"
+                      inputMode="decimal"
+                      min="0.01"
+                      pattern={pricePattern}
+                      placeholder="Price per km"
+                      step="0.01"
+                      title="Use a number greater than 0, for example 1.50."
+                      type="text"
+                      value={carClass.pricePerKm}
+                      onChange={(event) => updateTaxiCarClass(index, { pricePerKm: event.target.value })}
+                      required
+                    />
+                    <button disabled={taxiForm.carClasses.length === 1} onClick={() => removeTaxiCarClass(index)} type="button">
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="link-button"
+                  disabled={taxiForm.carClasses.length === taxiCarClassOptions.length}
+                  onClick={addTaxiCarClass}
+                  type="button"
+                >
+                  Add class
+                </button>
+              </div>
               <input
                 placeholder="Description"
                 value={taxiForm.description}
                 onChange={(event) => setTaxiForm({ ...taxiForm, description: event.target.value })}
+                required
               />
               <input
                 placeholder="Image URL"
+                pattern="https?://.+"
+                title="Use a full http or https URL."
+                type="url"
                 value={taxiForm.imageUrl || ''}
                 onChange={(event) => setTaxiForm({ ...taxiForm, imageUrl: event.target.value })}
+                required
               />
               <button className="primary" disabled={submitting} type="submit">
                 {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}
               </button>
-              {editingTaxiId && (
-                <button
-                  className="link-button"
-                  disabled={submitting}
-                  onClick={() => {
-                    setEditingTaxiId(null);
-                    setTaxiForm(emptyTaxiForm);
-                  }}
-                  type="button"
-                >
-                  Cancel edit
-                </button>
-              )}
+              <button
+                className="link-button"
+                disabled={submitting}
+                onClick={() => {
+                  setTaxiForm(emptyTaxiForm);
+                  setEditingTaxiId(null);
+                  setShowTaxiForm(false);
+                }}
+                type="button"
+              >
+                Cancel
+              </button>
             </form>
           )}
 
-          <div className="card-grid">
+          <div className="card-grid taxi-grid">
             {taxiServices.map((taxi) => (
               <article className="service-card" key={taxi.id}>
                 <img src={taxi.imageUrl || fallbackImage(taxi.companyName, 'taxi')} alt="" />
                 <strong>{taxi.companyName}</strong>
                 <span>{taxi.city}</span>
-                <small>
-                  {taxi.phoneNumber} / {formatMoney(taxi.pricePerKm)}/km
-                </small>
+                <small>{taxi.phoneNumber}</small>
+                <div className="tariff-list">
+                  {taxi.carClasses.map((carClass) => (
+                    <small key={carClass.id}>
+                      {formatTaxiCarClassName(carClass.name)}: {formatMoney(carClass.pricePerKm)}/km
+                    </small>
+                  ))}
+                </div>
                 {canManageTaxi && (
-                  <div className="user-actions">
+                  <div className="taxi-card-actions">
                     <button disabled={submitting} onClick={() => editTaxiService(taxi)} type="button">
-                      Edit
+                      Update
                     </button>
                     <button disabled={submitting} onClick={() => void deleteTaxiService(taxi.id)} type="button">
                       Delete
@@ -630,7 +1020,8 @@ function App() {
 
             {!loading && taxiServices.length === 0 && <p className="empty">No taxi services yet.</p>}
           </div>
-        </section>
+          </section>
+        </>
       )}
 
       {page === 'hotels' && (
@@ -718,6 +1109,22 @@ function App() {
                 {selectedRoom && !booking && (
                   <form className="form-grid" onSubmit={(event) => void submitBooking(event)}>
                     <h3>{selectedRoom.roomType} booking</h3>
+                    <div className="booking-mode">
+                      <button
+                        className={bookingGuestMode === 'self' ? 'active' : ''}
+                        onClick={() => selectBookingGuestMode('self')}
+                        type="button"
+                      >
+                        Book for myself
+                      </button>
+                      <button
+                        className={bookingGuestMode === 'other' ? 'active' : ''}
+                        onClick={() => selectBookingGuestMode('other')}
+                        type="button"
+                      >
+                        Book for someone else
+                      </button>
+                    </div>
                     <input
                       placeholder="Customer name"
                       value={bookingForm.customerName}
@@ -725,7 +1132,9 @@ function App() {
                       required
                     />
                     <input
+                      pattern={phoneNumberPattern}
                       placeholder="Phone number"
+                      type="tel"
                       value={bookingForm.phoneNumber}
                       onChange={(event) => setBookingForm({ ...bookingForm, phoneNumber: event.target.value })}
                       required
@@ -773,57 +1182,7 @@ function App() {
                     </div>
 
                     {booking.status === 'PendingPayment' && (
-                      <form className="payment-form" onSubmit={(event) => void submitPayment(event)}>
-                        <input
-                          placeholder="Card number"
-                          value={paymentForm.cardNumber}
-                          onChange={(event) => setPaymentForm({ ...paymentForm, cardNumber: event.target.value })}
-                          required
-                        />
-                        <input
-                          placeholder="Card holder"
-                          value={paymentForm.cardHolderName}
-                          onChange={(event) => setPaymentForm({ ...paymentForm, cardHolderName: event.target.value })}
-                          required
-                        />
-                        <input
-                          min="1"
-                          max="12"
-                          placeholder="Month"
-                          type="number"
-                          value={paymentForm.expiryMonth}
-                          onChange={(event) => setPaymentForm({ ...paymentForm, expiryMonth: event.target.value })}
-                          required
-                        />
-                        <input
-                          min="2026"
-                          placeholder="Year"
-                          type="number"
-                          value={paymentForm.expiryYear}
-                          onChange={(event) => setPaymentForm({ ...paymentForm, expiryYear: event.target.value })}
-                          required
-                        />
-                        <input
-                          placeholder="CVV"
-                          value={paymentForm.cvv}
-                          onChange={(event) => setPaymentForm({ ...paymentForm, cvv: event.target.value })}
-                          required
-                        />
-                        <label className="checkbox">
-                          <input
-                            checked={paymentForm.saveCard}
-                            type="checkbox"
-                            onChange={(event) => setPaymentForm({ ...paymentForm, saveCard: event.target.checked })}
-                          />
-                          Save card last 4 digits
-                        </label>
-                        <button className="primary" disabled={submitting} type="submit">
-                          Pay now
-                        </button>
-                        <button disabled={submitting} onClick={() => void cancelBooking()} type="button">
-                          Cancel booking
-                        </button>
-                      </form>
+                      renderPaymentForm(booking)
                     )}
 
                     {booking.status !== 'PendingPayment' && (
@@ -874,12 +1233,25 @@ function App() {
 
             <form className="auth-form" onSubmit={(event) => void submitAuth(event)}>
               {authMode === 'register' && (
-                <input
-                  placeholder="Name"
-                  value={authForm.name}
-                  onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })}
-                  required
-                />
+                <>
+                  <input
+                    placeholder="Name"
+                    value={authForm.name}
+                    onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })}
+                    required
+                  />
+                  <div className="phone-field">
+                    <span>{accountPhonePrefix}</span>
+                    <input
+                      pattern={accountPhonePattern}
+                      placeholder="Phone number"
+                      type="tel"
+                      value={authForm.phoneNumber}
+                      onChange={(event) => setAuthForm({ ...authForm, phoneNumber: event.target.value })}
+                      required
+                    />
+                  </div>
+                </>
               )}
               <input
                 placeholder="Email"
@@ -912,24 +1284,126 @@ function App() {
       )}
 
       {page === 'profile' && currentUser && (
-        <section className="auth-page">
-          <div className="auth-panel">
-            <p className="eyebrow">Profile</p>
-            <h2>Profile</h2>
-            <div className="profile-info">
-              <span>
-                <strong>Name</strong>
-                {currentUser.name}
-              </span>
-              <span>
-                <strong>Email</strong>
-                {currentUser.email}
-              </span>
-              <span>
-                <strong>Role</strong>
-                {currentUser.role}
-              </span>
+        <section className="page-section">
+          <div className="section-title">
+            <div>
+              <p className="eyebrow">Profile</p>
+              <h2>Profile</h2>
             </div>
+            <span>{bookings.length} bookings</span>
+          </div>
+
+          <div className="profile-layout">
+            <div className="auth-panel">
+              {editingProfile ? (
+                <form className="auth-form" onSubmit={(event) => void submitProfile(event)}>
+                  <input
+                    placeholder="Name"
+                    value={profileForm.name}
+                    onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
+                    required
+                  />
+                  <div className="phone-field">
+                    <span>{accountPhonePrefix}</span>
+                    <input
+                      pattern={accountPhonePattern}
+                      placeholder="Phone number"
+                      type="tel"
+                      value={profileForm.phoneNumber}
+                      onChange={(event) => setProfileForm({ ...profileForm, phoneNumber: event.target.value })}
+                      required
+                    />
+                  </div>
+                  <button className="primary" disabled={submitting} type="submit">
+                    Save profile
+                  </button>
+                  <button className="link-button" onClick={() => setEditingProfile(false)} type="button">
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <div className="profile-info">
+                  <span>
+                    <strong>Name</strong>
+                    {currentUser.name}
+                  </span>
+                  <span>
+                    <strong>Email</strong>
+                    {currentUser.email}
+                  </span>
+                  <span>
+                    <strong>Phone</strong>
+                    {currentUser.phoneNumber || 'Not set'}
+                  </span>
+                  <span>
+                    <strong>Role</strong>
+                    {currentUser.role}
+                  </span>
+                  <button className="primary" disabled={submitting} onClick={openProfileEditor} type="button">
+                    Edit profile
+                  </button>
+                  <button className="danger-button" disabled={submitting} onClick={() => void deleteProfile()} type="button">
+                    Delete profile
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <section className="panel profile-bookings">
+              <div className="section-title">
+                <h3>Booking history</h3>
+                {bookingsLoading && <span>Loading</span>}
+              </div>
+
+              <div className="booking-history">
+                {bookings.map((profileBooking) => (
+                  <article className="history-card" key={profileBooking.id}>
+                    <div>
+                      <p className="eyebrow">Booking #{profileBooking.id}</p>
+                      <h3>{profileBooking.hotelName}</h3>
+                      <p>
+                        {profileBooking.roomType} / {profileBooking.checkInDate} - {profileBooking.checkOutDate}
+                      </p>
+                      <small>
+                        Guest: {profileBooking.customerName} / {profileBooking.guestsCount} guests /{' '}
+                        {formatMoney(profileBooking.totalPrice)}
+                      </small>
+                      {profileBooking.savedCardLast4 && <small>Saved card: **** {profileBooking.savedCardLast4}</small>}
+                    </div>
+
+                    <div className="history-actions">
+                      <span className={`status-pill ${profileBooking.status.toLowerCase()}`}>
+                        {profileBooking.status}
+                      </span>
+                      {profileBooking.status === 'PendingPayment' && payingBookingId !== profileBooking.id && (
+                        <>
+                          <button
+                            className="primary"
+                            disabled={submitting}
+                            onClick={() => {
+                              setPayingBookingId(profileBooking.id);
+                              setPaymentForm(emptyPaymentForm);
+                            }}
+                            type="button"
+                          >
+                            Pay
+                          </button>
+                          <button disabled={submitting} onClick={() => void cancelBooking(profileBooking)} type="button">
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {profileBooking.status === 'PendingPayment' && payingBookingId === profileBooking.id && (
+                      renderPaymentForm(profileBooking)
+                    )}
+                  </article>
+                ))}
+
+                {!bookingsLoading && bookings.length === 0 && <p className="empty">No bookings yet.</p>}
+              </div>
+            </section>
           </div>
         </section>
       )}
@@ -1031,6 +1505,32 @@ function formatMoney(value: number) {
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatTaxiCarClassName(name: string) {
+  return taxiCarClassOptions.find((option) => option.value === name)?.label ?? name;
+}
+
+function splitTaxiCities(city: string) {
+  const cities = city
+    .split(',')
+    .map((currentCity) => currentCity.trim())
+    .filter(Boolean);
+
+  return cities.length === 0 ? [''] : cities;
+}
+
+function toAzerbaijanPhoneNumber(phoneNumber: string) {
+  return `${accountPhonePrefix} ${stripAzerbaijanPhonePrefix(phoneNumber)}`.trim();
+}
+
+function stripAzerbaijanPhonePrefix(phoneNumber: string) {
+  const trimmed = phoneNumber.trim();
+  return trimmed.startsWith(accountPhonePrefix) ? trimmed.slice(accountPhonePrefix.length).trim() : trimmed;
+}
+
+function isPage(value: unknown): value is Page {
+  return typeof value === 'string' && appPages.includes(value as Page);
 }
 
 function fallbackImage(seed: string, topic = 'travel') {

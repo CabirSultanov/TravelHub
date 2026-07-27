@@ -27,6 +27,7 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
                 Id = user.Id,
                 Name = user.Name,
                 Email = user.Email,
+                PhoneNumber = user.PhoneNumber,
                 Role = user.Role,
                 IsBlocked = user.IsBlocked
             })
@@ -41,6 +42,11 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
             return BadRequest(error);
         }
 
+        if (!AuthController.IsValidPhoneNumber(request.PhoneNumber))
+        {
+            return BadRequest("PhoneNumber must be a valid phone number.");
+        }
+
         var email = AuthController.NormalizeEmail(request.Email);
 
         if (await db.Users.AnyAsync(user => user.Email == email))
@@ -52,6 +58,7 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
         {
             Name = request.Name.Trim(),
             Email = email,
+            PhoneNumber = request.PhoneNumber.Trim(),
             Role = UserRoles.Admin
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);

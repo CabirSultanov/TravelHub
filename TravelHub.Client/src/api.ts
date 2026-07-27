@@ -10,6 +10,7 @@ import type {
   RegisterRequest,
   TaxiService,
   TaxiServiceInput,
+  UpdateProfileRequest,
 } from './types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -50,6 +51,15 @@ export const api = {
       method: 'POST',
     }),
   getMe: () => request<AuthUser>('/api/auth/me'),
+  updateProfile: (profile: UpdateProfileRequest) =>
+    request<AuthUser>('/api/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(profile),
+    }),
+  deleteProfile: () =>
+    request<void>('/api/auth/me', {
+      method: 'DELETE',
+    }),
   getAdmins: () => request<AuthUser[]>('/api/admins'),
   getAdminCandidates: () => request<AuthUser[]>('/api/admins?role=User'),
   promoteUserToAdmin: (userId: number) =>
@@ -81,7 +91,7 @@ export const api = {
       body: JSON.stringify(taxiService),
     }),
   updateTaxiService: (taxiServiceId: number, taxiService: TaxiServiceInput) =>
-    request<void>(`/api/taxi-services/${taxiServiceId}`, {
+    request<TaxiService>(`/api/taxi-services/${taxiServiceId}`, {
       method: 'PUT',
       body: JSON.stringify(taxiService),
     }),
@@ -90,6 +100,7 @@ export const api = {
       method: 'DELETE',
     }),
   getPlaces: () => request<Place[]>('/api/places'),
+  getBookings: (mine = false) => request<Booking[]>(`/api/booking-requests${mine ? '?mine=true' : ''}`),
   createBooking: (booking: BookingCreate) =>
     request<Booking>('/api/booking-requests', {
       method: 'POST',

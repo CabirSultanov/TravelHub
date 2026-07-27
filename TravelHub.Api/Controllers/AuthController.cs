@@ -15,12 +15,19 @@ namespace TravelHub.Api.Controllers;
 [Route("api/auth")]
 public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHasher) : ControllerBase
 {
+    private const string AzerbaijanPhonePrefix = "+994";
+
     [HttpPost("register")]
     public async Task<ActionResult<AuthUserDto>> Register(RegisterRequestDto request)
     {
         if (!IsValidNameEmailPassword(request.Name, request.Email, request.Password, out var error))
         {
             return BadRequest(error);
+        }
+
+        if (!IsValidPhoneNumber(request.PhoneNumber))
+        {
+            return BadRequest("PhoneNumber must be a valid phone number.");
         }
 
         var email = NormalizeEmail(request.Email);
@@ -34,6 +41,7 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
         {
             Name = request.Name.Trim(),
             Email = email,
+            PhoneNumber = NormalizePhoneNumber(request.PhoneNumber),
             Role = UserRoles.User
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
@@ -101,6 +109,71 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
         return ToDto(user);
     }
 
+    [Authorize]
+    [HttpPut("me")]
+    public async Task<ActionResult<AuthUserDto>> UpdateMe(UpdateProfileRequestDto request)
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return BadRequest("Name is required.");
+        }
+
+        if (!IsValidPhoneNumber(request.PhoneNumber))
+        {
+            return BadRequest("PhoneNumber must be a valid phone number.");
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(user => user.Id == userId.Value);
+
+        if (user is null || user.IsBlocked)
+        {
+            return Unauthorized();
+        }
+
+        user.Name = request.Name.Trim();
+        user.PhoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+        await db.SaveChangesAsync();
+        await SignInAsync(user);
+
+        return ToDto(user);
+    }
+
+    [Authorize]
+    [HttpDelete("me")]
+    public async Task<IActionResult> DeleteMe()
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId is null)
+        {
+            return Unauthorized();
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(user => user.Id == userId.Value);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        await db.BookingRequests
+            .Where(booking => booking.UserId == userId.Value)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(booking => booking.UserId, (int?)null));
+
+        db.Users.Remove(user);
+        await db.SaveChangesAsync();
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+        return NoContent();
+    }
+
     private async Task SignInAsync(AppUser user)
     {
         var claims = new List<Claim>
@@ -144,11 +217,26 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
 
     internal static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
+    internal static string NormalizePhoneNumber(string phoneNumber) => phoneNumber.Trim();
+
+    internal static bool IsValidPhoneNumber(string phoneNumber)
+    {
+        var trimmed = phoneNumber.Trim();
+        var rest = trimmed.StartsWith(AzerbaijanPhonePrefix, StringComparison.Ordinal)
+            ? trimmed[AzerbaijanPhonePrefix.Length..]
+            : string.Empty;
+
+        return trimmed.Length is >= 11 and <= 50
+            && rest.Any(char.IsDigit)
+            && rest.All(character => char.IsDigit(character) || char.IsWhiteSpace(character) || character is '-' or '(' or ')');
+    }
+
     internal static AuthUserDto ToDto(AppUser user) => new()
     {
         Id = user.Id,
         Name = user.Name,
         Email = user.Email,
+        PhoneNumber = user.PhoneNumber,
         Role = user.Role,
         IsBlocked = user.IsBlocked
     };

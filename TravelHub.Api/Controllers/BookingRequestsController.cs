@@ -14,11 +14,11 @@ namespace TravelHub.Api.Controllers;
 public class BookingRequestsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<BookingRequestResponseDto>>> GetBookingRequests(int? hotelRoomId)
+    public async Task<ActionResult<List<BookingRequestResponseDto>>> GetBookingRequests(int? hotelRoomId, bool mine = false)
     {
         var query = db.BookingRequests.AsNoTracking();
 
-        if (!IsAdmin())
+        if (mine || !IsAdmin())
         {
             var userId = GetCurrentUserId();
 
@@ -42,6 +42,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
                 UserId = booking.UserId,
                 HotelRoomId = booking.HotelRoomId,
                 HotelId = booking.HotelRoom.HotelId,
+                HotelName = booking.HotelRoom.Hotel.Name,
                 RoomType = booking.HotelRoom.RoomType,
                 CustomerName = booking.CustomerName,
                 PhoneNumber = booking.PhoneNumber,
@@ -55,6 +56,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
                 SavedCardLast4 = booking.SavedCardLast4,
                 TotalPrice = booking.TotalPrice
             })
+            .OrderByDescending(booking => booking.Id)
             .ToListAsync();
     }
 
@@ -83,6 +85,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
                 UserId = booking.UserId,
                 HotelRoomId = booking.HotelRoomId,
                 HotelId = booking.HotelRoom.HotelId,
+                HotelName = booking.HotelRoom.Hotel.Name,
                 RoomType = booking.HotelRoom.RoomType,
                 CustomerName = booking.CustomerName,
                 PhoneNumber = booking.PhoneNumber,
@@ -131,7 +134,10 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             return BadRequest("GuestsCount must be greater than 0.");
         }
 
-        var room = await db.HotelRooms.AsNoTracking().FirstOrDefaultAsync(room => room.Id == bookingDto.HotelRoomId);
+        var room = await db.HotelRooms
+            .AsNoTracking()
+            .Include(room => room.Hotel)
+            .FirstOrDefaultAsync(room => room.Id == bookingDto.HotelRoomId);
 
         if (room is null)
         {
@@ -185,6 +191,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
     {
         var booking = await db.BookingRequests
             .Include(booking => booking.HotelRoom)
+            .ThenInclude(room => room.Hotel)
             .FirstOrDefaultAsync(booking => booking.Id == id);
 
         if (booking is null)
@@ -246,6 +253,7 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         UserId = booking.UserId,
         HotelRoomId = booking.HotelRoomId,
         HotelId = room.HotelId,
+        HotelName = room.Hotel.Name,
         RoomType = room.RoomType,
         CustomerName = booking.CustomerName,
         PhoneNumber = booking.PhoneNumber,

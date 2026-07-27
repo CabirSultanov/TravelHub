@@ -4,6 +4,7 @@ export type AuthUser = {
   id: number;
   name: string;
   email: string;
+  phoneNumber: string;
   role: UserRole;
   isBlocked: boolean;
 };
@@ -11,12 +12,18 @@ export type AuthUser = {
 export type RegisterRequest = {
   name: string;
   email: string;
+  phoneNumber: string;
   password: string;
 };
 
 export type LoginRequest = {
   email: string;
   password: string;
+};
+
+export type UpdateProfileRequest = {
+  name: string;
+  phoneNumber: string;
 };
 
 export type Hotel = {
@@ -41,17 +48,27 @@ export type HotelRoom = {
   isAvailable: boolean;
 };
 
+export type TaxiCarClass = {
+  id: number;
+  name: string;
+  pricePerKm: number;
+};
+
+export type TaxiCarClassInput = Omit<TaxiCarClass, 'id'>;
+
 export type TaxiService = {
   id: number;
   companyName: string;
   city: string;
   phoneNumber: string;
-  pricePerKm: number;
   description: string;
   imageUrl?: string | null;
+  carClasses: TaxiCarClass[];
 };
 
-export type TaxiServiceInput = Omit<TaxiService, 'id'>;
+export type TaxiServiceInput = Omit<TaxiService, 'id' | 'carClasses'> & {
+  carClasses: TaxiCarClassInput[];
+};
 
 export type Place = {
   id: number;
@@ -66,6 +83,7 @@ export type Booking = {
   userId?: number | null;
   hotelRoomId: number;
   hotelId: number;
+  hotelName: string;
   roomType: string;
   customerName: string;
   phoneNumber: string;

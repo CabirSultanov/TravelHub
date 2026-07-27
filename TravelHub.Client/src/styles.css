@@ -300,6 +300,11 @@ button:focus-visible {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+.taxi-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 320px));
+  justify-content: start;
+}
+
 .hotel-card,
 .room-card,
 .service-card {
@@ -372,6 +377,36 @@ button:focus-visible {
   margin-top: 8px;
 }
 
+.taxi-card-actions {
+  display: flex;
+  justify-content: end;
+  margin-inline: 16px;
+  margin-top: 8px;
+}
+
+.taxi-card-actions button {
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #ffffff;
+  background: #1f7a8c;
+  font-weight: 800;
+}
+
+.taxi-card-actions button:nth-child(2) {
+  background: #b43d3d;
+}
+
+.tariff-list {
+  display: grid;
+  gap: 2px;
+  margin-inline: 16px;
+}
+
+.tariff-list small {
+  margin-inline: 0;
+}
+
 .user-row {
   display: flex;
   gap: 12px;
@@ -409,6 +444,13 @@ button:focus-visible {
   gap: 12px;
 }
 
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .profile-info span {
   display: grid;
   gap: 4px;
@@ -416,6 +458,37 @@ button:focus-visible {
   border: 1px solid #dbe4eb;
   border-radius: 8px;
   background: #f8fbfd;
+}
+
+.phone-field {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #c8d2dc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.phone-field span {
+  padding: 0 12px;
+  color: #536273;
+  font-weight: 900;
+}
+
+.phone-field input {
+  border: 0;
+  border-left: 1px solid #dbe4eb;
+  border-radius: 0;
+}
+
+.danger-button {
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: #b42318;
+  font-weight: 900;
 }
 
 .selected-hotel-image {
@@ -461,12 +534,69 @@ small {
   grid-column: 1 / -1;
 }
 
+.taxi-cities,
+.taxi-classes {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+}
+
+.booking-mode {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.booking-mode button {
+  min-height: 44px;
+  border-radius: 8px;
+  color: #31515f;
+  background: #eef6f8;
+  font-weight: 800;
+}
+
+.booking-mode button.active {
+  color: #ffffff;
+  background: #1f7a8c;
+}
+
+.taxi-city-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.taxi-class-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+}
+
+.taxi-city-row button,
+.taxi-class-row button {
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #8b2f2f;
+  background: #fdecec;
+  font-weight: 800;
+}
+
 .primary {
   min-height: 46px;
   border-radius: 8px;
   color: #ffffff;
   background: #1f7a8c;
   font-weight: 900;
+}
+
+.create-service-button {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 24px;
+  padding: 0 18px;
 }
 
 .link-button {
@@ -496,6 +626,77 @@ small {
 
 .booking-box h3 {
   font-size: 2rem;
+}
+
+.booking-history {
+  display: grid;
+  gap: 12px;
+}
+
+.history-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.history-card p,
+.history-card h3 {
+  margin: 0;
+}
+
+.history-card small {
+  display: block;
+  margin-top: 6px;
+}
+
+.history-card .payment-form {
+  grid-column: 1 / -1;
+}
+
+.history-actions {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 140px;
+}
+
+.history-actions button {
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #8b2f2f;
+  background: #fdecec;
+  font-weight: 800;
+}
+
+.history-actions .primary {
+  color: #ffffff;
+  background: #1f7a8c;
+}
+
+.status-pill {
+  display: inline-flex;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #31515f;
+  background: #e8eef4;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.status-pill.paid {
+  color: #1d6d38;
+  background: #e6f7ec;
+}
+
+.status-pill.cancelled {
+  color: #8b2f2f;
+  background: #fdecec;
 }
 
 .checkbox {
@@ -537,6 +738,7 @@ small {
   }
 
   .home-steps,
+  .profile-layout,
   .booking-box {
     grid-template-columns: 1fr;
   }
@@ -570,7 +772,14 @@ small {
   }
 
   .form-grid,
-  .payment-form {
+  .payment-form,
+  .booking-mode,
+  .history-card {
+    grid-template-columns: 1fr;
+  }
+
+  .taxi-city-row,
+  .taxi-class-row {
     grid-template-columns: 1fr;
   }
 

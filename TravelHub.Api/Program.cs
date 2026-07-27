@@ -64,8 +64,10 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await BaselineExistingPlacesMigrationAsync(db);
         await EnsureUserBlockingColumnAsync(db);
+        await EnsureUserPhoneNumberColumnAsync(db);
         await db.Database.MigrateAsync();
         await EnsureUserBlockingColumnAsync(db);
+        await EnsureUserPhoneNumberColumnAsync(db);
         await SeedDemoDataAsync(db);
         var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher<AppUser>>();
         await SeedSuperAdminAsync(db, passwordHasher, app.Configuration);
@@ -180,6 +182,31 @@ END;
 """);
 }
 
+static async Task EnsureUserPhoneNumberColumnAsync(AppDbContext db)
+{
+    await db.Database.ExecuteSqlRawAsync("""
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
+    AND COL_LENGTH(N'[dbo].[Users]', N'PhoneNumber') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Users]
+    ADD [PhoneNumber] nvarchar(50) NOT NULL
+        CONSTRAINT [DF_Users_PhoneNumber] DEFAULT N'';
+END;
+
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
+    AND COL_LENGTH(N'[dbo].[Users]', N'PhoneNumber') IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM [dbo].[__EFMigrationsHistory]
+        WHERE [MigrationId] = N'20260727120000_AddUserPhoneNumber'
+    )
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260727120000_AddUserPhoneNumber', N'8.0.3');
+END;
+""");
+}
+
 static async Task SeedDemoDataAsync(AppDbContext db)
 {
     var bakuHotel = await AddHotelAsync(
@@ -275,6 +302,7 @@ static async Task SeedSuperAdminAsync(AppDbContext db, PasswordHasher<AppUser> p
         {
             Name = string.IsNullOrWhiteSpace(section["Name"]) ? "Super Admin" : section["Name"]!.Trim(),
             Email = email,
+            PhoneNumber = section["PhoneNumber"]?.Trim() ?? string.Empty,
             Role = UserRoles.SuperAdmin
         };
         user.PasswordHash = passwordHasher.HashPassword(user, password);
