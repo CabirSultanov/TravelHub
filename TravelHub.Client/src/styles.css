@@ -232,6 +232,16 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+input[type='number'] {
+  appearance: textfield;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
 .notice {
   margin: 16px 0;
   padding: 12px 14px;
@@ -288,6 +298,14 @@ button:focus-visible {
   font-weight: 800;
 }
 
+.field-label {
+  display: grid;
+  gap: 7px;
+  color: #425466;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .card-grid,
 .hotel-list,
 .rooms,
@@ -328,6 +346,79 @@ button:focus-visible {
   width: 100%;
   min-height: 92px;
   padding: 8px;
+}
+
+.hotel-card {
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.hotel-card-main,
+.room-card-main {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 8px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.room-card {
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.hotel-delete-button,
+.room-delete-button {
+  min-height: 36px;
+  margin: 0 8px 8px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #b43d3d;
+  font-weight: 800;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(18, 28, 38, 0.44);
+}
+
+.confirm-modal {
+  width: min(380px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 22px 70px rgba(18, 28, 38, 0.28);
+}
+
+.confirm-modal h3,
+.confirm-modal p {
+  margin: 0;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.confirm-actions button {
+  min-width: 110px;
 }
 
 .hotel-card.active,
@@ -591,6 +682,16 @@ small {
   font-weight: 900;
 }
 
+.small-primary-button {
+  justify-self: start;
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: #1f7a8c;
+  font-weight: 850;
+}
+
 .create-service-button {
   display: inline-flex;
   align-items: center;
@@ -785,6 +886,19 @@ small {
 
   .hotel-card,
   .room-card {
+    grid-template-columns: 72px 1fr;
+  }
+
+  .hotel-card {
+    grid-template-columns: 1fr;
+  }
+
+  .room-card {
+    grid-template-columns: 1fr;
+  }
+
+  .hotel-card-main,
+  .room-card-main {
     grid-template-columns: 72px 1fr;
   }
 

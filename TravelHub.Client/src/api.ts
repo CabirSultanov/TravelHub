@@ -5,6 +5,7 @@ import type {
   BookingPayment,
   Hotel,
   HotelRoom,
+  HotelRoomInput,
   LoginRequest,
   Place,
   RegisterRequest,
@@ -83,7 +84,20 @@ export const api = {
       method: 'DELETE',
     }),
   getHotels: () => request<Hotel[]>('/api/hotels'),
+  deleteHotel: (hotelId: number) =>
+    request<void>(`/api/hotels/${hotelId}`, {
+      method: 'DELETE',
+    }),
   getHotelRooms: (hotelId: number) => request<HotelRoom[]>(`/api/hotel-rooms?hotelId=${hotelId}`),
+  createHotelRoom: (room: HotelRoomInput) =>
+    request<HotelRoom>('/api/hotel-rooms', {
+      method: 'POST',
+      body: JSON.stringify(room),
+    }),
+  deleteHotelRoom: (roomId: number) =>
+    request<void>(`/api/hotel-rooms/${roomId}`, {
+      method: 'DELETE',
+    }),
   getTaxiServices: () => request<TaxiService[]>('/api/taxi-services'),
   createTaxiService: (taxiService: TaxiServiceInput) =>
     request<TaxiService>('/api/taxi-services', {

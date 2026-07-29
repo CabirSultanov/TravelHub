@@ -61,16 +61,7 @@ using (var scope = app.Services.CreateScope())
 {
     try
     {
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await BaselineExistingPlacesMigrationAsync(db);
-        await EnsureUserBlockingColumnAsync(db);
-        await EnsureUserPhoneNumberColumnAsync(db);
-        await db.Database.MigrateAsync();
-        await EnsureUserBlockingColumnAsync(db);
-        await EnsureUserPhoneNumberColumnAsync(db);
-        await SeedDemoDataAsync(db);
-        var passwordHasher = scope.ServiceProvider.GetRequiredService<PasswordHasher<AppUser>>();
-        await SeedSuperAdminAsync(db, passwordHasher, app.Configuration);
+        await RunDatabaseStartupAsync(scope.ServiceProvider, app);
     }
     catch (Exception ex)
     {
@@ -131,6 +122,36 @@ app.MapGet("/health/db", async (AppDbContext db) =>
 app.MapControllers();
 
 app.Run();
+
+static async Task RunDatabaseStartupAsync(IServiceProvider services, WebApplication app)
+{
+    const int maxAttempts = 3;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            var db = services.GetRequiredService<AppDbContext>();
+            await BaselineExistingPlacesMigrationAsync(db);
+            await EnsureUserBlockingColumnAsync(db);
+            await EnsureUserPhoneNumberColumnAsync(db);
+            await db.Database.MigrateAsync();
+            await EnsureUserBlockingColumnAsync(db);
+            await EnsureUserPhoneNumberColumnAsync(db);
+            await SeedDemoDataAsync(db);
+            var passwordHasher = services.GetRequiredService<PasswordHasher<AppUser>>();
+            await SeedSuperAdminAsync(db, passwordHasher, app.Configuration);
+            return;
+        }
+        catch (Exception ex) when (attempt < maxAttempts)
+        {
+            app.Logger.LogWarning(ex, "Database startup attempt {Attempt}/{MaxAttempts} failed. Retrying...", attempt, maxAttempts);
+            await Task.Delay(TimeSpan.FromSeconds(3));
+        }
+    }
+
+    throw new InvalidOperationException("Database startup failed.");
+}
 
 static async Task BaselineExistingPlacesMigrationAsync(AppDbContext db)
 {

@@ -48,6 +48,8 @@ export type HotelRoom = {
   isAvailable: boolean;
 };
 
+export type HotelRoomInput = Omit<HotelRoom, 'id'>;
+
 export type TaxiCarClass = {
   id: number;
   name: string;

@@ -7,6 +7,7 @@ import type {
   BookingPayment,
   Hotel,
   HotelRoom,
+  HotelRoomInput,
   Place,
   TaxiService,
   TaxiServiceInput,
@@ -39,6 +40,18 @@ type ProfileForm = {
   phoneNumber: string;
 };
 
+type HotelRoomForm = Omit<HotelRoomInput, 'hotelId' | 'capacity' | 'totalRooms' | 'pricePerNight'> & {
+  capacity: string;
+  totalRooms: string;
+  pricePerNight: string;
+};
+
+type DeleteTarget = {
+  kind: 'hotel' | 'room';
+  id: number;
+  name: string;
+};
+
 type TaxiCarClassForm = {
   name: string;
   pricePerKm: string;
@@ -59,7 +72,7 @@ const taxiCarClassOptions = [
 ];
 const phoneNumberPattern = String.raw`\+?[0-9\s()-]{7,30}`;
 const accountPhonePrefix = '+994';
-const accountPhonePattern = String.raw`[0-9\s()-]{7,30}`;
+const accountPhonePattern = String.raw`[0-9\s()-]{9,30}`;
 const pricePattern = String.raw`[0-9]+(\.[0-9]{1,2})?`;
 
 const today = new Date().toISOString().slice(0, 10);
@@ -95,6 +108,16 @@ const emptyProfileForm: ProfileForm = {
   phoneNumber: '',
 };
 
+const emptyRoomForm: HotelRoomForm = {
+  roomType: '',
+  capacity: '1',
+  totalRooms: '1',
+  pricePerNight: '1',
+  description: '',
+  imageUrl: '',
+  isAvailable: true,
+};
+
 const emptyTaxiForm: TaxiForm = {
   companyName: '',
   cities: [''],
@@ -117,6 +140,8 @@ function App() {
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [roomForm, setRoomForm] = useState<HotelRoomForm>(emptyRoomForm);
+  const [showRoomForm, setShowRoomForm] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('register');
   const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
@@ -129,6 +154,7 @@ function App() {
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [payingBookingId, setPayingBookingId] = useState<number | null>(null);
   const [cityFilter, setCityFilter] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -213,6 +239,7 @@ function App() {
   }, [cityFilter, hotels]);
 
   const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+  const canManageHotels = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
 
   function navigateTo(nextPage: Page) {
     setPage(nextPage);
@@ -226,6 +253,8 @@ function App() {
     setSelectedHotel(hotel);
     setSelectedRoom(null);
     setBooking(null);
+    setShowRoomForm(false);
+    setRoomForm(emptyRoomForm);
     setMessage('');
     setRooms([]);
 
@@ -233,6 +262,82 @@ function App() {
       setRooms(await api.getHotelRooms(hotel.id));
     } catch (error) {
       setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function submitHotelRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!canManageHotels || !selectedHotel) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const createdRoom = await api.createHotelRoom({
+        hotelId: selectedHotel.id,
+        roomType: roomForm.roomType.trim(),
+        capacity: Number(roomForm.capacity),
+        totalRooms: Number(roomForm.totalRooms),
+        pricePerNight: Number(roomForm.pricePerNight),
+        description: roomForm.description.trim(),
+        imageUrl: roomForm.imageUrl?.trim() || null,
+        isAvailable: roomForm.isAvailable,
+      });
+
+      setRooms([...rooms, createdRoom]);
+      setRoomForm(emptyRoomForm);
+      setShowRoomForm(false);
+      setMessage('Room added.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteSelectedItem() {
+    if (!canManageHotels || !deleteTarget) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      if (deleteTarget.kind === 'hotel') {
+        await api.deleteHotel(deleteTarget.id);
+        setHotels(hotels.filter((hotel) => hotel.id !== deleteTarget.id));
+
+        if (selectedHotel?.id === deleteTarget.id) {
+          setSelectedHotel(null);
+          setSelectedRoom(null);
+          setBooking(null);
+          setRooms([]);
+          setShowRoomForm(false);
+          setRoomForm(emptyRoomForm);
+        }
+
+        setMessage('Hotel deleted.');
+      } else {
+        await api.deleteHotelRoom(deleteTarget.id);
+        setRooms(rooms.filter((room) => room.id !== deleteTarget.id));
+
+        if (selectedRoom?.id === deleteTarget.id) {
+          setSelectedRoom(null);
+          setBooking(null);
+        }
+
+        setMessage('Room deleted.');
+      }
+
+      setDeleteTarget(null);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -534,7 +639,7 @@ function App() {
   }
 
   async function deleteProfile() {
-    if (!window.confirm('Delete your profile?')) {
+    if (!window.confirm('Delete your profile? This cannot be undone.')) {
       return;
     }
 
@@ -1049,20 +1154,30 @@ function App() {
 
             <div className="hotel-list">
               {visibleHotels.map((hotel) => (
-                <button
+                <article
                   className={`hotel-card ${selectedHotel?.id === hotel.id ? 'active' : ''}`}
                   key={hotel.id}
-                  onClick={() => void selectHotel(hotel)}
-                  type="button"
                 >
-                  <img src={hotel.imageUrl || fallbackImage(hotel.name, 'hotel')} alt="" />
-                  <span>
-                    <strong>{hotel.name}</strong>
-                    <small>
-                      {hotel.city} / from {formatMoney(hotel.pricePerNight)}
-                    </small>
-                  </span>
-                </button>
+                  <button className="hotel-card-main" onClick={() => void selectHotel(hotel)} type="button">
+                    <img src={hotel.imageUrl || fallbackImage(hotel.name, 'hotel')} alt="" />
+                    <span>
+                      <strong>{hotel.name}</strong>
+                      <small>
+                        {hotel.city} / from {formatMoney(hotel.pricePerNight)}
+                      </small>
+                    </span>
+                  </button>
+                  {canManageHotels && (
+                    <button
+                      className="hotel-delete-button"
+                      disabled={submitting}
+                      onClick={() => setDeleteTarget({ kind: 'hotel', id: hotel.id, name: hotel.name })}
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </article>
               ))}
 
               {!loading && visibleHotels.length === 0 && <p className="empty">No hotels yet.</p>}
@@ -1084,23 +1199,135 @@ function App() {
                 />
                 <p className="description">{selectedHotel.description || selectedHotel.address}</p>
 
+                {canManageHotels && (
+                  <>
+                    {!showRoomForm && (
+                      <button className="small-primary-button" onClick={() => setShowRoomForm(true)} type="button">
+                        Create room
+                      </button>
+                    )}
+
+                    {showRoomForm && (
+                      <form className="form-grid" onSubmit={(event) => void submitHotelRoom(event)}>
+                        <h3>Create room</h3>
+                        <label className="field-label">
+                          Room type
+                          <input
+                            placeholder="Standard room"
+                            value={roomForm.roomType}
+                            onChange={(event) => setRoomForm({ ...roomForm, roomType: event.target.value })}
+                            required
+                          />
+                        </label>
+                        <label className="field-label">
+                          Capacity
+                          <input
+                            min="1"
+                            placeholder="Guests count"
+                            type="number"
+                            value={roomForm.capacity}
+                            onChange={(event) => setRoomForm({ ...roomForm, capacity: event.target.value })}
+                            required
+                          />
+                        </label>
+                        <label className="field-label">
+                          Total rooms
+                          <input
+                            min="1"
+                            placeholder="How many rooms"
+                            type="number"
+                            value={roomForm.totalRooms}
+                            onChange={(event) => setRoomForm({ ...roomForm, totalRooms: event.target.value })}
+                            required
+                          />
+                        </label>
+                        <label className="field-label">
+                          Price per night
+                          <input
+                            min="0"
+                            placeholder="Price"
+                            step="0.01"
+                            type="number"
+                            value={roomForm.pricePerNight}
+                            onChange={(event) => setRoomForm({ ...roomForm, pricePerNight: event.target.value })}
+                            required
+                          />
+                        </label>
+                        <label className="field-label">
+                          Description
+                          <input
+                            placeholder="Room description"
+                            value={roomForm.description}
+                            onChange={(event) => setRoomForm({ ...roomForm, description: event.target.value })}
+                            required
+                          />
+                        </label>
+                        <label className="field-label">
+                          Image URL
+                          <input
+                            placeholder="Image URL"
+                            type="url"
+                            value={roomForm.imageUrl || ''}
+                            onChange={(event) => setRoomForm({ ...roomForm, imageUrl: event.target.value })}
+                          />
+                        </label>
+                        <label className="checkbox">
+                          <input
+                            checked={roomForm.isAvailable}
+                            type="checkbox"
+                            onChange={(event) => setRoomForm({ ...roomForm, isAvailable: event.target.checked })}
+                          />
+                          Available for booking
+                        </label>
+                        <button className="primary" disabled={submitting} type="submit">
+                          Create room
+                        </button>
+                        <button
+                          className="link-button"
+                          onClick={() => {
+                            setShowRoomForm(false);
+                            setRoomForm(emptyRoomForm);
+                          }}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    )}
+                  </>
+                )}
+
                 <div className="rooms">
                   {rooms.map((room) => (
-                    <button
+                    <article
                       className={`room-card ${selectedRoom?.id === room.id ? 'active' : ''}`}
-                      disabled={!room.isAvailable}
                       key={room.id}
-                      onClick={() => setSelectedRoom(room)}
-                      type="button"
                     >
-                      <img src={room.imageUrl || fallbackImage(room.roomType, 'room')} alt="" />
-                      <span>
-                        <strong>{room.roomType}</strong>
-                        <small>
-                          {room.capacity} guests / {room.totalRooms} rooms / {formatMoney(room.pricePerNight)}
-                        </small>
-                      </span>
-                    </button>
+                      <button
+                        className="room-card-main"
+                        disabled={!room.isAvailable}
+                        onClick={() => setSelectedRoom(room)}
+                        type="button"
+                      >
+                        <img src={room.imageUrl || fallbackImage(room.roomType, 'room')} alt="" />
+                        <span>
+                          <strong>{room.roomType}</strong>
+                          <small>
+                            {room.capacity} guests / {room.totalRooms} rooms / {formatMoney(room.pricePerNight)}
+                          </small>
+                        </span>
+                      </button>
+                      {canManageHotels && (
+                        <button
+                          className="room-delete-button"
+                          disabled={submitting}
+                          onClick={() => setDeleteTarget({ kind: 'room', id: room.id, name: room.roomType })}
+                          type="button"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </article>
                   ))}
                 </div>
 
@@ -1198,6 +1425,24 @@ function App() {
             )}
           </section>
         </section>
+      )}
+
+      {deleteTarget && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="confirm-modal" aria-modal="true" role="dialog">
+            <p className="eyebrow">Confirm action</p>
+            <h3>Delete {deleteTarget.kind}?</h3>
+            <p>{deleteTarget.name} will be removed from the list.</p>
+            <div className="confirm-actions">
+              <button className="link-button" disabled={submitting} onClick={() => setDeleteTarget(null)} type="button">
+                Cancel
+              </button>
+              <button className="danger-button" disabled={submitting} onClick={() => void deleteSelectedItem()} type="button">
+                Delete
+              </button>
+            </div>
+          </section>
+        </div>
       )}
 
       {page === 'places' && (
@@ -1342,9 +1587,11 @@ function App() {
                   <button className="primary" disabled={submitting} onClick={openProfileEditor} type="button">
                     Edit profile
                   </button>
-                  <button className="danger-button" disabled={submitting} onClick={() => void deleteProfile()} type="button">
-                    Delete profile
-                  </button>
+                  {currentUser.role !== 'SuperAdmin' && (
+                    <button className="danger-button" disabled={submitting} onClick={() => void deleteProfile()} type="button">
+                      Delete profile
+                    </button>
+                  )}
                 </div>
               )}
             </div>

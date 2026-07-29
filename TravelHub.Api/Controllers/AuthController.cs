@@ -16,6 +16,7 @@ namespace TravelHub.Api.Controllers;
 public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHasher) : ControllerBase
 {
     private const string AzerbaijanPhonePrefix = "+994";
+    private const int AzerbaijanPhoneDigitCount = 9;
 
     [HttpPost("register")]
     public async Task<ActionResult<AuthUserDto>> Register(RegisterRequestDto request)
@@ -163,6 +164,11 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
             return NotFound();
         }
 
+        if (user.Role == UserRoles.SuperAdmin)
+        {
+            return BadRequest("Super admin profile cannot be deleted.");
+        }
+
         await db.BookingRequests
             .Where(booking => booking.UserId == userId.Value)
             .ExecuteUpdateAsync(setters => setters.SetProperty(booking => booking.UserId, (int?)null));
@@ -217,7 +223,15 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
 
     internal static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
-    internal static string NormalizePhoneNumber(string phoneNumber) => phoneNumber.Trim();
+    internal static string NormalizePhoneNumber(string phoneNumber)
+    {
+        var trimmed = phoneNumber.Trim();
+        var rest = trimmed.StartsWith(AzerbaijanPhonePrefix, StringComparison.Ordinal)
+            ? trimmed[AzerbaijanPhonePrefix.Length..].Trim()
+            : trimmed;
+
+        return $"{AzerbaijanPhonePrefix} {rest}";
+    }
 
     internal static bool IsValidPhoneNumber(string phoneNumber)
     {
@@ -225,9 +239,9 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
         var rest = trimmed.StartsWith(AzerbaijanPhonePrefix, StringComparison.Ordinal)
             ? trimmed[AzerbaijanPhonePrefix.Length..]
             : string.Empty;
+        var digits = rest.Count(char.IsDigit);
 
-        return trimmed.Length is >= 11 and <= 50
-            && rest.Any(char.IsDigit)
+        return digits == AzerbaijanPhoneDigitCount
             && rest.All(character => char.IsDigit(character) || char.IsWhiteSpace(character) || character is '-' or '(' or ')');
     }
 
