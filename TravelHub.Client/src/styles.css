@@ -444,6 +444,21 @@ input[type='number']::-webkit-outer-spin-button {
   gap: 4px;
 }
 
+.hotel-card .hotel-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hotel-card .hotel-card-stats small {
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: #31515f;
+  background: #eef4f7;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .service-card {
   overflow: hidden;
   padding: 0 0 16px;
@@ -468,14 +483,18 @@ input[type='number']::-webkit-outer-spin-button {
   margin-top: 8px;
 }
 
-.taxi-card-actions {
+.taxi-card-actions,
+.card-actions {
   display: flex;
+  gap: 8px;
   justify-content: end;
   margin-inline: 16px;
   margin-top: 8px;
 }
 
-.taxi-card-actions button {
+.taxi-card-actions button,
+.card-actions button {
+  flex: 1;
   min-height: 36px;
   border-radius: 8px;
   padding: 0 12px;
@@ -484,7 +503,8 @@ input[type='number']::-webkit-outer-spin-button {
   font-weight: 800;
 }
 
-.taxi-card-actions button:nth-child(2) {
+.taxi-card-actions button:nth-child(2),
+.card-actions button:nth-child(2) {
   background: #b43d3d;
 }
 
@@ -551,6 +571,41 @@ input[type='number']::-webkit-outer-spin-button {
   background: #f8fbfd;
 }
 
+.saved-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.saved-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.saved-card span {
+  display: grid;
+  gap: 4px;
+}
+
+.saved-card button {
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #ffffff;
+  background: #b43d3d;
+  font-weight: 800;
+}
+
+.payment-card-form {
+  display: grid;
+  gap: 10px;
+}
+
 .phone-field {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -605,6 +660,20 @@ small {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
+.room-photo-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.room-photo-strip img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #dce4ea;
+}
+
 .form-grid,
 .payment-form,
 .auth-form {
@@ -626,10 +695,44 @@ small {
 }
 
 .taxi-cities,
-.taxi-classes {
+.taxi-classes,
+.room-photo-fields,
+.room-types-header,
+.room-form-panel {
   display: grid;
   grid-column: 1 / -1;
   gap: 10px;
+}
+
+.room-types-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.room-types-header span,
+.room-form-panel .section-title span {
+  color: #607080;
+  font-size: 0.86rem;
+}
+
+.room-form-panel {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 14px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.room-form-panel .section-title,
+.room-form-panel .room-photo-fields,
+.room-form-panel .checkbox,
+.room-form-panel .link-button {
+  grid-column: 1 / -1;
+}
+
+.payment-form select {
+  grid-column: 1 / -1;
 }
 
 .booking-mode {
@@ -652,7 +755,8 @@ small {
   background: #1f7a8c;
 }
 
-.taxi-city-row {
+.taxi-city-row,
+.image-url-row {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
@@ -665,6 +769,7 @@ small {
 }
 
 .taxi-city-row button,
+.image-url-row button,
 .taxi-class-row button {
   min-height: 44px;
   border-radius: 8px;
@@ -682,6 +787,28 @@ small {
   font-weight: 900;
 }
 
+.payment-submit-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.button-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .small-primary-button {
   justify-self: start;
   min-height: 38px;
@@ -690,6 +817,12 @@ small {
   color: #ffffff;
   background: #1f7a8c;
   font-weight: 850;
+}
+
+.hotel-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .create-service-button {
@@ -880,6 +1013,7 @@ small {
   }
 
   .taxi-city-row,
+  .image-url-row,
   .taxi-class-row {
     grid-template-columns: 1fr;
   }

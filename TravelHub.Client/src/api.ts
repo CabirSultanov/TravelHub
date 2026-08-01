@@ -4,11 +4,15 @@ import type {
   BookingCreate,
   BookingPayment,
   Hotel,
+  HotelInput,
   HotelRoom,
   HotelRoomInput,
+  HotelUpdateInput,
   LoginRequest,
+  PaymentCardCreate,
   Place,
   RegisterRequest,
+  SavedPaymentCard,
   TaxiService,
   TaxiServiceInput,
   UpdateProfileRequest,
@@ -84,6 +88,16 @@ export const api = {
       method: 'DELETE',
     }),
   getHotels: () => request<Hotel[]>('/api/hotels'),
+  createHotel: (hotel: HotelInput) =>
+    request<Hotel>('/api/hotels', {
+      method: 'POST',
+      body: JSON.stringify(hotel),
+    }),
+  updateHotel: (hotelId: number, hotel: HotelUpdateInput) =>
+    request<void>(`/api/hotels/${hotelId}`, {
+      method: 'PUT',
+      body: JSON.stringify(hotel),
+    }),
   deleteHotel: (hotelId: number) =>
     request<void>(`/api/hotels/${hotelId}`, {
       method: 'DELETE',
@@ -94,8 +108,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(room),
     }),
+  updateHotelRoom: (roomId: number, room: HotelRoomInput) =>
+    request<void>(`/api/hotel-rooms/${roomId}`, {
+      method: 'PUT',
+      body: JSON.stringify(room),
+    }),
   deleteHotelRoom: (roomId: number) =>
     request<void>(`/api/hotel-rooms/${roomId}`, {
+      method: 'DELETE',
+    }),
+  getPaymentCards: () => request<SavedPaymentCard[]>('/api/payment-cards'),
+  createPaymentCard: (card: PaymentCardCreate) =>
+    request<SavedPaymentCard>('/api/payment-cards', {
+      method: 'POST',
+      body: JSON.stringify(card),
+    }),
+  deletePaymentCard: (cardId: number) =>
+    request<void>(`/api/payment-cards/${cardId}`, {
       method: 'DELETE',
     }),
   getTaxiServices: () => request<TaxiService[]>('/api/taxi-services'),

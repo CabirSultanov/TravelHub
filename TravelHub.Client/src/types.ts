@@ -26,14 +26,18 @@ export type UpdateProfileRequest = {
   phoneNumber: string;
 };
 
-export type Hotel = {
-  id: number;
+export type HotelUpdateInput = {
   name: string;
   city: string;
-  address: string;
-  pricePerNight: number;
   description: string;
   imageUrl?: string | null;
+};
+
+export type Hotel = HotelUpdateInput & {
+  id: number;
+  roomTypesCount: number;
+  totalRoomsCount: number;
+  totalGuestPlaces: number;
 };
 
 export type HotelRoom = {
@@ -45,10 +49,17 @@ export type HotelRoom = {
   pricePerNight: number;
   description: string;
   imageUrl?: string | null;
+  imageUrls: string[];
   isAvailable: boolean;
 };
 
 export type HotelRoomInput = Omit<HotelRoom, 'id'>;
+
+export type HotelCreateRoomInput = Omit<HotelRoomInput, 'hotelId' | 'imageUrl'>;
+
+export type HotelInput = HotelUpdateInput & {
+  rooms: HotelCreateRoomInput[];
+};
 
 export type TaxiCarClass = {
   id: number;
@@ -72,6 +83,23 @@ export type TaxiServiceInput = Omit<TaxiService, 'id' | 'carClasses'> & {
   carClasses: TaxiCarClassInput[];
 };
 
+export type SavedPaymentCard = {
+  id: number;
+  cardHolderName: string;
+  brand: string;
+  last4: string;
+  expiryMonth: number;
+  expiryYear: number;
+};
+
+export type PaymentCardCreate = {
+  cardNumber: string;
+  cardHolderName: string;
+  expiryMonth: number;
+  expiryYear: number;
+  cvv: string;
+};
+
 export type Place = {
   id: number;
   name: string;
@@ -92,7 +120,6 @@ export type Booking = {
   email: string;
   checkInDate: string;
   checkOutDate: string;
-  guestsCount: number;
   status: 'PendingPayment' | 'Paid' | 'Cancelled';
   paidAt?: string | null;
   cancelledAt?: string | null;
@@ -107,14 +134,14 @@ export type BookingCreate = {
   email: string;
   checkInDate: string;
   checkOutDate: string;
-  guestsCount: number;
 };
 
 export type BookingPayment = {
-  cardNumber: string;
-  cardHolderName: string;
-  expiryMonth: number;
-  expiryYear: number;
-  cvv: string;
+  cardNumber?: string | null;
+  cardHolderName?: string | null;
+  expiryMonth?: number;
+  expiryYear?: number;
+  cvv?: string | null;
+  savedPaymentCardId?: number | null;
   saveCard: boolean;
 };

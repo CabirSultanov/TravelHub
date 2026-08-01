@@ -4,21 +4,20 @@ namespace TravelHub.Api.DTO;
 
 public class BookingPaymentDto
 {
-    [Required]
     [MaxLength(30)]
-    public string CardNumber { get; set; } = string.Empty;
+    public string? CardNumber { get; set; }
 
-    [Required]
     [MaxLength(100)]
-    public string CardHolderName { get; set; } = string.Empty;
+    public string? CardHolderName { get; set; }
 
     public int ExpiryMonth { get; set; }
 
     public int ExpiryYear { get; set; }
 
-    [Required]
     [MaxLength(10)]
-    public string Cvv { get; set; } = string.Empty;
+    public string? Cvv { get; set; }
+
+    public int? SavedPaymentCardId { get; set; }
 
     public bool SaveCard { get; set; }
 }

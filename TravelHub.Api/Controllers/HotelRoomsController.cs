@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
 using TravelHub.Api.DTO;
 using TravelHub.Api.Models;
+using TravelHub.Api.Services;
 
 namespace TravelHub.Api.Controllers;
 
@@ -12,7 +13,7 @@ namespace TravelHub.Api.Controllers;
 public class HotelRoomsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<HotelRoomResponseDto>>> GetHotelRooms(int? hotelId)
+    public async Task<ActionResult<List<HotelRoomResponseDto>>> GetHotelRooms([FromQuery] int? hotelId)
     {
         var query = db.HotelRooms.AsNoTracking();
 
@@ -21,69 +22,36 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             query = query.Where(room => room.HotelId == hotelId.Value);
         }
 
-        return await query.Select(room => new HotelRoomResponseDto
-        {
-            Id = room.Id,
-            HotelId = room.HotelId,
-            RoomType = room.RoomType,
-            Capacity = room.Capacity,
-            TotalRooms = room.TotalRooms,
-            PricePerNight = room.PricePerNight,
-            Description = room.Description,
-            ImageUrl = room.ImageUrl,
-            IsAvailable = room.IsAvailable
-        }).ToListAsync();
+        var rooms = await query.ToListAsync();
+        return rooms.Select(ToResponse).ToList();
     }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<HotelRoomResponseDto>> GetHotelRoom(int id)
     {
-        var room = await db.HotelRooms.AsNoTracking()
-            .Where(room => room.Id == id)
-            .Select(room => new HotelRoomResponseDto
-            {
-                Id = room.Id,
-                HotelId = room.HotelId,
-                RoomType = room.RoomType,
-                Capacity = room.Capacity,
-                TotalRooms = room.TotalRooms,
-                PricePerNight = room.PricePerNight,
-                Description = room.Description,
-                ImageUrl = room.ImageUrl,
-                IsAvailable = room.IsAvailable
-            })
-            .FirstOrDefaultAsync();
+        var room = await db.HotelRooms.AsNoTracking().FirstOrDefaultAsync(room => room.Id == id);
 
         if (room is null)
         {
             return NotFound();
         }
 
-        return room;
+        return ToResponse(room);
     }
 
     [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpPost]
     public async Task<ActionResult<HotelRoomResponseDto>> CreateHotelRoom(HotelRoomCreateDto roomDto)
     {
-        if (string.IsNullOrWhiteSpace(roomDto.RoomType))
-        {
-            return BadRequest("RoomType is required.");
-        }
+        var validationError = HotelRoomRules.ValidateRoom(
+            roomDto.RoomType,
+            roomDto.Capacity,
+            roomDto.TotalRooms,
+            roomDto.PricePerNight);
 
-        if (roomDto.Capacity <= 0)
+        if (validationError is not null)
         {
-            return BadRequest("Capacity must be greater than 0.");
-        }
-
-        if (roomDto.TotalRooms <= 0)
-        {
-            return BadRequest("TotalRooms must be greater than 0.");
-        }
-
-        if (roomDto.PricePerNight < 0)
-        {
-            return BadRequest("PricePerNight cannot be negative.");
+            return BadRequest(validationError);
         }
 
         if (!await db.Hotels.AnyAsync(hotel => hotel.Id == roomDto.HotelId))
@@ -98,6 +66,13 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             return Conflict("Room type already exists for this hotel. Update TotalRooms instead.");
         }
 
+        var imageUrls = HotelRoomRules.NormalizeImageUrls(roomDto.ImageUrls, roomDto.ImageUrl, out var imageError);
+
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
         var room = new HotelRoom
         {
             HotelId = roomDto.HotelId,
@@ -106,7 +81,8 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             TotalRooms = roomDto.TotalRooms,
             PricePerNight = roomDto.PricePerNight,
             Description = roomDto.Description,
-            ImageUrl = roomDto.ImageUrl,
+            ImageUrl = imageUrls.FirstOrDefault(),
+            ImageUrlsJson = HotelRoomRules.ToJson(imageUrls),
             IsAvailable = roomDto.IsAvailable
         };
 
@@ -120,24 +96,15 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateHotelRoom(int id, HotelRoomUpdateDto roomDto)
     {
-        if (string.IsNullOrWhiteSpace(roomDto.RoomType))
-        {
-            return BadRequest("RoomType is required.");
-        }
+        var validationError = HotelRoomRules.ValidateRoom(
+            roomDto.RoomType,
+            roomDto.Capacity,
+            roomDto.TotalRooms,
+            roomDto.PricePerNight);
 
-        if (roomDto.Capacity <= 0)
+        if (validationError is not null)
         {
-            return BadRequest("Capacity must be greater than 0.");
-        }
-
-        if (roomDto.TotalRooms <= 0)
-        {
-            return BadRequest("TotalRooms must be greater than 0.");
-        }
-
-        if (roomDto.PricePerNight < 0)
-        {
-            return BadRequest("PricePerNight cannot be negative.");
+            return BadRequest(validationError);
         }
 
         var room = await db.HotelRooms.FindAsync(id);
@@ -159,13 +126,39 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             return Conflict("Room type already exists for this hotel. Update TotalRooms instead.");
         }
 
+        var nextRoom = new HotelRoomDraft(roomType, roomDto.Capacity, roomDto.TotalRooms);
+        var targetRoomSetError = await ValidateHotelRoomsAsync(roomDto.HotelId, nextRoom, room.Id);
+
+        if (targetRoomSetError is not null)
+        {
+            return Conflict(targetRoomSetError);
+        }
+
+        if (room.HotelId != roomDto.HotelId)
+        {
+            var sourceRoomSetError = await ValidateHotelRoomsAsync(room.HotelId, null, room.Id);
+
+            if (sourceRoomSetError is not null)
+            {
+                return Conflict(sourceRoomSetError);
+            }
+        }
+
+        var imageUrls = HotelRoomRules.NormalizeImageUrls(roomDto.ImageUrls, roomDto.ImageUrl, out var imageError);
+
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
         room.HotelId = roomDto.HotelId;
         room.RoomType = roomType;
         room.Capacity = roomDto.Capacity;
         room.TotalRooms = roomDto.TotalRooms;
         room.PricePerNight = roomDto.PricePerNight;
         room.Description = roomDto.Description;
-        room.ImageUrl = roomDto.ImageUrl;
+        room.ImageUrl = imageUrls.FirstOrDefault();
+        room.ImageUrlsJson = HotelRoomRules.ToJson(imageUrls);
         room.IsAvailable = roomDto.IsAvailable;
 
         await db.SaveChangesAsync();
@@ -184,22 +177,59 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             return NotFound();
         }
 
+        var roomSetError = await ValidateHotelRoomsAsync(room.HotelId, null, room.Id);
+
+        if (roomSetError is not null)
+        {
+            return Conflict(roomSetError);
+        }
+
         db.HotelRooms.Remove(room);
         await db.SaveChangesAsync();
 
         return NoContent();
     }
 
-    private static HotelRoomResponseDto ToResponse(HotelRoom room) => new()
+    private async Task<string?> ValidateHotelRoomsAsync(int hotelId, HotelRoomDraft? nextRoom, int? excludedRoomId = null)
     {
-        Id = room.Id,
-        HotelId = room.HotelId,
-        RoomType = room.RoomType,
-        Capacity = room.Capacity,
-        TotalRooms = room.TotalRooms,
-        PricePerNight = room.PricePerNight,
-        Description = room.Description,
-        ImageUrl = room.ImageUrl,
-        IsAvailable = room.IsAvailable
-    };
+        var query = db.HotelRooms.AsNoTracking().Where(room => room.HotelId == hotelId);
+
+        if (excludedRoomId is not null)
+        {
+            query = query.Where(room => room.Id != excludedRoomId.Value);
+        }
+
+        var roomRows = await query
+            .Select(room => new { room.RoomType, room.Capacity, room.TotalRooms })
+            .ToListAsync();
+        var drafts = roomRows
+            .Select(room => new HotelRoomDraft(room.RoomType, room.Capacity, room.TotalRooms))
+            .ToList();
+
+        if (nextRoom is not null)
+        {
+            drafts.Add(nextRoom.Value);
+        }
+
+        return HotelRoomRules.ValidateRoomSet(drafts);
+    }
+
+    private static HotelRoomResponseDto ToResponse(HotelRoom room)
+    {
+        var imageUrls = HotelRoomRules.FromJson(room.ImageUrlsJson, room.ImageUrl);
+
+        return new HotelRoomResponseDto
+        {
+            Id = room.Id,
+            HotelId = room.HotelId,
+            RoomType = room.RoomType,
+            Capacity = room.Capacity,
+            TotalRooms = room.TotalRooms,
+            PricePerNight = room.PricePerNight,
+            Description = room.Description,
+            ImageUrl = room.ImageUrl ?? imageUrls.FirstOrDefault(),
+            ImageUrls = imageUrls,
+            IsAvailable = room.IsAvailable
+        };
+    }
 }

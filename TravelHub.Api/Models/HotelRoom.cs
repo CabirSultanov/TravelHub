@@ -28,5 +28,7 @@ public class HotelRoom
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
 
+    public string ImageUrlsJson { get; set; } = "[]";
+
     public bool IsAvailable { get; set; } = true;
 }

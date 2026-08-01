@@ -1,20 +1,20 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace TravelHub.Api.DTO;
 
-public class HotelUpdateDto
+public class HotelResponseDto
 {
-    [Required]
-    [MaxLength(150)]
+    public int Id { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(100)]
     public string City { get; set; } = string.Empty;
 
-    [MaxLength(1000)]
     public string Description { get; set; } = string.Empty;
 
-    [MaxLength(500)]
     public string? ImageUrl { get; set; }
+
+    public int RoomTypesCount { get; set; }
+
+    public int TotalRoomsCount { get; set; }
+
+    public int TotalGuestPlaces { get; set; }
 }

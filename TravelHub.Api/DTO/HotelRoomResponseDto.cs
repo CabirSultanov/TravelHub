@@ -18,5 +18,7 @@ public class HotelRoomResponseDto
 
     public string? ImageUrl { get; set; }
 
+    public List<string> ImageUrls { get; set; } = new();
+
     public bool IsAvailable { get; set; }
 }

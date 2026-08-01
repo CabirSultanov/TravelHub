@@ -41,8 +41,7 @@ Content-Type: application/json
   "phoneNumber": "+994501234567",
   "email": "test@example.com",
   "checkInDate": "2026-08-01",
-  "checkOutDate": "2026-08-03",
-  "guestsCount": 2
+  "checkOutDate": "2026-08-03"
 }
 
 ###

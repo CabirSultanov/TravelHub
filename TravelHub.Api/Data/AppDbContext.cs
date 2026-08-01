@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Hotel> Hotels => Set<Hotel>();
     public DbSet<HotelRoom> HotelRooms => Set<HotelRoom>();
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
+    public DbSet<SavedPaymentCard> SavedPaymentCards => Set<SavedPaymentCard>();
     public DbSet<TaxiService> TaxiServices => Set<TaxiService>();
     public DbSet<TaxiCarClass> TaxiCarClasses => Set<TaxiCarClass>();
 
@@ -23,6 +24,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasMany(taxiService => taxiService.CarClasses)
             .WithOne()
             .HasForeignKey(carClass => carClass.TaxiServiceId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SavedPaymentCard>()
+            .HasOne(card => card.User)
+            .WithMany()
+            .HasForeignKey(card => card.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

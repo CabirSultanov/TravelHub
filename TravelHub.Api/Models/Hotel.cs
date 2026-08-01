@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Microsoft.EntityFrameworkCore;
 
 namespace TravelHub.Api.Models;
 
@@ -14,12 +13,6 @@ public class Hotel
     [Required]
     [MaxLength(100)]
     public string City { get; set; } = string.Empty;
-
-    [MaxLength(250)]
-    public string Address { get; set; } = string.Empty;
-
-    [Precision(18, 2)]
-    public decimal PricePerNight { get; set; }
 
     [MaxLength(1000)]
     public string Description { get; set; } = string.Empty;

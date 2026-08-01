@@ -1,3 +1,4 @@
+using System.Data;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -5,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
 using TravelHub.Api.DTO;
 using TravelHub.Api.Models;
+using TravelHub.Api.Services;
 
 namespace TravelHub.Api.Controllers;
 
@@ -129,13 +131,9 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             return BadRequest("CheckOutDate must be after CheckInDate.");
         }
 
-        if (bookingDto.GuestsCount <= 0)
-        {
-            return BadRequest("GuestsCount must be greater than 0.");
-        }
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
         var room = await db.HotelRooms
-            .AsNoTracking()
             .Include(room => room.Hotel)
             .FirstOrDefaultAsync(room => room.Id == bookingDto.HotelRoomId);
 
@@ -147,11 +145,6 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
         if (!room.IsAvailable)
         {
             return BadRequest("Hotel room is not available.");
-        }
-
-        if (bookingDto.GuestsCount > room.Capacity)
-        {
-            return BadRequest("GuestsCount cannot be greater than room capacity.");
         }
 
         var activeBookings = await db.BookingRequests.CountAsync(booking =>
@@ -175,13 +168,14 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             Email = bookingDto.Email.Trim(),
             CheckInDate = bookingDto.CheckInDate,
             CheckOutDate = bookingDto.CheckOutDate,
-            GuestsCount = bookingDto.GuestsCount,
+            GuestsCount = room.Capacity,
             Status = BookingStatus.PendingPayment,
             TotalPrice = nights * room.PricePerNight
         };
 
         db.BookingRequests.Add(bookingRequest);
         await db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return CreatedAtAction(nameof(GetBookingRequest), new { id = bookingRequest.Id }, ToResponse(bookingRequest, room));
     }
@@ -209,16 +203,68 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             return Conflict("Only pending bookings can be paid.");
         }
 
-        var cardDigits = new string(paymentDto.CardNumber.Where(char.IsDigit).ToArray());
+        var userId = GetCurrentUserId();
 
-        if (paymentDto.SaveCard && cardDigits.Length < 4)
+        if (userId is null)
         {
-            return BadRequest("CardNumber must contain at least 4 digits to save card.");
+            return Unauthorized();
+        }
+
+        string? savedCardLast4;
+
+        if (paymentDto.SavedPaymentCardId is not null)
+        {
+            var savedCard = await db.SavedPaymentCards
+                .AsNoTracking()
+                .FirstOrDefaultAsync(card => card.Id == paymentDto.SavedPaymentCardId.Value && card.UserId == userId.Value);
+
+            if (savedCard is null)
+            {
+                return BadRequest("Saved payment card does not exist.");
+            }
+
+            if (PaymentCardRules.IsExpired(savedCard.ExpiryMonth, savedCard.ExpiryYear))
+            {
+                return BadRequest("Saved payment card is expired.");
+            }
+
+            savedCardLast4 = savedCard.Last4;
+        }
+        else
+        {
+            var validationError = PaymentCardRules.CreateCard(
+                paymentDto.CardNumber,
+                paymentDto.CardHolderName,
+                paymentDto.ExpiryMonth,
+                paymentDto.ExpiryYear,
+                paymentDto.Cvv,
+                out var cardDraft);
+
+            if (validationError is not null)
+            {
+                return BadRequest(validationError);
+            }
+
+            if (paymentDto.SaveCard)
+            {
+                db.SavedPaymentCards.Add(new SavedPaymentCard
+                {
+                    UserId = userId.Value,
+                    CardHolderName = cardDraft.CardHolderName,
+                    Brand = cardDraft.Brand,
+                    Last4 = cardDraft.Last4,
+                    ExpiryMonth = cardDraft.ExpiryMonth,
+                    ExpiryYear = cardDraft.ExpiryYear,
+                    Token = cardDraft.Token
+                });
+            }
+
+            savedCardLast4 = paymentDto.SaveCard ? cardDraft.Last4 : null;
         }
 
         booking.Status = BookingStatus.Paid;
         booking.PaidAt = DateTime.UtcNow;
-        booking.SavedCardLast4 = paymentDto.SaveCard ? cardDigits[^4..] : null;
+        booking.SavedCardLast4 = savedCardLast4;
 
         await db.SaveChangesAsync();
 
