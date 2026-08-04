@@ -37,11 +37,13 @@ public static class DatabaseStartup
                 await EnsureUserPhoneNumberColumnAsync(db);
                 await EnsureHotelRoomImageUrlsColumnAsync(db);
                 await EnsureSavedPaymentCardsTableAsync(db);
+                await EnsureTaxiBookingsTableAsync(db);
                 await db.Database.MigrateAsync();
                 await EnsureUserBlockingColumnAsync(db);
                 await EnsureUserPhoneNumberColumnAsync(db);
                 await EnsureHotelRoomImageUrlsColumnAsync(db);
                 await EnsureSavedPaymentCardsTableAsync(db);
+                await EnsureTaxiBookingsTableAsync(db);
                 var passwordHasher = services.GetRequiredService<PasswordHasher<AppUser>>();
                 await SeedSuperAdminAsync(db, passwordHasher, app.Configuration);
                 return;
@@ -188,6 +190,54 @@ IF OBJECT_ID(N'[dbo].[SavedPaymentCards]', N'U') IS NOT NULL
 BEGIN
     INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20260801120000_AddSavedPaymentCards', N'8.0.3');
+END;
+""");
+    }
+
+    private static async Task EnsureTaxiBookingsTableAsync(AppDbContext db)
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+IF OBJECT_ID(N'[dbo].[Users]', N'U') IS NOT NULL
+    AND OBJECT_ID(N'[dbo].[TaxiBookings]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[TaxiBookings] (
+        [Id] int NOT NULL IDENTITY,
+        [UserId] int NOT NULL,
+        [TaxiServiceId] int NOT NULL,
+        [TaxiServiceName] nvarchar(150) NOT NULL,
+        [CarClassName] nvarchar(100) NOT NULL,
+        [CustomerName] nvarchar(100) NOT NULL,
+        [PhoneNumber] nvarchar(50) NOT NULL,
+        [Email] nvarchar(150) NOT NULL,
+        [PickupAddress] nvarchar(200) NOT NULL,
+        [DropoffAddress] nvarchar(200) NOT NULL,
+        [PickupX] decimal(18,2) NOT NULL,
+        [PickupY] decimal(18,2) NOT NULL,
+        [DropoffX] decimal(18,2) NOT NULL,
+        [DropoffY] decimal(18,2) NOT NULL,
+        [DistanceKm] decimal(18,2) NOT NULL,
+        [PricePerKm] decimal(18,2) NOT NULL,
+        [TotalPrice] decimal(18,2) NOT NULL,
+        [Status] int NOT NULL,
+        [PaidAt] datetime2 NULL,
+        [CancelledAt] datetime2 NULL,
+        [SavedCardLast4] nvarchar(4) NULL,
+        CONSTRAINT [PK_TaxiBookings] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_TaxiBookings_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([Id]) ON DELETE CASCADE
+    );
+
+    CREATE INDEX [IX_TaxiBookings_UserId] ON [dbo].[TaxiBookings] ([UserId]);
+END;
+
+IF OBJECT_ID(N'[dbo].[TaxiBookings]', N'U') IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM [dbo].[__EFMigrationsHistory]
+        WHERE [MigrationId] = N'20260804190000_AddTaxiBookings'
+    )
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260804190000_AddTaxiBookings', N'8.0.3');
 END;
 """);
     }

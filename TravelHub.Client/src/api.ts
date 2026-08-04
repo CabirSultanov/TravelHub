@@ -13,6 +13,8 @@ import type {
   Place,
   RegisterRequest,
   SavedPaymentCard,
+  TaxiBooking,
+  TaxiBookingCreate,
   TaxiService,
   TaxiServiceInput,
   UpdateProfileRequest,
@@ -141,6 +143,21 @@ export const api = {
   deleteTaxiService: (taxiServiceId: number) =>
     request<void>(`/api/taxi-services/${taxiServiceId}`, {
       method: 'DELETE',
+    }),
+  getTaxiBookings: (mine = false) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`),
+  createTaxiBooking: (booking: TaxiBookingCreate) =>
+    request<TaxiBooking>('/api/taxi-bookings', {
+      method: 'POST',
+      body: JSON.stringify(booking),
+    }),
+  payTaxiBooking: (bookingId: number, payment: BookingPayment) =>
+    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(payment),
+    }),
+  cancelTaxiBooking: (bookingId: number) =>
+    request<void>(`/api/taxi-bookings/${bookingId}/cancel`, {
+      method: 'PUT',
     }),
   getPlaces: () => request<Place[]>('/api/places'),
   getBookings: (mine = false) => request<Booking[]>(`/api/booking-requests${mine ? '?mine=true' : ''}`),

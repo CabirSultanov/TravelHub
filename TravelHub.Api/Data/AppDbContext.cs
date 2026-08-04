@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Hotel> Hotels => Set<Hotel>();
     public DbSet<HotelRoom> HotelRooms => Set<HotelRoom>();
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
+    public DbSet<TaxiBooking> TaxiBookings => Set<TaxiBooking>();
     public DbSet<SavedPaymentCard> SavedPaymentCards => Set<SavedPaymentCard>();
     public DbSet<TaxiService> TaxiServices => Set<TaxiService>();
     public DbSet<TaxiCarClass> TaxiCarClasses => Set<TaxiCarClass>();

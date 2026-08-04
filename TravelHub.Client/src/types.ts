@@ -1,4 +1,5 @@
 export type UserRole = 'User' | 'Admin' | 'SuperAdmin';
+export type BookingStatus = 'PendingPayment' | 'Paid' | 'Cancelled';
 
 export type AuthUser = {
   id: number;
@@ -120,7 +121,7 @@ export type Booking = {
   email: string;
   checkInDate: string;
   checkOutDate: string;
-  status: 'PendingPayment' | 'Paid' | 'Cancelled';
+  status: BookingStatus;
   paidAt?: string | null;
   cancelledAt?: string | null;
   savedCardLast4?: string | null;
@@ -144,4 +145,42 @@ export type BookingPayment = {
   cvv?: string | null;
   savedPaymentCardId?: number | null;
   saveCard: boolean;
+};
+
+export type TaxiBooking = {
+  id: number;
+  userId: number;
+  taxiServiceId: number;
+  taxiServiceName: string;
+  carClassName: string;
+  customerName: string;
+  phoneNumber: string;
+  email: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupX: number;
+  pickupY: number;
+  dropoffX: number;
+  dropoffY: number;
+  distanceKm: number;
+  pricePerKm: number;
+  totalPrice: number;
+  status: BookingStatus;
+  paidAt?: string | null;
+  cancelledAt?: string | null;
+  savedCardLast4?: string | null;
+};
+
+export type TaxiBookingCreate = {
+  taxiServiceId: number;
+  carClassName: string;
+  customerName: string;
+  phoneNumber: string;
+  email: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupX: number;
+  pickupY: number;
+  dropoffX: number;
+  dropoffY: number;
 };

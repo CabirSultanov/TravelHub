@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import type {
   AuthUser,
@@ -12,6 +12,8 @@ import type {
   PaymentCardCreate,
   Place,
   SavedPaymentCard,
+  TaxiBooking,
+  TaxiBookingCreate,
   TaxiService,
   TaxiServiceInput,
 } from './types';
@@ -22,6 +24,15 @@ type BookingGuestMode = 'self' | 'other';
 type PaymentMode = 'saved' | 'new';
 
 const appPages: Page[] = ['home', 'taxi', 'hotels', 'places', 'auth', 'admin', 'profile'];
+const pageRoutes: Record<Page, string> = {
+  home: '/',
+  taxi: '/taxi',
+  hotels: '/hotels',
+  places: '/places',
+  auth: '/auth',
+  admin: '/admin',
+  profile: '/profile',
+};
 
 type BookingForm = Omit<BookingCreate, 'hotelRoomId'>;
 
@@ -87,6 +98,12 @@ type TaxiCarClassForm = {
 type TaxiForm = Omit<TaxiServiceInput, 'city' | 'carClasses'> & {
   cities: string[];
   carClasses: TaxiCarClassForm[];
+};
+
+type TaxiPointMode = 'pickup' | 'dropoff';
+
+type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {
+  taxiServiceId: string;
 };
 
 const taxiCarClassOptions = [
@@ -213,8 +230,24 @@ const emptyTaxiForm: TaxiForm = {
   carClasses: [{ name: 'Standard', pricePerKm: '' }],
 };
 
+function createEmptyTaxiBookingForm(user?: AuthUser | null, taxiService?: TaxiService): TaxiBookingForm {
+  return {
+    taxiServiceId: String(taxiService?.id ?? ''),
+    carClassName: taxiService?.carClasses[0]?.name ?? '',
+    customerName: user?.name ?? '',
+    phoneNumber: user?.phoneNumber ?? '',
+    email: user?.email ?? '',
+    pickupAddress: 'Airport terminal',
+    dropoffAddress: 'City center',
+    pickupX: 22,
+    pickupY: 68,
+    dropoffX: 76,
+    dropoffY: 34,
+  };
+}
+
 function App() {
-  const [page, setPage] = useState<Page>('home');
+  const [page, setPage] = useState<Page>(() => getPageFromPathname(window.location.pathname));
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
@@ -226,6 +259,8 @@ function App() {
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [taxiBooking, setTaxiBooking] = useState<TaxiBooking | null>(null);
+  const [taxiBookings, setTaxiBookings] = useState<TaxiBooking[]>([]);
   const [savedPaymentCards, setSavedPaymentCards] = useState<SavedPaymentCard[]>([]);
   const [hotelForm, setHotelForm] = useState<HotelForm>(createEmptyHotelForm);
   const [editingHotelId, setEditingHotelId] = useState<number | null>(null);
@@ -238,21 +273,27 @@ function App() {
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
   const [editingProfile, setEditingProfile] = useState(false);
   const [taxiForm, setTaxiForm] = useState<TaxiForm>(emptyTaxiForm);
+  const [taxiBookingForm, setTaxiBookingForm] = useState<TaxiBookingForm>(() => createEmptyTaxiBookingForm());
+  const [taxiPointMode, setTaxiPointMode] = useState<TaxiPointMode>('pickup');
   const [editingTaxiId, setEditingTaxiId] = useState<number | null>(null);
   const [showTaxiForm, setShowTaxiForm] = useState(false);
   const [bookingGuestMode, setBookingGuestMode] = useState<BookingGuestMode>('self');
+  const [taxiBookingGuestMode, setTaxiBookingGuestMode] = useState<BookingGuestMode>('self');
   const [bookingForm, setBookingForm] = useState<BookingForm>(emptyBookingForm);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('new');
   const [paymentCardForm, setPaymentCardForm] = useState<PaymentCardForm>(emptyPaymentCardForm);
   const [showPaymentCardForm, setShowPaymentCardForm] = useState(false);
   const [payingBookingId, setPayingBookingId] = useState<number | null>(null);
+  const [payingTaxiBookingId, setPayingTaxiBookingId] = useState<number | null>(null);
   const [cityFilter, setCityFilter] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [taxiBookingsLoading, setTaxiBookingsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [message, setMessage] = useState('');
   const selectedHotelIdRef = useRef<number | null>(null);
 
@@ -279,13 +320,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isPage(window.history.state?.page)) {
-      window.history.replaceState({ page }, '', window.location.href);
-    }
+    const currentPage = getPageFromPathname(window.location.pathname);
+    window.history.replaceState({ page: currentPage }, '', pageRoutes[currentPage]);
 
-    function handleBrowserBack(event: PopStateEvent) {
-      const nextPage = isPage(event.state?.page) ? event.state.page : 'home';
-      setPage(nextPage);
+    function handleBrowserBack() {
+      setPage(getPageFromPathname(window.location.pathname));
     }
 
     window.addEventListener('popstate', handleBrowserBack);
@@ -303,13 +342,36 @@ function App() {
   useEffect(() => {
     if (!currentUser) {
       setBookings([]);
+      setTaxiBooking(null);
+      setTaxiBookings([]);
       setSavedPaymentCards([]);
+      setPayingTaxiBookingId(null);
+      setTaxiBookingGuestMode('self');
+      setTaxiBookingForm(createEmptyTaxiBookingForm());
       return;
     }
 
     void loadBookings();
+    void loadTaxiBookings();
     void loadPaymentCards();
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!taxiBookingForm.taxiServiceId) {
+      return;
+    }
+
+    if (taxiServices.some((taxiService) => taxiService.id === Number(taxiBookingForm.taxiServiceId))) {
+      return;
+    }
+
+    setTaxiBookingForm((form) => ({
+      ...form,
+      taxiServiceId: '',
+      carClassName: '',
+    }));
+    setTaxiBooking(null);
+  }, [taxiBookingForm.taxiServiceId, taxiServices]);
 
   useEffect(() => {
     if (!currentUser || bookingGuestMode !== 'self') {
@@ -324,6 +386,19 @@ function App() {
     }));
   }, [bookingGuestMode, currentUser?.email, currentUser?.name, currentUser?.phoneNumber]);
 
+  useEffect(() => {
+    if (!currentUser || taxiBookingGuestMode !== 'self') {
+      return;
+    }
+
+    setTaxiBookingForm((form) => ({
+      ...form,
+      customerName: currentUser.name,
+      phoneNumber: currentUser.phoneNumber,
+      email: currentUser.email,
+    }));
+  }, [taxiBookingGuestMode, currentUser?.email, currentUser?.name, currentUser?.phoneNumber]);
+
   const cities = useMemo(() => {
     return Array.from(new Set(hotels.map((hotel) => hotel.city))).sort((a, b) => a.localeCompare(b));
   }, [hotels]);
@@ -336,14 +411,31 @@ function App() {
     return hotels.filter((hotel) => hotel.city === cityFilter);
   }, [cityFilter, hotels]);
 
+  const selectedTaxiService = useMemo(
+    () => taxiServices.find((taxiService) => taxiService.id === Number(taxiBookingForm.taxiServiceId)) ?? null,
+    [taxiBookingForm.taxiServiceId, taxiServices],
+  );
+  const selectedTaxiCarClass =
+    selectedTaxiService?.carClasses.find((carClass) => carClass.name === taxiBookingForm.carClassName) ??
+    selectedTaxiService?.carClasses[0] ??
+    null;
+  const taxiDistanceKm = calculateTaxiDistanceKm(
+    taxiBookingForm.pickupX,
+    taxiBookingForm.pickupY,
+    taxiBookingForm.dropoffX,
+    taxiBookingForm.dropoffY,
+  );
+  const taxiEstimatedTotal = selectedTaxiCarClass ? taxiDistanceKm * selectedTaxiCarClass.pricePerKm : 0;
+
   const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
   const canManageHotels = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
 
   function navigateTo(nextPage: Page) {
     setPage(nextPage);
+    const nextPath = pageRoutes[nextPage];
 
-    if (window.history.state?.page !== nextPage) {
-      window.history.pushState({ page: nextPage }, '', window.location.href);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ page: nextPage }, '', nextPath);
     }
   }
 
@@ -842,6 +934,76 @@ function App() {
     }
   }
 
+  function selectTaxiServiceForBooking(taxiService: TaxiService) {
+    setTaxiBookingForm({
+      ...taxiBookingForm,
+      taxiServiceId: String(taxiService.id),
+      carClassName: taxiService.carClasses[0]?.name ?? '',
+    });
+    setTaxiBooking(null);
+    setPayingTaxiBookingId(null);
+    setEditingTaxiId(null);
+    setTaxiForm(emptyTaxiForm);
+    setShowTaxiForm(false);
+    setMessage('');
+  }
+
+  function updateTaxiMapPoint(event: MouseEvent<HTMLButtonElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+
+    setTaxiBookingForm({
+      ...taxiBookingForm,
+      [taxiPointMode === 'pickup' ? 'pickupX' : 'dropoffX']: Number(x.toFixed(1)),
+      [taxiPointMode === 'pickup' ? 'pickupY' : 'dropoffY']: Number(y.toFixed(1)),
+    });
+  }
+
+  async function submitTaxiBooking(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!currentUser) {
+      setAuthMode('login');
+      navigateTo('auth');
+      setMessage('Please sign in to order a taxi.');
+      return;
+    }
+
+    if (!selectedTaxiService || !selectedTaxiCarClass) {
+      setMessage('Choose a taxi service and car class.');
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const createdBooking = await api.createTaxiBooking({
+        taxiServiceId: Number(taxiBookingForm.taxiServiceId),
+        carClassName: selectedTaxiCarClass.name,
+        customerName: taxiBookingForm.customerName,
+        phoneNumber: taxiBookingForm.phoneNumber,
+        email: taxiBookingForm.email,
+        pickupAddress: taxiBookingForm.pickupAddress,
+        dropoffAddress: taxiBookingForm.dropoffAddress,
+        pickupX: taxiBookingForm.pickupX,
+        pickupY: taxiBookingForm.pickupY,
+        dropoffX: taxiBookingForm.dropoffX,
+        dropoffY: taxiBookingForm.dropoffY,
+      });
+
+      setTaxiBooking(createdBooking);
+      upsertTaxiBooking(createdBooking);
+      resetPaymentForm();
+      setMessage('Taxi booking created.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function loadBookings() {
     setBookingsLoading(true);
 
@@ -851,6 +1013,20 @@ function App() {
       setMessage(getErrorMessage(error));
     } finally {
       setBookingsLoading(false);
+    }
+  }
+
+  async function loadTaxiBookings() {
+    setTaxiBookingsLoading(true);
+
+    try {
+      setTaxiBookings(await api.getTaxiBookings(true));
+    } catch (error) {
+      if (!getErrorMessage(error).includes('status 404')) {
+        setMessage(getErrorMessage(error));
+      }
+    } finally {
+      setTaxiBookingsLoading(false);
     }
   }
 
@@ -874,9 +1050,26 @@ function App() {
     ]);
   }
 
+  function upsertTaxiBooking(nextBooking: TaxiBooking) {
+    setTaxiBookings((currentBookings) => [
+      nextBooking,
+      ...currentBookings.filter((currentBooking) => currentBooking.id !== nextBooking.id),
+    ]);
+  }
+
   function selectBookingGuestMode(mode: BookingGuestMode) {
     setBookingGuestMode(mode);
     setBookingForm((form) => ({
+      ...form,
+      customerName: mode === 'self' && currentUser ? currentUser.name : '',
+      phoneNumber: mode === 'self' && currentUser ? currentUser.phoneNumber : '',
+      email: mode === 'self' && currentUser ? currentUser.email : '',
+    }));
+  }
+
+  function selectTaxiBookingGuestMode(mode: BookingGuestMode) {
+    setTaxiBookingGuestMode(mode);
+    setTaxiBookingForm((form) => ({
       ...form,
       customerName: mode === 'self' && currentUser ? currentUser.name : '',
       phoneNumber: mode === 'self' && currentUser ? currentUser.phoneNumber : '',
@@ -917,29 +1110,32 @@ function App() {
     }
   }
 
+  function createPaymentPayload(): BookingPayment {
+    return paymentMode === 'saved' && savedPaymentCards.length > 0
+      ? {
+          savedPaymentCardId: Number(paymentForm.savedPaymentCardId),
+          saveCard: false,
+        }
+      : {
+          cardNumber: paymentForm.cardNumber,
+          cardHolderName: paymentForm.cardHolderName,
+          expiryMonth: Number(paymentForm.expiryMonth),
+          expiryYear: Number(paymentForm.expiryYear),
+          cvv: paymentForm.cvv,
+          saveCard: paymentForm.saveCard,
+        };
+  }
+
   async function submitBookingPayment(event: FormEvent<HTMLFormElement>, targetBooking: Booking) {
     event.preventDefault();
 
     setSubmitting(true);
-    setMessage('Processing payment...');
+    setPaymentProcessing(true);
+    setMessage('');
 
     try {
-      const payment: BookingPayment =
-        paymentMode === 'saved' && savedPaymentCards.length > 0
-          ? {
-              savedPaymentCardId: Number(paymentForm.savedPaymentCardId),
-              saveCard: false,
-            }
-          : {
-              cardNumber: paymentForm.cardNumber,
-              cardHolderName: paymentForm.cardHolderName,
-              expiryMonth: Number(paymentForm.expiryMonth),
-              expiryYear: Number(paymentForm.expiryYear),
-              cvv: paymentForm.cvv,
-              saveCard: paymentForm.saveCard,
-            };
-
-      await delay(5000);
+      const payment = createPaymentPayload();
+      await delay(3000);
       const paidBooking = await api.payBooking(targetBooking.id, payment);
 
       if (booking?.id === paidBooking.id) {
@@ -958,6 +1154,39 @@ function App() {
       setMessage(getErrorMessage(error));
     } finally {
       setSubmitting(false);
+      setPaymentProcessing(false);
+    }
+  }
+
+  async function submitTaxiBookingPayment(event: FormEvent<HTMLFormElement>, targetBooking: TaxiBooking) {
+    event.preventDefault();
+
+    setSubmitting(true);
+    setPaymentProcessing(true);
+    setMessage('');
+
+    try {
+      const payment = createPaymentPayload();
+      await delay(3000);
+      const paidBooking = await api.payTaxiBooking(targetBooking.id, payment);
+
+      if (taxiBooking?.id === paidBooking.id) {
+        setTaxiBooking(paidBooking);
+      }
+
+      if (paymentMode === 'new' && paymentForm.saveCard) {
+        await loadPaymentCards();
+      }
+
+      upsertTaxiBooking(paidBooking);
+      resetPaymentForm();
+      setPayingTaxiBookingId(null);
+      setMessage('Payment completed.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+      setPaymentProcessing(false);
     }
   }
 
@@ -981,6 +1210,33 @@ function App() {
       upsertBooking(cancelledBooking);
       setPayingBookingId(null);
       setMessage('Booking cancelled.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancelTaxiBooking(targetBooking: TaxiBooking) {
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      await api.cancelTaxiBooking(targetBooking.id);
+
+      const cancelledBooking: TaxiBooking = {
+        ...targetBooking,
+        status: 'Cancelled',
+        cancelledAt: new Date().toISOString(),
+      };
+
+      if (taxiBooking?.id === targetBooking.id) {
+        setTaxiBooking(cancelledBooking);
+      }
+
+      upsertTaxiBooking(cancelledBooking);
+      setPayingTaxiBookingId(null);
+      setMessage('Taxi booking cancelled.');
     } catch (error) {
       setMessage(getErrorMessage(error));
     } finally {
@@ -1256,6 +1512,13 @@ function App() {
     setMessage('');
   }
 
+  function resetTaxiBookingFlow() {
+    setTaxiBooking(null);
+    setTaxiBookingForm(createEmptyTaxiBookingForm(currentUser, selectedTaxiService ?? taxiServices[0]));
+    setPayingTaxiBookingId(null);
+    setMessage('');
+  }
+
   function resetPaymentForm() {
     setPaymentMode(savedPaymentCards.length > 0 ? 'saved' : 'new');
     setPaymentForm({
@@ -1266,6 +1529,13 @@ function App() {
 
   function openPaymentForm(bookingId: number) {
     setPayingBookingId(bookingId);
+    setPayingTaxiBookingId(null);
+    resetPaymentForm();
+  }
+
+  function openTaxiPaymentForm(bookingId: number) {
+    setPayingTaxiBookingId(bookingId);
+    setPayingBookingId(null);
     resetPaymentForm();
   }
 
@@ -1283,29 +1553,41 @@ function App() {
     return `${card.brand} **** ${card.last4} / ${String(card.expiryMonth).padStart(2, '0')}/${card.expiryYear}`;
   }
 
-  function renderPaymentForm(targetBooking: Booking) {
+  function renderPaymentForm(targetBooking: Booking | TaxiBooking, bookingKind: 'hotel' | 'taxi' = 'hotel') {
     const canUseSavedCard = savedPaymentCards.length > 0;
 
     return (
-      <form className="payment-form" onSubmit={(event) => void submitBookingPayment(event, targetBooking)}>
-        {canUseSavedCard && (
-          <div className="booking-mode">
-            <button
-              className={paymentMode === 'saved' ? 'active' : ''}
-              onClick={() => setPaymentMode('saved')}
-              type="button"
-            >
-              Saved card
-            </button>
-            <button
-              className={paymentMode === 'new' ? 'active' : ''}
-              onClick={() => setPaymentMode('new')}
-              type="button"
-            >
-              New card
-            </button>
-          </div>
-        )}
+      <form
+        className="payment-form"
+        onSubmit={(event) => {
+          if (bookingKind === 'taxi') {
+            void submitTaxiBookingPayment(event, targetBooking as TaxiBooking);
+          } else {
+            void submitBookingPayment(event, targetBooking as Booking);
+          }
+        }}
+      >
+        <div className="booking-mode">
+          <button
+            className={paymentMode === 'saved' ? 'active' : ''}
+            disabled={!canUseSavedCard}
+            onClick={() => {
+              if (canUseSavedCard) {
+                setPaymentMode('saved');
+              }
+            }}
+            type="button"
+          >
+            Saved card
+          </button>
+          <button
+            className={paymentMode === 'new' ? 'active' : ''}
+            onClick={() => setPaymentMode('new')}
+            type="button"
+          >
+            New card
+          </button>
+        </div>
 
         {paymentMode === 'saved' && canUseSavedCard ? (
           <select
@@ -1374,7 +1656,17 @@ function App() {
           {submitting && <span className="button-spinner" aria-hidden="true" />}
           {submitting ? 'Processing...' : 'Pay now'}
         </button>
-        <button disabled={submitting} onClick={() => void cancelBooking(targetBooking)} type="button">
+        <button
+          disabled={submitting}
+          onClick={() => {
+            if (bookingKind === 'taxi') {
+              void cancelTaxiBooking(targetBooking as TaxiBooking);
+            } else {
+              void cancelBooking(targetBooking as Booking);
+            }
+          }}
+          type="button"
+        >
           Cancel booking
         </button>
       </form>
@@ -1461,6 +1753,15 @@ function App() {
 
       {message && <div className="notice">{message}</div>}
 
+      {paymentProcessing && (
+        <div className="payment-processing-overlay" role="status" aria-live="polite">
+          <div className="payment-processing-panel">
+            <span className="payment-processing-spinner" aria-hidden="true" />
+            <strong>Processing payment...</strong>
+          </div>
+        </div>
+      )}
+
       {page === 'home' && (
         <>
           <section className="hero">
@@ -1492,184 +1793,371 @@ function App() {
       )}
 
       {page === 'taxi' && (
-        <>
-          {canManageTaxi && !showTaxiForm && (
-            <button
-              className="primary create-service-button"
-              onClick={() => {
-                setTaxiForm(emptyTaxiForm);
-                setEditingTaxiId(null);
-                setShowTaxiForm(true);
-              }}
-              type="button"
-            >
-              Create new service +
-            </button>
-          )}
-
-          <section className="page-section">
-          <div className="section-title">
-            <div>
-              <p className="eyebrow">Taxi</p>
-              <h2>Taxi booking</h2>
+        <section className="hotel-page taxi-page">
+          <aside className="panel">
+            <div className="section-title">
+              <div>
+                <p className="eyebrow">Taxi</p>
+                <h2>Taxi booking</h2>
+              </div>
+              <span>{taxiServices.length} services</span>
             </div>
-            <span>{taxiServices.length} services</span>
-          </div>
 
-          {canManageTaxi && showTaxiForm && (
-            <form className="form-grid" onSubmit={(event) => void submitTaxiService(event)}>
-              <h3>{editingTaxiId ? 'Edit taxi service' : 'New taxi service'}</h3>
-              <input
-                placeholder="Company name"
-                value={taxiForm.companyName}
-                onChange={(event) => setTaxiForm({ ...taxiForm, companyName: event.target.value })}
-                required
-              />
-              <div className="taxi-cities">
-                <strong>Cities</strong>
-                {taxiForm.cities.map((city, index) => (
-                  <div className="taxi-city-row" key={index}>
-                    <input
-                      placeholder="City"
-                      value={city}
-                      onChange={(event) => updateTaxiCity(index, event.target.value)}
-                      required
-                    />
-                    <button disabled={taxiForm.cities.length === 1} onClick={() => removeTaxiCity(index)} type="button">
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button
-                  className="link-button"
-                  onClick={() => setTaxiForm({ ...taxiForm, cities: [...taxiForm.cities, ''] })}
-                  type="button"
-                >
-                  Add city
-                </button>
-              </div>
-              <input
-                inputMode="tel"
-                pattern={phoneNumberPattern}
-                placeholder="Phone number"
-                title="Use digits, spaces, +, -, or parentheses."
-                type="tel"
-                value={taxiForm.phoneNumber}
-                onChange={(event) => setTaxiForm({ ...taxiForm, phoneNumber: event.target.value })}
-                required
-              />
-              <div className="taxi-classes">
-                <strong>Car classes</strong>
-                {taxiForm.carClasses.map((carClass, index) => (
-                  <div className="taxi-class-row" key={index}>
-                    <select
-                      value={carClass.name}
-                      onChange={(event) => updateTaxiCarClass(index, { name: event.target.value })}
-                      required
-                    >
-                      {taxiCarClassOptions.map((option) => (
-                        <option
-                          disabled={taxiForm.carClasses.some(
-                            (currentCarClass, currentIndex) => currentIndex !== index && currentCarClass.name === option.value,
-                          )}
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      className="taxi-price-input"
-                      inputMode="decimal"
-                      min="0.01"
-                      pattern={pricePattern}
-                      placeholder="Price per km"
-                      step="0.01"
-                      title="Use a number greater than 0, for example 1.50."
-                      type="text"
-                      value={carClass.pricePerKm}
-                      onChange={(event) => updateTaxiCarClass(index, { pricePerKm: event.target.value })}
-                      required
-                    />
-                    <button disabled={taxiForm.carClasses.length === 1} onClick={() => removeTaxiCarClass(index)} type="button">
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button
-                  className="link-button"
-                  disabled={taxiForm.carClasses.length === taxiCarClassOptions.length}
-                  onClick={addTaxiCarClass}
-                  type="button"
-                >
-                  Add class
-                </button>
-              </div>
-              <input
-                placeholder="Description"
-                value={taxiForm.description}
-                onChange={(event) => setTaxiForm({ ...taxiForm, description: event.target.value })}
-                required
-              />
-              <input
-                placeholder="Image URL"
-                pattern="https?://.+"
-                title="Use a full http or https URL."
-                type="url"
-                value={taxiForm.imageUrl || ''}
-                onChange={(event) => setTaxiForm({ ...taxiForm, imageUrl: event.target.value })}
-                required
-              />
-              <button className="primary" disabled={submitting} type="submit">
-                {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}
-              </button>
+            {canManageTaxi && !showTaxiForm && (
               <button
-                className="link-button"
-                disabled={submitting}
+                className="primary"
                 onClick={() => {
                   setTaxiForm(emptyTaxiForm);
                   setEditingTaxiId(null);
-                  setShowTaxiForm(false);
+                  setShowTaxiForm(true);
                 }}
                 type="button"
               >
-                Cancel
+                Create taxi service
               </button>
-            </form>
-          )}
+            )}
 
-          <div className="card-grid taxi-grid">
-            {taxiServices.map((taxi) => (
-              <article className="service-card" key={taxi.id}>
-                <img src={taxi.imageUrl || fallbackImage(taxi.companyName, 'taxi')} alt="" />
-                <strong>{taxi.companyName}</strong>
-                <span>{taxi.city}</span>
-                <small>{taxi.phoneNumber}</small>
-                <div className="tariff-list">
-                  {taxi.carClasses.map((carClass) => (
+            <div className="hotel-list">
+              {taxiServices.map((taxi) => (
+                <article className={`hotel-card ${selectedTaxiService?.id === taxi.id && !showTaxiForm ? 'active' : ''}`} key={taxi.id}>
+                  <button className="hotel-card-main" onClick={() => selectTaxiServiceForBooking(taxi)} type="button">
+                    <img src={taxi.imageUrl || fallbackImage(taxi.companyName, 'taxi')} alt="" />
+                    <span>
+                      <strong>{taxi.companyName}</strong>
+                      <small>{taxi.city}</small>
+                      <span className="hotel-card-stats">
+                        <small>{taxi.carClasses.length} classes</small>
+                        <small>{taxi.phoneNumber}</small>
+                      </span>
+                    </span>
+                  </button>
+                  {canManageTaxi && (
+                    <div className="card-actions">
+                      <button disabled={submitting} onClick={() => editTaxiService(taxi)} type="button">
+                        Edit
+                      </button>
+                      <button disabled={submitting} onClick={() => void deleteTaxiService(taxi.id)} type="button">
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+
+              {!loading && taxiServices.length === 0 && <p className="empty">No taxi services yet.</p>}
+            </div>
+          </aside>
+
+          <section className="panel wide">
+            <div className="section-title">
+              <h2>{showTaxiForm ? (editingTaxiId ? 'Edit taxi service' : 'Create taxi service') : selectedTaxiService ? selectedTaxiService.companyName : 'Select a taxi service'}</h2>
+              {!showTaxiForm && selectedTaxiService && <span>{selectedTaxiService.city}</span>}
+            </div>
+
+            {showTaxiForm && canManageTaxi ? (
+              <form className="form-grid" onSubmit={(event) => void submitTaxiService(event)}>
+                <h3>{editingTaxiId ? 'Edit taxi service' : 'New taxi service'}</h3>
+                <input
+                  placeholder="Company name"
+                  value={taxiForm.companyName}
+                  onChange={(event) => setTaxiForm({ ...taxiForm, companyName: event.target.value })}
+                  required
+                />
+                <div className="taxi-cities">
+                  <strong>Cities</strong>
+                  {taxiForm.cities.map((city, index) => (
+                    <div className="taxi-city-row" key={index}>
+                      <input
+                        placeholder="City"
+                        value={city}
+                        onChange={(event) => updateTaxiCity(index, event.target.value)}
+                        required
+                      />
+                      <button disabled={taxiForm.cities.length === 1} onClick={() => removeTaxiCity(index)} type="button">
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    className="link-button"
+                    onClick={() => setTaxiForm({ ...taxiForm, cities: [...taxiForm.cities, ''] })}
+                    type="button"
+                  >
+                    Add city
+                  </button>
+                </div>
+                <input
+                  inputMode="tel"
+                  pattern={phoneNumberPattern}
+                  placeholder="Phone number"
+                  title="Use digits, spaces, +, -, or parentheses."
+                  type="tel"
+                  value={taxiForm.phoneNumber}
+                  onChange={(event) => setTaxiForm({ ...taxiForm, phoneNumber: event.target.value })}
+                  required
+                />
+                <div className="taxi-classes">
+                  <strong>Car classes</strong>
+                  {taxiForm.carClasses.map((carClass, index) => (
+                    <div className="taxi-class-row" key={index}>
+                      <select
+                        value={carClass.name}
+                        onChange={(event) => updateTaxiCarClass(index, { name: event.target.value })}
+                        required
+                      >
+                        {taxiCarClassOptions.map((option) => (
+                          <option
+                            disabled={taxiForm.carClasses.some(
+                              (currentCarClass, currentIndex) =>
+                                currentIndex !== index && currentCarClass.name === option.value,
+                            )}
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className="taxi-price-input"
+                        inputMode="decimal"
+                        min="0.01"
+                        pattern={pricePattern}
+                        placeholder="Price per km"
+                        step="0.01"
+                        title="Use a number greater than 0, for example 1.50."
+                        type="text"
+                        value={carClass.pricePerKm}
+                        onChange={(event) => updateTaxiCarClass(index, { pricePerKm: event.target.value })}
+                        required
+                      />
+                      <button disabled={taxiForm.carClasses.length === 1} onClick={() => removeTaxiCarClass(index)} type="button">
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    className="link-button"
+                    disabled={taxiForm.carClasses.length === taxiCarClassOptions.length}
+                    onClick={addTaxiCarClass}
+                    type="button"
+                  >
+                    Add class
+                  </button>
+                </div>
+                <input
+                  placeholder="Description"
+                  value={taxiForm.description}
+                  onChange={(event) => setTaxiForm({ ...taxiForm, description: event.target.value })}
+                  required
+                />
+                <input
+                  placeholder="Image URL"
+                  pattern="https?://.+"
+                  title="Use a full http or https URL."
+                  type="url"
+                  value={taxiForm.imageUrl || ''}
+                  onChange={(event) => setTaxiForm({ ...taxiForm, imageUrl: event.target.value })}
+                  required
+                />
+                <button className="primary" disabled={submitting} type="submit">
+                  {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}
+                </button>
+                <button
+                  className="link-button"
+                  disabled={submitting}
+                  onClick={() => {
+                    setTaxiForm(emptyTaxiForm);
+                    setEditingTaxiId(null);
+                    setShowTaxiForm(false);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : selectedTaxiService ? (
+              <>
+                <img
+                  className="selected-hotel-image"
+                  src={selectedTaxiService.imageUrl || fallbackImage(selectedTaxiService.companyName, 'taxi')}
+                  alt=""
+                />
+                <p className="description">{selectedTaxiService.description}</p>
+                <div className="tariff-list taxi-detail-tariffs">
+                  {selectedTaxiService.carClasses.map((carClass) => (
                     <small key={carClass.id}>
                       {formatTaxiCarClassName(carClass.name)}: {formatMoney(carClass.pricePerKm)}/km
                     </small>
                   ))}
                 </div>
-                {canManageTaxi && (
-                  <div className="taxi-card-actions">
-                    <button disabled={submitting} onClick={() => editTaxiService(taxi)} type="button">
-                      Update
-                    </button>
-                    <button disabled={submitting} onClick={() => void deleteTaxiService(taxi.id)} type="button">
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </article>
-            ))}
 
-            {!loading && taxiServices.length === 0 && <p className="empty">No taxi services yet.</p>}
-          </div>
+                <section className="taxi-order">
+                  <div className="section-title">
+                    <h3>Order a taxi</h3>
+                    <span>{selectedTaxiCarClass ? `${formatMoney(selectedTaxiCarClass.pricePerKm)}/km` : 'Choose class'}</span>
+                  </div>
+
+                  {!currentUser ? (
+                    <div className="form-grid">
+                      <p className="empty">Please register or sign in to order a taxi.</p>
+                      <button className="primary" onClick={openAuth} type="button">
+                        Register to order
+                      </button>
+                    </div>
+                  ) : (
+                    <form className="form-grid taxi-order-form" onSubmit={(event) => void submitTaxiBooking(event)}>
+                      <label className="field-label">
+                        Car class
+                        <select
+                          value={selectedTaxiCarClass?.name ?? taxiBookingForm.carClassName}
+                          onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, carClassName: event.target.value })}
+                          required
+                        >
+                          {selectedTaxiService.carClasses.map((carClass) => (
+                            <option key={carClass.id} value={carClass.name}>
+                              {formatTaxiCarClassName(carClass.name)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="booking-mode">
+                        <button
+                          className={taxiBookingGuestMode === 'self' ? 'active' : ''}
+                          onClick={() => selectTaxiBookingGuestMode('self')}
+                          type="button"
+                        >
+                          Order for myself
+                        </button>
+                        <button
+                          className={taxiBookingGuestMode === 'other' ? 'active' : ''}
+                          onClick={() => selectTaxiBookingGuestMode('other')}
+                          type="button"
+                        >
+                          Order for someone else
+                        </button>
+                      </div>
+                      <input
+                        placeholder="Customer name"
+                        value={taxiBookingForm.customerName}
+                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, customerName: event.target.value })}
+                        required
+                      />
+                      <input
+                        pattern={phoneNumberPattern}
+                        placeholder="Phone number"
+                        type="tel"
+                        value={taxiBookingForm.phoneNumber}
+                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, phoneNumber: event.target.value })}
+                        required
+                      />
+                      <input
+                        placeholder="Email"
+                        type="email"
+                        value={taxiBookingForm.email}
+                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, email: event.target.value })}
+                        required
+                      />
+                      <input
+                        placeholder="Pickup address"
+                        value={taxiBookingForm.pickupAddress}
+                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, pickupAddress: event.target.value })}
+                        required
+                      />
+                      <input
+                        placeholder="Dropoff address"
+                        value={taxiBookingForm.dropoffAddress}
+                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, dropoffAddress: event.target.value })}
+                        required
+                      />
+
+                      <div className="taxi-map-panel">
+                        <div className="booking-mode taxi-point-mode">
+                          <button
+                            className={taxiPointMode === 'pickup' ? 'active' : ''}
+                            onClick={() => setTaxiPointMode('pickup')}
+                            type="button"
+                          >
+                            Pickup
+                          </button>
+                          <button
+                            className={taxiPointMode === 'dropoff' ? 'active' : ''}
+                            onClick={() => setTaxiPointMode('dropoff')}
+                            type="button"
+                          >
+                            Dropoff
+                          </button>
+                        </div>
+                        <button className="taxi-map" onClick={updateTaxiMapPoint} type="button" aria-label="Demo taxi map">
+                          <svg aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 100 100">
+                            <line
+                              x1={taxiBookingForm.pickupX}
+                              y1={taxiBookingForm.pickupY}
+                              x2={taxiBookingForm.dropoffX}
+                              y2={taxiBookingForm.dropoffY}
+                            />
+                          </svg>
+                          <span
+                            className="taxi-marker pickup"
+                            style={{ left: `${taxiBookingForm.pickupX}%`, top: `${taxiBookingForm.pickupY}%` }}
+                          >
+                            P
+                          </span>
+                          <span
+                            className="taxi-marker dropoff"
+                            style={{ left: `${taxiBookingForm.dropoffX}%`, top: `${taxiBookingForm.dropoffY}%` }}
+                          >
+                            D
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="taxi-estimate">
+                        <span>
+                          <strong>{taxiDistanceKm.toFixed(2)} km</strong>
+                          <small>Distance</small>
+                        </span>
+                        <span>
+                          <strong>{selectedTaxiCarClass ? formatMoney(selectedTaxiCarClass.pricePerKm) : '-'}</strong>
+                          <small>Price per km</small>
+                        </span>
+                        <span>
+                          <strong>{formatMoney(taxiEstimatedTotal)}</strong>
+                          <small>Total estimate</small>
+                        </span>
+                      </div>
+
+                      <button className="primary" disabled={submitting || !selectedTaxiCarClass} type="submit">
+                        Create taxi booking
+                      </button>
+                    </form>
+                  )}
+
+                  {taxiBooking && (
+                    <div className="booking-box taxi-booking-box">
+                      <div>
+                        <h3>{taxiBooking.status}</h3>
+                        <p>{taxiBooking.pickupAddress} to {taxiBooking.dropoffAddress}</p>
+                        <p>{taxiBooking.distanceKm.toFixed(2)} km / {formatMoney(taxiBooking.totalPrice)} total</p>
+                        {taxiBooking.savedCardLast4 && <p>Saved card: **** {taxiBooking.savedCardLast4}</p>}
+                      </div>
+
+                      {taxiBooking.status === 'PendingPayment' && renderPaymentForm(taxiBooking, 'taxi')}
+
+                      {taxiBooking.status !== 'PendingPayment' && (
+                        <button className="primary" onClick={resetTaxiBookingFlow} type="button">
+                          New taxi booking
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </section>
+              </>
+            ) : (
+              <p className="empty">Choose a taxi service to create an order.</p>
+            )}
           </section>
-        </>
+        </section>
       )}
 
       {page === 'hotels' && (
@@ -2076,7 +2564,17 @@ function App() {
                   </div>
                 )}
 
-                {selectedRoom && !booking && (
+                {selectedRoom && !booking && !currentUser && (
+                  <div className="form-grid">
+                    <h3>{selectedRoom.roomType} booking</h3>
+                    <p className="empty">Please register or sign in to create a booking.</p>
+                    <button className="primary" onClick={openAuth} type="button">
+                      Register to book
+                    </button>
+                  </div>
+                )}
+
+                {selectedRoom && !booking && currentUser && (
                   <form className="form-grid" onSubmit={(event) => void submitBooking(event)}>
                     <h3>{selectedRoom.roomType} booking</h3>
                     <div className="booking-mode">
@@ -2270,7 +2768,7 @@ function App() {
               <p className="eyebrow">Profile</p>
               <h2>Profile</h2>
             </div>
-            <span>{bookings.length} bookings</span>
+            <span>{bookings.length + taxiBookings.length} bookings</span>
           </div>
 
           <div className="profile-layout">
@@ -2421,9 +2919,10 @@ function App() {
               </section>
             </div>
 
+            <div className="profile-booking-stack">
             <section className="panel profile-bookings">
               <div className="section-title">
-                <h3>Booking history</h3>
+                <h3>Hotel bookings</h3>
                 {bookingsLoading && <span>Loading</span>}
               </div>
 
@@ -2472,6 +2971,59 @@ function App() {
                 {!bookingsLoading && bookings.length === 0 && <p className="empty">No bookings yet.</p>}
               </div>
             </section>
+
+            <section className="panel profile-bookings">
+              <div className="section-title">
+                <h3>Taxi bookings</h3>
+                {taxiBookingsLoading && <span>Loading</span>}
+              </div>
+
+              <div className="booking-history">
+                {taxiBookings.map((profileTaxiBooking) => (
+                  <article className="history-card" key={profileTaxiBooking.id}>
+                    <div>
+                      <p className="eyebrow">Taxi booking #{profileTaxiBooking.id}</p>
+                      <h3>{profileTaxiBooking.taxiServiceName}</h3>
+                      <p>
+                        {profileTaxiBooking.pickupAddress} to {profileTaxiBooking.dropoffAddress}
+                      </p>
+                      <small>
+                        {formatTaxiCarClassName(profileTaxiBooking.carClassName)} / {profileTaxiBooking.distanceKm.toFixed(2)} km / {formatMoney(profileTaxiBooking.totalPrice)}
+                      </small>
+                      {profileTaxiBooking.savedCardLast4 && <small>Saved card: **** {profileTaxiBooking.savedCardLast4}</small>}
+                    </div>
+
+                    <div className="history-actions">
+                      <span className={`status-pill ${profileTaxiBooking.status.toLowerCase()}`}>
+                        {profileTaxiBooking.status}
+                      </span>
+                      {profileTaxiBooking.status === 'PendingPayment' && payingTaxiBookingId !== profileTaxiBooking.id && (
+                        <>
+                          <button
+                            className="primary"
+                            disabled={submitting}
+                            onClick={() => openTaxiPaymentForm(profileTaxiBooking.id)}
+                            type="button"
+                          >
+                            Pay
+                          </button>
+                          <button disabled={submitting} onClick={() => void cancelTaxiBooking(profileTaxiBooking)} type="button">
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {profileTaxiBooking.status === 'PendingPayment' && payingTaxiBookingId === profileTaxiBooking.id && (
+                      renderPaymentForm(profileTaxiBooking, 'taxi')
+                    )}
+                  </article>
+                ))}
+
+                {!taxiBookingsLoading && taxiBookings.length === 0 && <p className="empty">No taxi bookings yet.</p>}
+              </div>
+            </section>
+            </div>
           </div>
         </section>
       )}
@@ -2575,6 +3127,14 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function calculateTaxiDistanceKm(pickupX: number, pickupY: number, dropoffX: number, dropoffY: number) {
+  return Math.round(Math.hypot(dropoffX - pickupX, dropoffY - pickupY) * 100) / 100;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function formatTaxiCarClassName(name: string) {
   return taxiCarClassOptions.find((option) => option.value === name)?.label ?? name;
 }
@@ -2610,8 +3170,9 @@ function roomMainImage(room: HotelRoom) {
   return roomImageUrls(room)[0] || fallbackImage(room.roomType, 'room');
 }
 
-function isPage(value: unknown): value is Page {
-  return typeof value === 'string' && appPages.includes(value as Page);
+function getPageFromPathname(pathname: string): Page {
+  const cleanPath = pathname.replace(/\/+$/, '') || '/';
+  return appPages.find((currentPage) => pageRoutes[currentPage] === cleanPath) ?? 'home';
 }
 
 function fallbackImage(seed: string, topic = 'travel') {
