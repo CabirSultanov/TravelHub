@@ -1,3 +1,5 @@
+import type { Coordinates } from '../features/taxi/taxi.types';
+
 type TaxiCarClassOption = {
   value: string;
   label: string;
@@ -12,8 +14,15 @@ export const taxiCarClassOptions: TaxiCarClassOption[] = [
   { value: 'XL', label: 'XL' },
 ];
 
-export function calculateTaxiDistanceKm(pickupX: number, pickupY: number, dropoffX: number, dropoffY: number) {
-  return Math.round(Math.hypot(dropoffX - pickupX, dropoffY - pickupY) * 100) / 100;
+// ponytail: Keep the existing 0-100 booking DTO intact; the ceiling is frontend-only until the backend stores geographic coordinates.
+export function toLegacyTaxiPoint({ latitude, longitude }: Coordinates) {
+  const maxLatitude = 85.05112878;
+  const normalizedLatitude = clamp(latitude, -maxLatitude, maxLatitude);
+
+  return {
+    x: Number(clamp(((longitude + 180) / 360) * 100, 0, 100).toFixed(2)),
+    y: Number(clamp(((maxLatitude - normalizedLatitude) / (maxLatitude * 2)) * 100, 0, 100).toFixed(2)),
+  };
 }
 
 export function clamp(value: number, min: number, max: number) {

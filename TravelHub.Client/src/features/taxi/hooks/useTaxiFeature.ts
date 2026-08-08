@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent, MouseEvent } from 'react';
+import type { FormEvent } from 'react';
 import { api } from '../../../api';
 import { getErrorMessage } from '../../../utils/errors';
-import { calculateTaxiDistanceKm, clamp, splitTaxiCities, taxiCarClassOptions } from '../../../utils/taxi';
+import { splitTaxiCities, taxiCarClassOptions, toLegacyTaxiPoint } from '../../../utils/taxi';
 import type { TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
 import { createEmptyTaxiBookingForm, emptyTaxiForm } from '../taxi.constants';
-import type { TaxiFeature, TaxiFeatureOptions, TaxiForm, TaxiCarClassForm } from '../taxi.types';
+import type {
+  Coordinates,
+  TaxiCoordinates,
+  TaxiFeature,
+  TaxiFeatureOptions,
+  TaxiForm,
+  TaxiCarClassForm,
+  TaxiRouteState,
+} from '../taxi.types';
 
 export function useTaxiFeature({
   currentUser,
@@ -21,6 +29,8 @@ export function useTaxiFeature({
   const [taxiForm, setTaxiForm] = useState<TaxiForm>(emptyTaxiForm);
   const [taxiBookingForm, setTaxiBookingForm] = useState(() => createEmptyTaxiBookingForm());
   const [taxiPointMode, setTaxiPointMode] = useState<'pickup' | 'dropoff'>('pickup');
+  const [taxiCoordinates, setTaxiCoordinates] = useState<TaxiCoordinates>({ pickup: null, dropoff: null });
+  const [taxiRouteState, setTaxiRouteState] = useState<TaxiRouteState>({ status: 'idle', distanceKm: 0 });
   const [editingTaxiId, setEditingTaxiId] = useState<number | null>(null);
   const [showTaxiForm, setShowTaxiForm] = useState(false);
   const [taxiBookingGuestMode, setTaxiBookingGuestMode] = useState<'self' | 'other'>('self');
@@ -48,6 +58,8 @@ export function useTaxiFeature({
     setTaxiBooking(null);
     setTaxiBookingGuestMode('self');
     setTaxiBookingForm(createEmptyTaxiBookingForm());
+    setTaxiCoordinates({ pickup: null, dropoff: null });
+    setTaxiRouteState({ status: 'idle', distanceKm: 0 });
   }, [currentUser]);
 
   useEffect(() => {
@@ -88,12 +100,7 @@ export function useTaxiFeature({
     selectedTaxiService?.carClasses.find((carClass) => carClass.name === taxiBookingForm.carClassName) ??
     selectedTaxiService?.carClasses[0] ??
     null;
-  const taxiDistanceKm = calculateTaxiDistanceKm(
-    taxiBookingForm.pickupX,
-    taxiBookingForm.pickupY,
-    taxiBookingForm.dropoffX,
-    taxiBookingForm.dropoffY,
-  );
+  const taxiDistanceKm = taxiRouteState.status === 'success' ? taxiRouteState.distanceKm : 0;
   const taxiEstimatedTotal = selectedTaxiCarClass ? taxiDistanceKm * selectedTaxiCarClass.pricePerKm : 0;
   const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
 
@@ -262,16 +269,22 @@ export function useTaxiFeature({
     setMessage('');
   }
 
-  function updateTaxiMapPoint(event: MouseEvent<HTMLButtonElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
-    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+  function updateTaxiMapPoint(coordinates: Coordinates) {
+    const legacyPoint = toLegacyTaxiPoint(coordinates);
 
-    setTaxiBookingForm({
-      ...taxiBookingForm,
-      [taxiPointMode === 'pickup' ? 'pickupX' : 'dropoffX']: Number(x.toFixed(1)),
-      [taxiPointMode === 'pickup' ? 'pickupY' : 'dropoffY']: Number(y.toFixed(1)),
-    });
+    setTaxiCoordinates((currentCoordinates) => ({
+      ...currentCoordinates,
+      [taxiPointMode]: coordinates,
+    }));
+    setTaxiBookingForm((form) => ({
+      ...form,
+      [taxiPointMode === 'pickup' ? 'pickupX' : 'dropoffX']: legacyPoint.x,
+      [taxiPointMode === 'pickup' ? 'pickupY' : 'dropoffY']: legacyPoint.y,
+    }));
+  }
+
+  function updateTaxiRoute(route: TaxiRouteState) {
+    setTaxiRouteState(route);
   }
 
   function selectTaxiBookingGuestMode(mode: 'self' | 'other') {
@@ -294,6 +307,19 @@ export function useTaxiFeature({
 
     if (!selectedTaxiService || !selectedTaxiCarClass) {
       setMessage('Choose a taxi service and car class.');
+      return;
+    }
+
+    if (
+      !taxiCoordinates.pickup ||
+      !taxiCoordinates.dropoff ||
+      taxiRouteState.status !== 'success' ||
+      !Number.isFinite(taxiDistanceKm) ||
+      taxiDistanceKm <= 0 ||
+      !Number.isFinite(selectedTaxiCarClass.pricePerKm) ||
+      selectedTaxiCarClass.pricePerKm <= 0
+    ) {
+      setMessage('Select pickup and dropoff and wait for the route to be calculated.');
       return;
     }
 
@@ -329,6 +355,8 @@ export function useTaxiFeature({
   function resetTaxiBooking() {
     setTaxiBooking(null);
     setTaxiBookingForm(createEmptyTaxiBookingForm(currentUser, selectedTaxiService ?? taxiServices[0]));
+    setTaxiCoordinates({ pickup: null, dropoff: null });
+    setTaxiRouteState({ status: 'idle', distanceKm: 0 });
     onResetTaxiPayment();
     setMessage('');
   }
@@ -342,6 +370,8 @@ export function useTaxiFeature({
       taxiBookingForm,
       taxiBooking,
       taxiPointMode,
+      taxiCoordinates,
+      taxiRouteState,
       taxiBookingGuestMode,
       taxiDistanceKm,
       taxiEstimatedTotal,
@@ -373,6 +403,7 @@ export function useTaxiFeature({
         selectGuestMode: selectTaxiBookingGuestMode,
         setPointMode: setTaxiPointMode,
         updatePoint: updateTaxiMapPoint,
+        setRoute: updateTaxiRoute,
         submit: (event) => void submitTaxiBooking(event),
       },
       resetBooking: resetTaxiBooking,

@@ -1,4 +1,4 @@
-import type { FormEvent, MouseEvent } from 'react';
+import type { FormEvent } from 'react';
 import type {
   AuthUser,
   BookingGuestMode,
@@ -21,6 +21,23 @@ export type TaxiForm = Omit<TaxiServiceInput, 'city' | 'carClasses'> & {
 
 export type TaxiPointMode = 'pickup' | 'dropoff';
 
+export type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+export type TaxiCoordinates = {
+  pickup: Coordinates | null;
+  dropoff: Coordinates | null;
+};
+
+export type TaxiRouteStatus = 'idle' | 'loading' | 'success' | 'error';
+
+export type TaxiRouteState = {
+  status: TaxiRouteStatus;
+  distanceKm: number;
+};
+
 export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {
   taxiServiceId: string;
 };
@@ -41,7 +58,8 @@ export type TaxiBookingFormActions = {
   setForm: (form: TaxiBookingForm) => void;
   selectGuestMode: (mode: BookingGuestMode) => void;
   setPointMode: (mode: TaxiPointMode) => void;
-  updatePoint: (event: MouseEvent<HTMLButtonElement>) => void;
+  updatePoint: (coordinates: Coordinates) => void;
+  setRoute: (route: TaxiRouteState) => void;
   submit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
@@ -53,6 +71,8 @@ export type TaxiFeatureModel = {
   taxiBookingForm: TaxiBookingForm;
   taxiBooking: TaxiBooking | null;
   taxiPointMode: TaxiPointMode;
+  taxiCoordinates: TaxiCoordinates;
+  taxiRouteState: TaxiRouteState;
   taxiBookingGuestMode: BookingGuestMode;
   taxiDistanceKm: number;
   taxiEstimatedTotal: number;

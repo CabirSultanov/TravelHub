@@ -2,7 +2,13 @@ import type { FormEvent, ReactNode } from 'react';
 import TaxiMap from './TaxiMap';
 import { formatMoney, formatTaxiCarClassName } from '../../../utils/formatting';
 import type { AuthUser, TaxiCarClass, TaxiService } from '../../../types';
-import type { TaxiBookingForm as TaxiBookingFormState, TaxiBookingFormActions, TaxiPointMode } from '../taxi.types';
+import type {
+  TaxiBookingForm as TaxiBookingFormState,
+  TaxiBookingFormActions,
+  TaxiCoordinates,
+  TaxiPointMode,
+  TaxiRouteState,
+} from '../taxi.types';
 
 type TaxiBookingFormProps = {
   selectedTaxiService: TaxiService;
@@ -12,6 +18,8 @@ type TaxiBookingFormProps = {
   taxiBookingGuestMode: 'self' | 'other';
   taxiDistanceKm: number;
   taxiEstimatedTotal: number;
+  taxiCoordinates: TaxiCoordinates;
+  taxiRouteState: TaxiRouteState;
   currentUser: AuthUser | null;
   submitting: boolean;
   phoneNumberPattern: string;
@@ -28,6 +36,8 @@ export default function TaxiBookingForm({
   taxiBookingGuestMode,
   taxiDistanceKm,
   taxiEstimatedTotal,
+  taxiCoordinates,
+  taxiRouteState,
   currentUser,
   submitting,
   phoneNumberPattern,
@@ -35,6 +45,15 @@ export default function TaxiBookingForm({
   onOpenAuth,
   children,
 }: TaxiBookingFormProps) {
+  const canCreateBooking =
+    Boolean(taxiCoordinates.pickup && taxiCoordinates.dropoff) &&
+    taxiRouteState.status === 'success' &&
+    taxiDistanceKm > 0 &&
+    Number.isFinite(taxiDistanceKm) &&
+    Boolean(selectedTaxiCarClass && Number.isFinite(selectedTaxiCarClass.pricePerKm) && selectedTaxiCarClass.pricePerKm > 0);
+  const distanceLabel =
+    taxiRouteState.status === 'loading' ? 'Calculating...' : taxiDistanceKm > 0 ? `${taxiDistanceKm.toFixed(2)} km` : '-';
+
   return (
     <section className="taxi-order">
       <div className="section-title">
@@ -116,16 +135,17 @@ export default function TaxiBookingForm({
           />
 
           <TaxiMap
-            dropoff={{ x: taxiBookingForm.dropoffX, y: taxiBookingForm.dropoffY }}
+            dropoff={taxiCoordinates.dropoff}
             mode={taxiPointMode}
             onModeChange={actions.setPointMode}
             onPointChange={actions.updatePoint}
-            pickup={{ x: taxiBookingForm.pickupX, y: taxiBookingForm.pickupY }}
+            onRouteChange={actions.setRoute}
+            pickup={taxiCoordinates.pickup}
           />
 
           <div className="taxi-estimate">
             <span>
-              <strong>{taxiDistanceKm.toFixed(2)} km</strong>
+              <strong>{distanceLabel}</strong>
               <small>Distance</small>
             </span>
             <span>
@@ -138,7 +158,7 @@ export default function TaxiBookingForm({
             </span>
           </div>
 
-          <button className="primary" disabled={submitting || !selectedTaxiCarClass} type="submit">
+          <button className="primary" disabled={submitting || !canCreateBooking} type="submit">
             Create taxi booking
           </button>
         </form>

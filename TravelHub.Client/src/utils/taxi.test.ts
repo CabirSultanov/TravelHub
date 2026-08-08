@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { calculateTaxiDistanceKm, clamp, splitTaxiCities } from './taxi';
+import { clamp, splitTaxiCities, toLegacyTaxiPoint } from './taxi';
 
 describe('taxi utilities', () => {
-  it('calculates a rounded map distance', () => {
-    expect(calculateTaxiDistanceKm(0, 0, 1, 1)).toBe(1.41);
+  it('normalizes geographic coordinates for the existing booking payload', () => {
+    expect(toLegacyTaxiPoint({ latitude: 0, longitude: 0 })).toEqual({ x: 50, y: 50 });
   });
 
   it('clamps values to map bounds', () => {

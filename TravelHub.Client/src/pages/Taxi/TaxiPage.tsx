@@ -83,9 +83,11 @@ export default function TaxiPage({
               submitting={submitting}
               taxiBookingForm={model.taxiBookingForm}
               taxiBookingGuestMode={model.taxiBookingGuestMode}
+              taxiCoordinates={model.taxiCoordinates}
               taxiDistanceKm={model.taxiDistanceKm}
               taxiEstimatedTotal={model.taxiEstimatedTotal}
               taxiPointMode={model.taxiPointMode}
+              taxiRouteState={model.taxiRouteState}
               onOpenAuth={onOpenAuth}
             >
               <TaxiBookingResult
