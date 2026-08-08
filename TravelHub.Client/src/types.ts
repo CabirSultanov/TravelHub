@@ -38,6 +38,49 @@ export type DeleteTarget = {
   name: string;
 };
 
+export type BookingGuestMode = 'self' | 'other';
+
+export type BookingForm = Omit<BookingCreate, 'hotelRoomId'>;
+
+export type HotelRoomForm = {
+  roomType: string;
+  capacity: string;
+  totalRooms: string;
+  pricePerNight: string;
+  description: string;
+  imageUrls: string[];
+  isAvailable: boolean;
+};
+
+export type HotelForm = {
+  name: string;
+  city: string;
+  description: string;
+  imageUrl: string;
+  rooms: HotelRoomForm[];
+};
+
+export type TaxiCarClassForm = {
+  name: string;
+  pricePerKm: string;
+};
+
+export type TaxiForm = Omit<TaxiServiceInput, 'city' | 'carClasses'> & {
+  cities: string[];
+  carClasses: TaxiCarClassForm[];
+};
+
+export type TaxiPointMode = 'pickup' | 'dropoff';
+
+export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {
+  taxiServiceId: string;
+};
+
+export type TaxiCarClassOption = {
+  value: string;
+  label: string;
+};
+
 export type UserRole = 'User' | 'Admin' | 'SuperAdmin';
 export type BookingStatus = 'PendingPayment' | 'Paid' | 'Cancelled';
 

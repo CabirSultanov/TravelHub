@@ -6,7 +6,8 @@ import type {
   ProfileForm,
   SavedPaymentCard,
   TaxiBooking,
-} from '../types';
+} from '../../types';
+import { formatMoney } from '../../utils/formatting';
 
 type ProfilePageProps = {
   currentUser: AuthUser;
@@ -339,12 +340,4 @@ export default function ProfilePage({
       </div>
     </section>
   );
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
 }
