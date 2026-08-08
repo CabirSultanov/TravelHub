@@ -1,4 +1,5 @@
 import type {
+  AuthResponse,
   AuthUser,
   Booking,
   BookingCreate,
@@ -20,19 +21,55 @@ import type {
   UpdateProfileRequest,
 } from './types';
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+const refreshUrl = '/api/auth/refresh';
+const authEndpoints = new Set([
+  '/api/auth/register',
+  '/api/auth/login',
+  '/api/auth/refresh',
+  '/api/auth/logout',
+]);
+
+let accessToken: string | null = null;
+let refreshPromise: Promise<AuthResponse | null> | null = null;
+let sessionExpiredHandler: (() => void) | null = null;
+
+class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+type RequestOptions = {
+  skipAuthRefresh?: boolean;
+  skipAccessToken?: boolean;
+};
+
+async function fetchResponse(url: string, init: RequestInit | undefined, skipAccessToken: boolean) {
+  const headers = new Headers(init?.headers);
+
+  if (init?.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (accessToken && !skipAccessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  return fetch(url, {
     ...init,
     credentials: 'include',
-    headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
-      ...init?.headers,
-    },
+    headers,
   });
+}
 
+async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const message = await response.text();
-    throw new Error(message || `Request failed with status ${response.status}`);
+    throw new ApiError(message || 'Request failed with status ' + response.status, response.status);
   }
 
   if (response.status === 204) {
@@ -42,31 +79,97 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function request<T>(url: string, init?: RequestInit, options: RequestOptions = {}): Promise<T> {
+  const response = await fetchResponse(url, init, options.skipAccessToken === true);
+
+  if (response.status === 401 && !options.skipAuthRefresh && !authEndpoints.has(url)) {
+    const refreshed = await refreshAccessToken();
+
+    if (refreshed) {
+      const retryResponse = await fetchResponse(url, init, false);
+      return parseResponse<T>(retryResponse);
+    }
+  }
+
+  return parseResponse<T>(response);
+}
+
+async function refreshAccessToken(): Promise<AuthResponse | null> {
+  if (!refreshPromise) {
+    refreshPromise = request<AuthResponse>(
+      refreshUrl,
+      { method: 'POST' },
+      { skipAuthRefresh: true, skipAccessToken: true },
+    )
+      .then((response) => {
+        accessToken = response.accessToken;
+        return response;
+      })
+      .catch(() => {
+        accessToken = null;
+        sessionExpiredHandler?.();
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
 export const api = {
-  register: (account: RegisterRequest) =>
-    request<AuthUser>('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(account),
-    }),
-  login: (account: LoginRequest) =>
-    request<AuthUser>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(account),
-    }),
-  logout: () =>
-    request<void>('/api/auth/logout', {
-      method: 'POST',
-    }),
+  setSessionExpiredHandler: (handler: (() => void) | null) => {
+    sessionExpiredHandler = handler;
+  },
+  register: async (account: RegisterRequest) => {
+    const response = await request<AuthResponse>(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        body: JSON.stringify(account),
+      },
+      { skipAuthRefresh: true },
+    );
+    accessToken = response.accessToken;
+    return response;
+  },
+  login: async (account: LoginRequest) => {
+    const response = await request<AuthResponse>(
+      '/api/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify(account),
+      },
+      { skipAuthRefresh: true },
+    );
+    accessToken = response.accessToken;
+    return response;
+  },
+  refresh: refreshAccessToken,
+  logout: async () => {
+    try {
+      await request<void>(
+        '/api/auth/logout',
+        { method: 'POST' },
+        { skipAuthRefresh: true, skipAccessToken: true },
+      );
+    } finally {
+      accessToken = null;
+    }
+  },
   getMe: () => request<AuthUser>('/api/auth/me'),
   updateProfile: (profile: UpdateProfileRequest) =>
     request<AuthUser>('/api/auth/me', {
       method: 'PUT',
       body: JSON.stringify(profile),
     }),
-  deleteProfile: () =>
-    request<void>('/api/auth/me', {
+  deleteProfile: async () => {
+    await request<void>('/api/auth/me', {
       method: 'DELETE',
-    }),
+    });
+    accessToken = null;
+  },
   getAdmins: () => request<AuthUser[]>('/api/admins'),
   getAdminCandidates: () => request<AuthUser[]>('/api/admins?role=User'),
   promoteUserToAdmin: (userId: number) =>

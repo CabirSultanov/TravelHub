@@ -52,6 +52,12 @@ export type AuthUser = {
   isBlocked: boolean;
 };
 
+export type AuthResponse = {
+  user: AuthUser;
+  accessToken: string;
+  accessTokenExpiresAt: string;
+};
+
 export type RegisterRequest = {
   name: string;
   email: string;

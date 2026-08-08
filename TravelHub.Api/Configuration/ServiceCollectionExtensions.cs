@@ -1,6 +1,8 @@
-using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using TravelHub.Api.Data;
 using TravelHub.Api.Models;
 using TravelHub.Api.Services;
@@ -22,6 +24,15 @@ public static class ServiceCollectionExtensions
             options.UseSqlServer(connectionString));
         services.AddHostedService<CancelledBookingCleanupService>();
         services.AddScoped<PasswordHasher<AppUser>>();
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddOptions<JwtOptions>()
+            .Bind(configuration.GetSection(JwtOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "Jwt:Issuer is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "Jwt:Audience is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Key) && options.Key.Length >= 32, "Jwt:Key must be at least 32 characters.")
+            .Validate(options => options.AccessTokenMinutes > 0, "Jwt:AccessTokenMinutes must be greater than 0.")
+            .Validate(options => options.RefreshTokenDays > 0, "Jwt:RefreshTokenDays must be greater than 0.")
+            .ValidateOnStart();
 
         services.AddControllers();
         services.AddCors(options =>
@@ -33,22 +44,23 @@ public static class ServiceCollectionExtensions
                     .AllowAnyMethod()
                     .AllowCredentials());
         });
-        services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-            .AddCookie(options =>
+        var jwtOptions = configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
+            ?? throw new InvalidOperationException("JWT configuration is not configured.");
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
             {
-                options.Cookie.Name = "TravelHub.Auth";
-                options.Cookie.HttpOnly = true;
-                options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-                options.Events.OnRedirectToLogin = context =>
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    return Task.CompletedTask;
-                };
-                options.Events.OnRedirectToAccessDenied = context =>
-                {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    return Task.CompletedTask;
+                    ValidateIssuer = true,
+                    ValidIssuer = jwtOptions.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = jwtOptions.Audience,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
+                    NameClaimType = System.Security.Claims.ClaimTypes.Name,
+                    RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+                    ClockSkew = TimeSpan.Zero
                 };
             });
         services.AddAuthorization();

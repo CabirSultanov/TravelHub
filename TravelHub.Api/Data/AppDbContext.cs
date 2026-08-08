@@ -14,12 +14,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SavedPaymentCard> SavedPaymentCards => Set<SavedPaymentCard>();
     public DbSet<TaxiService> TaxiServices => Set<TaxiService>();
     public DbSet<TaxiCarClass> TaxiCarClasses => Set<TaxiCarClass>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AppUser>()
             .HasIndex(user => user.Email)
             .IsUnique();
+
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(refreshToken => refreshToken.TokenHash)
+            .IsUnique();
+
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(refreshToken => refreshToken.User)
+            .WithMany(user => user.RefreshTokens)
+            .HasForeignKey(refreshToken => refreshToken.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<TaxiService>()
             .HasMany(taxiService => taxiService.CarClasses)
