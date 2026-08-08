@@ -1,4 +1,4 @@
-import type { AuthUser } from '../types';
+import type { AuthUser } from '../../types';
 
 type UserAction = (userId: number) => void | Promise<void>;
 

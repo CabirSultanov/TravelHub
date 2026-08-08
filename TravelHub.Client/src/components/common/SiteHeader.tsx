@@ -1,4 +1,4 @@
-import type { AuthUser, Page } from '../types';
+import type { AuthUser, Page } from '../../types';
 
 type SiteHeaderProps = {
   page: Page;

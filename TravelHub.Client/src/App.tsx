@@ -1,25 +1,32 @@
 import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
-import ConfirmDeleteModal from './components/ConfirmDeleteModal';
-import PaymentFormComponent from './components/PaymentForm';
-import RoomPhotoFields from './components/RoomPhotoFields';
-import SiteHeader from './components/SiteHeader';
-import AdminPage from './pages/AdminPage';
-import AuthPage from './pages/AuthPage';
-import HomePage from './pages/HomePage';
-import PlacesPage from './pages/PlacesPage';
-import ProfilePage from './pages/ProfilePage';
+import ConfirmDeleteModal from './components/common/ConfirmDeleteModal';
+import PaymentFormComponent from './components/booking/PaymentForm';
+import SiteHeader from './components/common/SiteHeader';
+import AdminPage from './pages/Admin/AdminPage';
+import AuthPage from './pages/Auth/AuthPage';
+import HomePage from './pages/Home/HomePage';
+import HotelsPage from './pages/Hotels/HotelsPage';
+import PlacesPage from './pages/Places/PlacesPage';
+import ProfilePage from './pages/Profile/ProfilePage';
+import TaxiPage from './pages/Taxi/TaxiPage';
+import { formatTaxiCarClassName } from './utils/formatting';
+import { cleanImageUrls, fallbackImage, roomImageUrls } from './utils/images';
+import { calculateTaxiDistanceKm, clamp, splitTaxiCities, taxiCarClassOptions } from './utils/taxi';
 import type {
   AuthForm,
   AuthMode,
   AuthUser,
   Booking,
-  BookingCreate,
+  BookingForm,
+  BookingGuestMode,
   BookingPayment,
   DeleteTarget,
   Hotel,
+  HotelForm,
   HotelInput,
   HotelRoom,
+  HotelRoomForm,
   HotelUpdateInput,
   Page,
   PaymentCardForm,
@@ -30,12 +37,13 @@ import type {
   ProfileForm,
   SavedPaymentCard,
   TaxiBooking,
-  TaxiBookingCreate,
+  TaxiBookingForm,
+  TaxiCarClassForm,
   TaxiService,
+  TaxiForm,
   TaxiServiceInput,
+  TaxiPointMode,
 } from './types';
-
-type BookingGuestMode = 'self' | 'other';
 
 const appPages: Page[] = ['home', 'taxi', 'hotels', 'places', 'auth', 'admin', 'profile'];
 const pageRoutes: Record<Page, string> = {
@@ -48,50 +56,7 @@ const pageRoutes: Record<Page, string> = {
   profile: '/profile',
 };
 
-type BookingForm = Omit<BookingCreate, 'hotelRoomId'>;
 
-type HotelRoomForm = {
-  roomType: string;
-  capacity: string;
-  totalRooms: string;
-  pricePerNight: string;
-  description: string;
-  imageUrls: string[];
-  isAvailable: boolean;
-};
-
-type HotelForm = {
-  name: string;
-  city: string;
-  description: string;
-  imageUrl: string;
-  rooms: HotelRoomForm[];
-};
-
-type TaxiCarClassForm = {
-  name: string;
-  pricePerKm: string;
-};
-
-type TaxiForm = Omit<TaxiServiceInput, 'city' | 'carClasses'> & {
-  cities: string[];
-  carClasses: TaxiCarClassForm[];
-};
-
-type TaxiPointMode = 'pickup' | 'dropoff';
-
-type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {
-  taxiServiceId: string;
-};
-
-const taxiCarClassOptions = [
-  { value: 'Standard', label: 'Standard' },
-  { value: 'Priority', label: 'Priority' },
-  { value: 'Comfort', label: 'Comfort' },
-  { value: 'Business', label: 'Business' },
-  { value: 'Green', label: 'Green' },
-  { value: 'XL', label: 'XL' },
-];
 const phoneNumberPattern = String.raw`\+?[0-9\s()-]{7,30}`;
 const accountPhonePrefix = '+994';
 const accountPhonePattern = String.raw`[0-9\s()-]{9,30}`;
@@ -1582,876 +1547,137 @@ function App() {
       {page === 'home' && <HomePage onNavigate={navigateTo} />}
 
       {page === 'taxi' && (
-        <section className="hotel-page taxi-page">
-          <aside className="panel">
-            <div className="section-title">
-              <div>
-                <p className="eyebrow">Taxi</p>
-                <h2>Taxi booking</h2>
-              </div>
-              <span>{taxiServices.length} services</span>
-            </div>
-
-            {canManageTaxi && !showTaxiForm && (
-              <button
-                className="primary"
-                onClick={() => {
-                  setTaxiForm(emptyTaxiForm);
-                  setEditingTaxiId(null);
-                  setShowTaxiForm(true);
-                }}
-                type="button"
-              >
-                Create taxi service
-              </button>
-            )}
-
-            <div className="hotel-list">
-              {taxiServices.map((taxi) => (
-                <article className={`hotel-card ${selectedTaxiService?.id === taxi.id && !showTaxiForm ? 'active' : ''}`} key={taxi.id}>
-                  <button className="hotel-card-main" onClick={() => selectTaxiServiceForBooking(taxi)} type="button">
-                    <img src={taxi.imageUrl || fallbackImage(taxi.companyName, 'taxi')} alt="" />
-                    <span>
-                      <strong>{taxi.companyName}</strong>
-                      <small>{taxi.city}</small>
-                      <span className="hotel-card-stats">
-                        <small>{taxi.carClasses.length} classes</small>
-                        <small>{taxi.phoneNumber}</small>
-                      </span>
-                    </span>
-                  </button>
-                  {canManageTaxi && (
-                    <div className="card-actions">
-                      <button disabled={submitting} onClick={() => editTaxiService(taxi)} type="button">
-                        Edit
-                      </button>
-                      <button disabled={submitting} onClick={() => void deleteTaxiService(taxi.id)} type="button">
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </article>
-              ))}
-
-              {!loading && taxiServices.length === 0 && <p className="empty">No taxi services yet.</p>}
-            </div>
-          </aside>
-
-          <section className="panel wide">
-            <div className="section-title">
-              <h2>{showTaxiForm ? (editingTaxiId ? 'Edit taxi service' : 'Create taxi service') : selectedTaxiService ? selectedTaxiService.companyName : 'Select a taxi service'}</h2>
-              {!showTaxiForm && selectedTaxiService && <span>{selectedTaxiService.city}</span>}
-            </div>
-
-            {showTaxiForm && canManageTaxi ? (
-              <form className="form-grid" onSubmit={(event) => void submitTaxiService(event)}>
-                <h3>{editingTaxiId ? 'Edit taxi service' : 'New taxi service'}</h3>
-                <input
-                  placeholder="Company name"
-                  value={taxiForm.companyName}
-                  onChange={(event) => setTaxiForm({ ...taxiForm, companyName: event.target.value })}
-                  required
-                />
-                <div className="taxi-cities">
-                  <strong>Cities</strong>
-                  {taxiForm.cities.map((city, index) => (
-                    <div className="taxi-city-row" key={index}>
-                      <input
-                        placeholder="City"
-                        value={city}
-                        onChange={(event) => updateTaxiCity(index, event.target.value)}
-                        required
-                      />
-                      <button disabled={taxiForm.cities.length === 1} onClick={() => removeTaxiCity(index)} type="button">
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    className="link-button"
-                    onClick={() => setTaxiForm({ ...taxiForm, cities: [...taxiForm.cities, ''] })}
-                    type="button"
-                  >
-                    Add city
-                  </button>
-                </div>
-                <input
-                  inputMode="tel"
-                  pattern={phoneNumberPattern}
-                  placeholder="Phone number"
-                  title="Use digits, spaces, +, -, or parentheses."
-                  type="tel"
-                  value={taxiForm.phoneNumber}
-                  onChange={(event) => setTaxiForm({ ...taxiForm, phoneNumber: event.target.value })}
-                  required
-                />
-                <div className="taxi-classes">
-                  <strong>Car classes</strong>
-                  {taxiForm.carClasses.map((carClass, index) => (
-                    <div className="taxi-class-row" key={index}>
-                      <select
-                        value={carClass.name}
-                        onChange={(event) => updateTaxiCarClass(index, { name: event.target.value })}
-                        required
-                      >
-                        {taxiCarClassOptions.map((option) => (
-                          <option
-                            disabled={taxiForm.carClasses.some(
-                              (currentCarClass, currentIndex) =>
-                                currentIndex !== index && currentCarClass.name === option.value,
-                            )}
-                            key={option.value}
-                            value={option.value}
-                          >
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        className="taxi-price-input"
-                        inputMode="decimal"
-                        min="0.01"
-                        pattern={pricePattern}
-                        placeholder="Price per km"
-                        step="0.01"
-                        title="Use a number greater than 0, for example 1.50."
-                        type="text"
-                        value={carClass.pricePerKm}
-                        onChange={(event) => updateTaxiCarClass(index, { pricePerKm: event.target.value })}
-                        required
-                      />
-                      <button disabled={taxiForm.carClasses.length === 1} onClick={() => removeTaxiCarClass(index)} type="button">
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    className="link-button"
-                    disabled={taxiForm.carClasses.length === taxiCarClassOptions.length}
-                    onClick={addTaxiCarClass}
-                    type="button"
-                  >
-                    Add class
-                  </button>
-                </div>
-                <input
-                  placeholder="Description"
-                  value={taxiForm.description}
-                  onChange={(event) => setTaxiForm({ ...taxiForm, description: event.target.value })}
-                  required
-                />
-                <input
-                  placeholder="Image URL"
-                  pattern="https?://.+"
-                  title="Use a full http or https URL."
-                  type="url"
-                  value={taxiForm.imageUrl || ''}
-                  onChange={(event) => setTaxiForm({ ...taxiForm, imageUrl: event.target.value })}
-                  required
-                />
-                <button className="primary" disabled={submitting} type="submit">
-                  {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}
-                </button>
-                <button
-                  className="link-button"
-                  disabled={submitting}
-                  onClick={() => {
-                    setTaxiForm(emptyTaxiForm);
-                    setEditingTaxiId(null);
-                    setShowTaxiForm(false);
-                  }}
-                  type="button"
-                >
-                  Cancel
-                </button>
-              </form>
-            ) : selectedTaxiService ? (
-              <>
-                <img
-                  className="selected-hotel-image"
-                  src={selectedTaxiService.imageUrl || fallbackImage(selectedTaxiService.companyName, 'taxi')}
-                  alt=""
-                />
-                <p className="description">{selectedTaxiService.description}</p>
-                <div className="tariff-list taxi-detail-tariffs">
-                  {selectedTaxiService.carClasses.map((carClass) => (
-                    <small key={carClass.id}>
-                      {formatTaxiCarClassName(carClass.name)}: {formatMoney(carClass.pricePerKm)}/km
-                    </small>
-                  ))}
-                </div>
-
-                <section className="taxi-order">
-                  <div className="section-title">
-                    <h3>Order a taxi</h3>
-                    <span>{selectedTaxiCarClass ? `${formatMoney(selectedTaxiCarClass.pricePerKm)}/km` : 'Choose class'}</span>
-                  </div>
-
-                  {!currentUser ? (
-                    <div className="form-grid">
-                      <p className="empty">Please register or sign in to order a taxi.</p>
-                      <button className="primary" onClick={openAuth} type="button">
-                        Register to order
-                      </button>
-                    </div>
-                  ) : (
-                    <form className="form-grid taxi-order-form" onSubmit={(event) => void submitTaxiBooking(event)}>
-                      <label className="field-label">
-                        Car class
-                        <select
-                          value={selectedTaxiCarClass?.name ?? taxiBookingForm.carClassName}
-                          onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, carClassName: event.target.value })}
-                          required
-                        >
-                          {selectedTaxiService.carClasses.map((carClass) => (
-                            <option key={carClass.id} value={carClass.name}>
-                              {formatTaxiCarClassName(carClass.name)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="booking-mode">
-                        <button
-                          className={taxiBookingGuestMode === 'self' ? 'active' : ''}
-                          onClick={() => selectTaxiBookingGuestMode('self')}
-                          type="button"
-                        >
-                          Order for myself
-                        </button>
-                        <button
-                          className={taxiBookingGuestMode === 'other' ? 'active' : ''}
-                          onClick={() => selectTaxiBookingGuestMode('other')}
-                          type="button"
-                        >
-                          Order for someone else
-                        </button>
-                      </div>
-                      <input
-                        placeholder="Customer name"
-                        value={taxiBookingForm.customerName}
-                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, customerName: event.target.value })}
-                        required
-                      />
-                      <input
-                        pattern={phoneNumberPattern}
-                        placeholder="Phone number"
-                        type="tel"
-                        value={taxiBookingForm.phoneNumber}
-                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, phoneNumber: event.target.value })}
-                        required
-                      />
-                      <input
-                        placeholder="Email"
-                        type="email"
-                        value={taxiBookingForm.email}
-                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, email: event.target.value })}
-                        required
-                      />
-                      <input
-                        placeholder="Pickup address"
-                        value={taxiBookingForm.pickupAddress}
-                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, pickupAddress: event.target.value })}
-                        required
-                      />
-                      <input
-                        placeholder="Dropoff address"
-                        value={taxiBookingForm.dropoffAddress}
-                        onChange={(event) => setTaxiBookingForm({ ...taxiBookingForm, dropoffAddress: event.target.value })}
-                        required
-                      />
-
-                      <div className="taxi-map-panel">
-                        <div className="booking-mode taxi-point-mode">
-                          <button
-                            className={taxiPointMode === 'pickup' ? 'active' : ''}
-                            onClick={() => setTaxiPointMode('pickup')}
-                            type="button"
-                          >
-                            Pickup
-                          </button>
-                          <button
-                            className={taxiPointMode === 'dropoff' ? 'active' : ''}
-                            onClick={() => setTaxiPointMode('dropoff')}
-                            type="button"
-                          >
-                            Dropoff
-                          </button>
-                        </div>
-                        <button className="taxi-map" onClick={updateTaxiMapPoint} type="button" aria-label="Demo taxi map">
-                          <svg aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 100 100">
-                            <line
-                              x1={taxiBookingForm.pickupX}
-                              y1={taxiBookingForm.pickupY}
-                              x2={taxiBookingForm.dropoffX}
-                              y2={taxiBookingForm.dropoffY}
-                            />
-                          </svg>
-                          <span
-                            className="taxi-marker pickup"
-                            style={{ left: `${taxiBookingForm.pickupX}%`, top: `${taxiBookingForm.pickupY}%` }}
-                          >
-                            P
-                          </span>
-                          <span
-                            className="taxi-marker dropoff"
-                            style={{ left: `${taxiBookingForm.dropoffX}%`, top: `${taxiBookingForm.dropoffY}%` }}
-                          >
-                            D
-                          </span>
-                        </button>
-                      </div>
-
-                      <div className="taxi-estimate">
-                        <span>
-                          <strong>{taxiDistanceKm.toFixed(2)} km</strong>
-                          <small>Distance</small>
-                        </span>
-                        <span>
-                          <strong>{selectedTaxiCarClass ? formatMoney(selectedTaxiCarClass.pricePerKm) : '-'}</strong>
-                          <small>Price per km</small>
-                        </span>
-                        <span>
-                          <strong>{formatMoney(taxiEstimatedTotal)}</strong>
-                          <small>Total estimate</small>
-                        </span>
-                      </div>
-
-                      <button className="primary" disabled={submitting || !selectedTaxiCarClass} type="submit">
-                        Create taxi booking
-                      </button>
-                    </form>
-                  )}
-
-                  {taxiBooking && (
-                    <div className="booking-box taxi-booking-box">
-                      <div>
-                        <h3>{taxiBooking.status}</h3>
-                        <p>{taxiBooking.pickupAddress} to {taxiBooking.dropoffAddress}</p>
-                        <p>{taxiBooking.distanceKm.toFixed(2)} km / {formatMoney(taxiBooking.totalPrice)} total</p>
-                        {taxiBooking.savedCardLast4 && <p>Saved card: **** {taxiBooking.savedCardLast4}</p>}
-                      </div>
-
-                      {taxiBooking.status === 'PendingPayment' && renderPaymentForm(taxiBooking, 'taxi')}
-
-                      {taxiBooking.status !== 'PendingPayment' && (
-                        <button className="primary" onClick={resetTaxiBookingFlow} type="button">
-                          New taxi booking
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </section>
-              </>
-            ) : (
-              <p className="empty">Choose a taxi service to create an order.</p>
-            )}
-          </section>
-        </section>
+        <TaxiPage
+          canManageTaxi={canManageTaxi}
+          currentUser={currentUser}
+          editingTaxiId={editingTaxiId}
+          loading={loading}
+          onAddTaxiCarClass={addTaxiCarClass}
+          onAddTaxiCity={() => setTaxiForm({ ...taxiForm, cities: [...taxiForm.cities, ''] })}
+          onCancelTaxiForm={() => {
+            setTaxiForm(emptyTaxiForm);
+            setEditingTaxiId(null);
+            setShowTaxiForm(false);
+          }}
+          onDeleteTaxiService={(taxiServiceId) => void deleteTaxiService(taxiServiceId)}
+          onEditTaxiService={editTaxiService}
+          onOpenAuth={openAuth}
+          onRemoveTaxiCarClass={removeTaxiCarClass}
+          onRemoveTaxiCity={removeTaxiCity}
+          onResetTaxiBookingFlow={resetTaxiBookingFlow}
+          onSelectTaxiBookingGuestMode={selectTaxiBookingGuestMode}
+          onSelectTaxiService={selectTaxiServiceForBooking}
+          onSetTaxiPointMode={setTaxiPointMode}
+          onSubmitTaxiBooking={(event) => void submitTaxiBooking(event)}
+          onSubmitTaxiService={(event) => void submitTaxiService(event)}
+          onTaxiBookingFormChange={(form) => setTaxiBookingForm(form)}
+          onTaxiFormChange={(form) => setTaxiForm(form)}
+          onUpdateTaxiCarClass={updateTaxiCarClass}
+          onUpdateTaxiCity={updateTaxiCity}
+          onUpdateTaxiMapPoint={updateTaxiMapPoint}
+          onStartCreateTaxiService={() => {
+            setTaxiForm(emptyTaxiForm);
+            setEditingTaxiId(null);
+            setShowTaxiForm(true);
+          }}
+          phoneNumberPattern={phoneNumberPattern}
+          pricePattern={pricePattern}
+          renderPaymentForm={renderPaymentForm}
+          selectedTaxiCarClass={selectedTaxiCarClass}
+          selectedTaxiService={selectedTaxiService}
+          showTaxiForm={showTaxiForm}
+          submitting={submitting}
+          taxiBooking={taxiBooking}
+          taxiBookingForm={taxiBookingForm}
+          taxiBookingGuestMode={taxiBookingGuestMode}
+          taxiDistanceKm={taxiDistanceKm}
+          taxiEstimatedTotal={taxiEstimatedTotal}
+          taxiForm={taxiForm}
+          taxiPointMode={taxiPointMode}
+          taxiServices={taxiServices}
+        />
       )}
 
       {page === 'hotels' && (
-        <section className="hotel-page">
-          <aside className="panel">
-            <div className="section-title">
-              <div>
-                <p className="eyebrow">Hotels</p>
-                <h2>Hotel booking</h2>
-              </div>
-              <span>{loading ? 'Loading' : `${visibleHotels.length} available`}</span>
-            </div>
-
-            {canManageHotels && !showHotelForm && (
-              <button
-                className="primary"
-                onClick={() => {
-                  setHotelForm(createEmptyHotelForm());
-                  setEditingHotelId(null);
-                  setShowHotelForm(true);
-                  setSelectedHotel(null);
-                  selectedHotelIdRef.current = null;
-                  setSelectedRoom(null);
-                  setBooking(null);
-                  setRooms([]);
-                  setRoomsLoading(false);
-                  setEditingRoomId(null);
-                  setShowRoomForm(false);
-                  setRoomForm(createEmptyRoomForm());
-                }}
-                type="button"
-              >
-                Create hotel
-              </button>
-            )}
-
-            <label className="filter">
-              City
-              <select value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}>
-                <option value="">All cities</option>
-                {cities.map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="hotel-list">
-              {visibleHotels.map((hotel) => (
-                <article
-                  className={`hotel-card ${selectedHotel?.id === hotel.id ? 'active' : ''}`}
-                  key={hotel.id}
-                >
-                  <button className="hotel-card-main" onClick={() => void selectHotel(hotel)} type="button">
-                    <img src={hotel.imageUrl || fallbackImage(hotel.name, 'hotel')} alt="" />
-                    <span>
-                      <strong>{hotel.name}</strong>
-                      <small>
-                        {hotel.city}
-                      </small>
-                      <span className="hotel-card-stats">
-                        <small>{hotel.totalGuestPlaces} places</small>
-                        <small>{hotel.roomTypesCount} types</small>
-                        <small>{hotel.totalRoomsCount} rooms</small>
-                      </span>
-                    </span>
-                  </button>
-                  {canManageHotels && (
-                    <button
-                      className="hotel-delete-button"
-                      disabled={submitting}
-                      onClick={() => setDeleteTarget({ kind: 'hotel', id: hotel.id, name: hotel.name })}
-                      type="button"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </article>
-              ))}
-
-              {!loading && visibleHotels.length === 0 && <p className="empty">No hotels yet.</p>}
-            </div>
-          </aside>
-
-          <section className="panel wide">
-            <div className="section-title">
-              <h2>{showHotelForm ? (editingHotelId ? 'Edit hotel' : 'Create hotel') : selectedHotel ? selectedHotel.name : 'Select a hotel'}</h2>
-              {!showHotelForm && selectedHotel && <span>{selectedHotel.city}</span>}
-            </div>
-
-            {showHotelForm && canManageHotels ? (
-              <form className="form-grid hotel-create-form" onSubmit={(event) => void submitHotel(event)}>
-                <h3>{editingHotelId ? 'Edit hotel details' : 'Hotel details'}</h3>
-                <label className="field-label">
-                  Name
-                  <input
-                    placeholder="Hotel name"
-                    value={hotelForm.name}
-                    onChange={(event) => setHotelForm({ ...hotelForm, name: event.target.value })}
-                    required
-                  />
-                </label>
-                <label className="field-label">
-                  City
-                  <input
-                    placeholder="City"
-                    value={hotelForm.city}
-                    onChange={(event) => setHotelForm({ ...hotelForm, city: event.target.value })}
-                    required
-                  />
-                </label>
-                <label className="field-label">
-                  Description
-                  <input
-                    placeholder="Hotel description"
-                    value={hotelForm.description}
-                    onChange={(event) => setHotelForm({ ...hotelForm, description: event.target.value })}
-                  />
-                </label>
-                <label className="field-label">
-                  Hotel image URL
-                  <input
-                    placeholder="Image URL"
-                    type="url"
-                    value={hotelForm.imageUrl}
-                    onChange={(event) => setHotelForm({ ...hotelForm, imageUrl: event.target.value })}
-                  />
-                </label>
-
-                {editingHotelId === null && (
-                  <>
-                    <div className="room-types-header">
-                      <h3>Room types</h3>
-                      <span>{hotelForm.rooms.reduce((total, room) => total + Number(room.capacity || 0) * Number(room.totalRooms || 0), 0)} places</span>
-                    </div>
-
-                    {hotelForm.rooms.map((room, index) => (
-                      <section className="room-form-panel" key={index}>
-                        <div className="section-title">
-                          <h3>Room type {index + 1}</h3>
-                          <span>{Number(room.capacity || 0) * Number(room.totalRooms || 0)} places</span>
-                        </div>
-                        <label className="field-label">
-                          Room type
-                          <input
-                            placeholder="Standard room"
-                            value={room.roomType}
-                            onChange={(event) => updateHotelFormRoom(index, { roomType: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Capacity
-                          <input
-                            min="1"
-                            placeholder="Guests count"
-                            type="number"
-                            value={room.capacity}
-                            onChange={(event) => updateHotelFormRoom(index, { capacity: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Total rooms
-                          <input
-                            min="1"
-                            placeholder="How many rooms"
-                            type="number"
-                            value={room.totalRooms}
-                            onChange={(event) => updateHotelFormRoom(index, { totalRooms: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Price per night
-                          <input
-                            min="0"
-                            placeholder="Price"
-                            step="0.01"
-                            type="number"
-                            value={room.pricePerNight}
-                            onChange={(event) => updateHotelFormRoom(index, { pricePerNight: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Description
-                          <input
-                            placeholder="Room description"
-                            value={room.description}
-                            onChange={(event) => updateHotelFormRoom(index, { description: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <RoomPhotoFields
-                          imageUrls={room.imageUrls}
-                          onAdd={() => addHotelRoomImageUrl(index)}
-                          onChange={(imageIndex, imageUrl) => updateHotelRoomImageUrl(index, imageIndex, imageUrl)}
-                          onRemove={(imageIndex) => removeHotelRoomImageUrl(index, imageIndex)}
-                        />
-                        <label className="checkbox">
-                          <input
-                            checked={room.isAvailable}
-                            type="checkbox"
-                            onChange={(event) => updateHotelFormRoom(index, { isAvailable: event.target.checked })}
-                          />
-                          Available for booking
-                        </label>
-                        <button
-                          className="link-button"
-                          disabled={hotelForm.rooms.length <= 2}
-                          onClick={() => removeHotelFormRoom(index)}
-                          type="button"
-                        >
-                          Remove room type
-                        </button>
-                      </section>
-                    ))}
-
-                    <button className="link-button" onClick={addHotelFormRoom} type="button">
-                      Add room type
-                    </button>
-                  </>
-                )}
-
-                <button className="primary" disabled={submitting} type="submit">
-                  {editingHotelId ? 'Save hotel' : 'Create hotel'}
-                </button>
-                <button
-                  className="link-button"
-                  disabled={submitting}
-                  onClick={() => {
-                    setHotelForm(createEmptyHotelForm());
-                    setEditingHotelId(null);
-                    setShowHotelForm(false);
-                  }}
-                  type="button"
-                >
-                  Cancel
-                </button>
-              </form>
-            ) : selectedHotel ? (
-              <>
-                <img
-                  className="selected-hotel-image"
-                  src={selectedHotel.imageUrl || fallbackImage(selectedHotel.name, 'hotel')}
-                  alt=""
-                />
-                {selectedHotel.description && <p className="description">{selectedHotel.description}</p>}
-
-                {canManageHotels && (
-                  <>
-                    {!showRoomForm && (
-                      <div className="hotel-actions">
-                        <button className="small-primary-button" onClick={() => editHotel(selectedHotel)} type="button">
-                          Edit hotel
-                        </button>
-                        <button
-                          className="small-primary-button"
-                          onClick={() => {
-                            setEditingRoomId(null);
-                            setRoomForm(createEmptyRoomForm());
-                            setShowRoomForm(true);
-                            setSelectedRoom(null);
-                            setBooking(null);
-                          }}
-                          type="button"
-                        >
-                          Create room
-                        </button>
-                      </div>
-                    )}
-
-                    {showRoomForm && (
-                      <form className="form-grid" onSubmit={(event) => void submitHotelRoom(event)}>
-                        <h3>{editingRoomId ? 'Edit room' : 'Create room'}</h3>
-                        <label className="field-label">
-                          Room type
-                          <input
-                            placeholder="Standard room"
-                            value={roomForm.roomType}
-                            onChange={(event) => setRoomForm({ ...roomForm, roomType: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Capacity
-                          <input
-                            min="1"
-                            placeholder="Guests count"
-                            type="number"
-                            value={roomForm.capacity}
-                            onChange={(event) => setRoomForm({ ...roomForm, capacity: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Total rooms
-                          <input
-                            min="1"
-                            placeholder="How many rooms"
-                            type="number"
-                            value={roomForm.totalRooms}
-                            onChange={(event) => setRoomForm({ ...roomForm, totalRooms: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Price per night
-                          <input
-                            min="0"
-                            placeholder="Price"
-                            step="0.01"
-                            type="number"
-                            value={roomForm.pricePerNight}
-                            onChange={(event) => setRoomForm({ ...roomForm, pricePerNight: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <label className="field-label">
-                          Description
-                          <input
-                            placeholder="Room description"
-                            value={roomForm.description}
-                            onChange={(event) => setRoomForm({ ...roomForm, description: event.target.value })}
-                            required
-                          />
-                        </label>
-                        <RoomPhotoFields
-                          imageUrls={roomForm.imageUrls}
-                          onAdd={addRoomImageUrl}
-                          onChange={updateRoomImageUrl}
-                          onRemove={removeRoomImageUrl}
-                        />
-                        <label className="checkbox">
-                          <input
-                            checked={roomForm.isAvailable}
-                            type="checkbox"
-                            onChange={(event) => setRoomForm({ ...roomForm, isAvailable: event.target.checked })}
-                          />
-                          Available for booking
-                        </label>
-                        <button className="primary" disabled={submitting} type="submit">
-                          {editingRoomId ? 'Save room' : 'Create room'}
-                        </button>
-                        <button
-                          className="link-button"
-                          onClick={() => {
-                            setEditingRoomId(null);
-                            setShowRoomForm(false);
-                            setRoomForm(createEmptyRoomForm());
-                          }}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                      </form>
-                    )}
-                  </>
-                )}
-
-                <div className="rooms">
-                  {rooms.map((room) => (
-                    <article
-                      className={`room-card ${selectedRoom?.id === room.id ? 'active' : ''}`}
-                      key={room.id}
-                    >
-                      <button
-                        className="room-card-main"
-                        disabled={!room.isAvailable}
-                        onClick={() => setSelectedRoom(room)}
-                        type="button"
-                      >
-                        <img src={roomMainImage(room)} alt="" />
-                        <span>
-                          <strong>{room.roomType}</strong>
-                          <small>
-                            {room.capacity} guests / {room.totalRooms} rooms / {formatMoney(room.pricePerNight)}
-                          </small>
-                        </span>
-                      </button>
-                      {canManageHotels && (
-                        <div className="card-actions">
-                          <button disabled={submitting} onClick={() => editHotelRoom(room)} type="button">
-                            Edit
-                          </button>
-                          <button
-                            disabled={submitting}
-                            onClick={() => setDeleteTarget({ kind: 'room', id: room.id, name: room.roomType })}
-                            type="button"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </article>
-                  ))}
-                </div>
-
-                {roomsLoading && <p className="empty">Loading rooms...</p>}
-                {!roomsLoading && rooms.length === 0 && <p className="empty">No rooms for this hotel yet.</p>}
-
-                {selectedRoom && roomImageUrls(selectedRoom).length > 0 && (
-                  <div className="room-photo-strip">
-                    {roomImageUrls(selectedRoom).map((imageUrl) => (
-                      <img src={imageUrl} alt="" key={imageUrl} />
-                    ))}
-                  </div>
-                )}
-
-                {selectedRoom && !booking && !currentUser && (
-                  <div className="form-grid">
-                    <h3>{selectedRoom.roomType} booking</h3>
-                    <p className="empty">Please register or sign in to create a booking.</p>
-                    <button className="primary" onClick={openAuth} type="button">
-                      Register to book
-                    </button>
-                  </div>
-                )}
-
-                {selectedRoom && !booking && currentUser && (
-                  <form className="form-grid" onSubmit={(event) => void submitBooking(event)}>
-                    <h3>{selectedRoom.roomType} booking</h3>
-                    <div className="booking-mode">
-                      <button
-                        className={bookingGuestMode === 'self' ? 'active' : ''}
-                        onClick={() => selectBookingGuestMode('self')}
-                        type="button"
-                      >
-                        Book for myself
-                      </button>
-                      <button
-                        className={bookingGuestMode === 'other' ? 'active' : ''}
-                        onClick={() => selectBookingGuestMode('other')}
-                        type="button"
-                      >
-                        Book for someone else
-                      </button>
-                    </div>
-                    <input
-                      placeholder="Customer name"
-                      value={bookingForm.customerName}
-                      onChange={(event) => setBookingForm({ ...bookingForm, customerName: event.target.value })}
-                      required
-                    />
-                    <input
-                      pattern={phoneNumberPattern}
-                      placeholder="Phone number"
-                      type="tel"
-                      value={bookingForm.phoneNumber}
-                      onChange={(event) => setBookingForm({ ...bookingForm, phoneNumber: event.target.value })}
-                      required
-                    />
-                    <input
-                      placeholder="Email"
-                      type="email"
-                      value={bookingForm.email}
-                      onChange={(event) => setBookingForm({ ...bookingForm, email: event.target.value })}
-                      required
-                    />
-                    <input
-                      type="date"
-                      value={bookingForm.checkInDate}
-                      onChange={(event) => setBookingForm({ ...bookingForm, checkInDate: event.target.value })}
-                      required
-                    />
-                    <input
-                      type="date"
-                      value={bookingForm.checkOutDate}
-                      onChange={(event) => setBookingForm({ ...bookingForm, checkOutDate: event.target.value })}
-                      required
-                    />
-                    <button className="primary" disabled={submitting} type="submit">
-                      Create booking
-                    </button>
-                  </form>
-                )}
-
-                {booking && (
-                  <div className="booking-box">
-                    <div>
-                      <p className="eyebrow">Booking #{booking.id}</p>
-                      <h3>{booking.status}</h3>
-                      <p>{formatMoney(booking.totalPrice)} total</p>
-                      {booking.savedCardLast4 && <p>Saved card: **** {booking.savedCardLast4}</p>}
-                    </div>
-
-                    {booking.status === 'PendingPayment' && (
-                      renderPaymentForm(booking)
-                    )}
-
-                    {booking.status !== 'PendingPayment' && (
-                      <button className="primary" onClick={resetFlow} type="button">
-                        New booking
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="empty">Choose a hotel to see rooms and booking options.</p>
-            )}
-          </section>
-        </section>
+        <HotelsPage
+          booking={booking}
+          bookingForm={bookingForm}
+          bookingGuestMode={bookingGuestMode}
+          canManageHotels={canManageHotels}
+          cities={cities}
+          cityFilter={cityFilter}
+          currentUser={currentUser}
+          editingHotelId={editingHotelId}
+          editingRoomId={editingRoomId}
+          hotelForm={hotelForm}
+          loading={loading}
+          onAddHotelFormRoom={addHotelFormRoom}
+          onAddHotelRoomImageUrl={addHotelRoomImageUrl}
+          onAddRoomImageUrl={addRoomImageUrl}
+          onBookingFormChange={(form) => setBookingForm(form)}
+          onCancelHotelForm={() => {
+            setHotelForm(createEmptyHotelForm());
+            setEditingHotelId(null);
+            setShowHotelForm(false);
+          }}
+          onCancelRoomForm={() => {
+            setEditingRoomId(null);
+            setShowRoomForm(false);
+            setRoomForm(createEmptyRoomForm());
+          }}
+          onCityFilterChange={(city) => setCityFilter(city)}
+          onEditHotel={editHotel}
+          onEditHotelRoom={editHotelRoom}
+          onHotelFormChange={(form) => setHotelForm(form)}
+          onOpenAuth={openAuth}
+          onRemoveHotelFormRoom={removeHotelFormRoom}
+          onRemoveHotelRoomImageUrl={removeHotelRoomImageUrl}
+          onRemoveRoomImageUrl={removeRoomImageUrl}
+          onResetFlow={resetFlow}
+          onRoomFormChange={(form) => setRoomForm(form)}
+          onSelectBookingGuestMode={selectBookingGuestMode}
+          onSelectHotel={(hotel) => void selectHotel(hotel)}
+          onSelectRoom={(room) => setSelectedRoom(room)}
+          onSetDeleteTarget={(target) => setDeleteTarget(target)}
+          onStartCreateHotel={() => {
+            setHotelForm(createEmptyHotelForm());
+            setEditingHotelId(null);
+            setShowHotelForm(true);
+            setSelectedHotel(null);
+            selectedHotelIdRef.current = null;
+            setSelectedRoom(null);
+            setBooking(null);
+            setRooms([]);
+            setRoomsLoading(false);
+            setEditingRoomId(null);
+            setShowRoomForm(false);
+            setRoomForm(createEmptyRoomForm());
+          }}
+          onStartCreateRoom={() => {
+            setEditingRoomId(null);
+            setRoomForm(createEmptyRoomForm());
+            setShowRoomForm(true);
+            setSelectedRoom(null);
+            setBooking(null);
+          }}
+          onSubmitBooking={(event) => void submitBooking(event)}
+          onSubmitHotel={(event) => void submitHotel(event)}
+          onSubmitHotelRoom={(event) => void submitHotelRoom(event)}
+          onUpdateHotelFormRoom={updateHotelFormRoom}
+          onUpdateHotelRoomImageUrl={updateHotelRoomImageUrl}
+          onUpdateRoomImageUrl={updateRoomImageUrl}
+          phoneNumberPattern={phoneNumberPattern}
+          renderPaymentForm={renderPaymentForm}
+          roomForm={roomForm}
+          rooms={rooms}
+          roomsLoading={roomsLoading}
+          selectedHotel={selectedHotel}
+          selectedRoom={selectedRoom}
+          showHotelForm={showHotelForm}
+          showRoomForm={showRoomForm}
+          submitting={submitting}
+          visibleHotels={visibleHotels}
+        />
       )}
 
       {deleteTarget && (
@@ -2536,35 +1762,6 @@ function App() {
   );
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function calculateTaxiDistanceKm(pickupX: number, pickupY: number, dropoffX: number, dropoffY: number) {
-  return Math.round(Math.hypot(dropoffX - pickupX, dropoffY - pickupY) * 100) / 100;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function formatTaxiCarClassName(name: string) {
-  return taxiCarClassOptions.find((option) => option.value === name)?.label ?? name;
-}
-
-function splitTaxiCities(city: string) {
-  const cities = city
-    .split(',')
-    .map((currentCity) => currentCity.trim())
-    .filter(Boolean);
-
-  return cities.length === 0 ? [''] : cities;
-}
-
 function toAzerbaijanPhoneNumber(phoneNumber: string) {
   return `${accountPhonePrefix} ${stripAzerbaijanPhonePrefix(phoneNumber)}`.trim();
 }
@@ -2574,26 +1771,9 @@ function stripAzerbaijanPhonePrefix(phoneNumber: string) {
   return trimmed.startsWith(accountPhonePrefix) ? trimmed.slice(accountPhonePrefix.length).trim() : trimmed;
 }
 
-function cleanImageUrls(imageUrls: string[]) {
-  return Array.from(new Set(imageUrls.map((imageUrl) => imageUrl.trim()).filter(Boolean)));
-}
-
-function roomImageUrls(room: HotelRoom) {
-  const imageUrls = room.imageUrls ?? [];
-  return cleanImageUrls(imageUrls.length > 0 ? imageUrls : room.imageUrl ? [room.imageUrl] : []);
-}
-
-function roomMainImage(room: HotelRoom) {
-  return roomImageUrls(room)[0] || fallbackImage(room.roomType, 'room');
-}
-
 function getPageFromPathname(pathname: string): Page {
   const cleanPath = pathname.replace(/\/+$/, '') || '/';
   return appPages.find((currentPage) => pageRoutes[currentPage] === cleanPath) ?? 'home';
-}
-
-function fallbackImage(seed: string, topic = 'travel') {
-  return `https://source.unsplash.com/640x420/?${encodeURIComponent(topic)}&sig=${encodeURIComponent(seed)}`;
 }
 
 function delay(ms: number) {

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import type { PaymentForm as PaymentFormState, PaymentMode, SavedPaymentCard } from '../types';
+import type { PaymentForm as PaymentFormState, PaymentMode, SavedPaymentCard } from '../../types';
 
 type PaymentFormProps = {
   paymentMode: PaymentMode;

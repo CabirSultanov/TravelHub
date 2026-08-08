@@ -1,4 +1,4 @@
-import type { DeleteTarget } from '../types';
+import type { DeleteTarget } from '../../types';
 
 type ConfirmDeleteModalProps = {
   target: DeleteTarget;

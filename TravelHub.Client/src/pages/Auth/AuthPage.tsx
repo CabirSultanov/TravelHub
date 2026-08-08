@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import type { AuthForm, AuthMode } from '../types';
+import type { AuthForm, AuthMode } from '../../types';
 
 type AuthPageProps = {
   authMode: AuthMode;
