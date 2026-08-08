@@ -126,9 +126,11 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             return BadRequest("CustomerName, PhoneNumber and Email are required.");
         }
 
-        if (bookingDto.CheckOutDate <= bookingDto.CheckInDate)
+        var dateValidationError = HotelBookingRules.ValidateDateRange(bookingDto.CheckInDate, bookingDto.CheckOutDate);
+
+        if (dateValidationError is not null)
         {
-            return BadRequest("CheckOutDate must be after CheckInDate.");
+            return BadRequest(dateValidationError);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -153,12 +155,11 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             && booking.CheckInDate < bookingDto.CheckOutDate
             && bookingDto.CheckInDate < booking.CheckOutDate);
 
-        if (activeBookings >= room.TotalRooms)
+        if (!HotelBookingRules.HasRoomAvailability(activeBookings, room.TotalRooms))
         {
             return Conflict("No rooms available for selected dates.");
         }
 
-        var nights = bookingDto.CheckOutDate.DayNumber - bookingDto.CheckInDate.DayNumber;
         var bookingRequest = new BookingRequest
         {
             UserId = userId.Value,
@@ -170,7 +171,10 @@ public class BookingRequestsController(AppDbContext db) : ControllerBase
             CheckOutDate = bookingDto.CheckOutDate,
             GuestsCount = room.Capacity,
             Status = BookingStatus.PendingPayment,
-            TotalPrice = nights * room.PricePerNight
+            TotalPrice = HotelBookingRules.CalculateTotalPrice(
+                room.PricePerNight,
+                bookingDto.CheckInDate,
+                bookingDto.CheckOutDate)
         };
 
         db.BookingRequests.Add(bookingRequest);
