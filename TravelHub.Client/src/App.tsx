@@ -1,16 +1,33 @@
 import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
+import ConfirmDeleteModal from './components/ConfirmDeleteModal';
+import PaymentFormComponent from './components/PaymentForm';
+import RoomPhotoFields from './components/RoomPhotoFields';
+import SiteHeader from './components/SiteHeader';
+import AdminPage from './pages/AdminPage';
+import AuthPage from './pages/AuthPage';
+import HomePage from './pages/HomePage';
+import PlacesPage from './pages/PlacesPage';
+import ProfilePage from './pages/ProfilePage';
 import type {
+  AuthForm,
+  AuthMode,
   AuthUser,
   Booking,
   BookingCreate,
   BookingPayment,
+  DeleteTarget,
   Hotel,
   HotelInput,
   HotelRoom,
   HotelUpdateInput,
+  Page,
+  PaymentCardForm,
   PaymentCardCreate,
+  PaymentForm,
+  PaymentMode,
   Place,
+  ProfileForm,
   SavedPaymentCard,
   TaxiBooking,
   TaxiBookingCreate,
@@ -18,10 +35,7 @@ import type {
   TaxiServiceInput,
 } from './types';
 
-type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth' | 'admin' | 'profile';
-type AuthMode = 'login' | 'register';
 type BookingGuestMode = 'self' | 'other';
-type PaymentMode = 'saved' | 'new';
 
 const appPages: Page[] = ['home', 'taxi', 'hotels', 'places', 'auth', 'admin', 'profile'];
 const pageRoutes: Record<Page, string> = {
@@ -35,36 +49,6 @@ const pageRoutes: Record<Page, string> = {
 };
 
 type BookingForm = Omit<BookingCreate, 'hotelRoomId'>;
-
-type PaymentForm = {
-  savedPaymentCardId: string;
-  cardNumber: string;
-  cardHolderName: string;
-  expiryMonth: string;
-  expiryYear: string;
-  cvv: string;
-  saveCard: boolean;
-};
-
-type PaymentCardForm = {
-  cardNumber: string;
-  cardHolderName: string;
-  expiryMonth: string;
-  expiryYear: string;
-  cvv: string;
-};
-
-type AuthForm = {
-  name: string;
-  email: string;
-  phoneNumber: string;
-  password: string;
-};
-
-type ProfileForm = {
-  name: string;
-  phoneNumber: string;
-};
 
 type HotelRoomForm = {
   roomType: string;
@@ -82,12 +66,6 @@ type HotelForm = {
   description: string;
   imageUrl: string;
   rooms: HotelRoomForm[];
-};
-
-type DeleteTarget = {
-  kind: 'hotel' | 'room';
-  id: number;
-  name: string;
 };
 
 type TaxiCarClassForm = {
@@ -1549,16 +1527,21 @@ function App() {
     };
   }
 
-  function paymentCardLabel(card: SavedPaymentCard) {
-    return `${card.brand} **** ${card.last4} / ${String(card.expiryMonth).padStart(2, '0')}/${card.expiryYear}`;
-  }
-
   function renderPaymentForm(targetBooking: Booking | TaxiBooking, bookingKind: 'hotel' | 'taxi' = 'hotel') {
-    const canUseSavedCard = savedPaymentCards.length > 0;
-
     return (
-      <form
-        className="payment-form"
+      <PaymentFormComponent
+        cardNumberPattern={cardNumberPattern}
+        currentYear={currentYear}
+        cvvPattern={cvvPattern}
+        onCancel={() => {
+          if (bookingKind === 'taxi') {
+            void cancelTaxiBooking(targetBooking as TaxiBooking);
+          } else {
+            void cancelBooking(targetBooking as Booking);
+          }
+        }}
+        onPaymentFormChange={setPaymentForm}
+        onPaymentModeChange={setPaymentMode}
         onSubmit={(event) => {
           if (bookingKind === 'taxi') {
             void submitTaxiBookingPayment(event, targetBooking as TaxiBooking);
@@ -1566,190 +1549,24 @@ function App() {
             void submitBookingPayment(event, targetBooking as Booking);
           }
         }}
-      >
-        <div className="booking-mode">
-          <button
-            className={paymentMode === 'saved' ? 'active' : ''}
-            disabled={!canUseSavedCard}
-            onClick={() => {
-              if (canUseSavedCard) {
-                setPaymentMode('saved');
-              }
-            }}
-            type="button"
-          >
-            Saved card
-          </button>
-          <button
-            className={paymentMode === 'new' ? 'active' : ''}
-            onClick={() => setPaymentMode('new')}
-            type="button"
-          >
-            New card
-          </button>
-        </div>
-
-        {paymentMode === 'saved' && canUseSavedCard ? (
-          <select
-            value={paymentForm.savedPaymentCardId}
-            onChange={(event) => setPaymentForm({ ...paymentForm, savedPaymentCardId: event.target.value })}
-            required
-          >
-            {savedPaymentCards.map((card) => (
-              <option key={card.id} value={card.id}>
-                {paymentCardLabel(card)}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <>
-            <input
-              inputMode="numeric"
-              pattern={cardNumberPattern}
-              placeholder="Card number"
-              value={paymentForm.cardNumber}
-              onChange={(event) => setPaymentForm({ ...paymentForm, cardNumber: event.target.value })}
-              required
-            />
-            <input
-              placeholder="Card holder"
-              value={paymentForm.cardHolderName}
-              onChange={(event) => setPaymentForm({ ...paymentForm, cardHolderName: event.target.value })}
-              required
-            />
-            <input
-              min="1"
-              max="12"
-              placeholder="Month"
-              type="number"
-              value={paymentForm.expiryMonth}
-              onChange={(event) => setPaymentForm({ ...paymentForm, expiryMonth: event.target.value })}
-              required
-            />
-            <input
-              min={currentYear}
-              placeholder="Year"
-              type="number"
-              value={paymentForm.expiryYear}
-              onChange={(event) => setPaymentForm({ ...paymentForm, expiryYear: event.target.value })}
-              required
-            />
-            <input
-              inputMode="numeric"
-              pattern={cvvPattern}
-              placeholder="CVV"
-              value={paymentForm.cvv}
-              onChange={(event) => setPaymentForm({ ...paymentForm, cvv: event.target.value })}
-              required
-            />
-            <label className="checkbox">
-              <input
-                checked={paymentForm.saveCard}
-                type="checkbox"
-                onChange={(event) => setPaymentForm({ ...paymentForm, saveCard: event.target.checked })}
-              />
-              Save card to profile
-            </label>
-          </>
-        )}
-        <button className="primary payment-submit-button" disabled={submitting} type="submit">
-          {submitting && <span className="button-spinner" aria-hidden="true" />}
-          {submitting ? 'Processing...' : 'Pay now'}
-        </button>
-        <button
-          disabled={submitting}
-          onClick={() => {
-            if (bookingKind === 'taxi') {
-              void cancelTaxiBooking(targetBooking as TaxiBooking);
-            } else {
-              void cancelBooking(targetBooking as Booking);
-            }
-          }}
-          type="button"
-        >
-          Cancel booking
-        </button>
-      </form>
-    );
-  }
-
-  function renderRoomPhotoFields(
-    imageUrls: string[],
-    onChange: (index: number, imageUrl: string) => void,
-    onAdd: () => void,
-    onRemove: (index: number) => void,
-  ) {
-    return (
-      <div className="room-photo-fields">
-        <strong>Room photos</strong>
-        {imageUrls.map((imageUrl, index) => (
-          <div className="image-url-row" key={index}>
-            <input
-              placeholder="Image URL"
-              type="url"
-              value={imageUrl}
-              onChange={(event) => onChange(index, event.target.value)}
-            />
-            <button disabled={imageUrls.length === 1} onClick={() => onRemove(index)} type="button">
-              Remove
-            </button>
-          </div>
-        ))}
-        <button className="link-button" onClick={onAdd} type="button">
-          Add photo
-        </button>
-      </div>
+        paymentForm={paymentForm}
+        paymentMode={paymentMode}
+        savedPaymentCards={savedPaymentCards}
+        submitting={submitting}
+      />
     );
   }
 
   return (
     <main className="app">
-      <header className="site-header">
-        <button className="brand" onClick={() => navigateTo('home')} type="button">
-          TravelHub
-        </button>
-
-        {page !== 'home' && (
-          <button className="back-home" onClick={() => navigateTo('home')} type="button">
-            Back
-          </button>
-        )}
-
-        <nav className="site-nav">
-          <button className={page === 'taxi' ? 'active' : ''} onClick={() => navigateTo('taxi')} type="button">
-            Taxi
-          </button>
-          <button className={page === 'hotels' ? 'active' : ''} onClick={() => navigateTo('hotels')} type="button">
-            Hotels
-          </button>
-          <button className={page === 'places' ? 'active' : ''} onClick={() => navigateTo('places')} type="button">
-            Places
-          </button>
-          {currentUser?.role === 'SuperAdmin' && (
-            <button className={page === 'admin' ? 'active' : ''} onClick={() => navigateTo('admin')} type="button">
-              Admin
-            </button>
-          )}
-        </nav>
-
-        <div className="header-actions">
-          {currentUser && <span>{currentUser.name}</span>}
-          {currentUser ? (
-            <>
-              <button onClick={() => navigateTo('profile')} type="button">
-                Profile
-              </button>
-              <button disabled={submitting} onClick={() => void logout()} type="button">
-                Log out
-              </button>
-            </>
-          ) : (
-            <button onClick={openAuth} type="button">
-              Register
-            </button>
-          )}
-        </div>
-      </header>
+      <SiteHeader
+        currentUser={currentUser}
+        onLogout={logout}
+        onNavigate={navigateTo}
+        onOpenAuth={openAuth}
+        page={page}
+        submitting={submitting}
+      />
 
       {message && <div className="notice">{message}</div>}
 
@@ -1762,35 +1579,7 @@ function App() {
         </div>
       )}
 
-      {page === 'home' && (
-        <>
-          <section className="hero">
-            <p className="eyebrow">TravelHub</p>
-            <h1>Plan your trip in a few clicks.</h1>
-            <p>Taxi, hotels, and interesting places are gathered in one simple draft interface.</p>
-          </section>
-
-          <section className="home-steps" aria-label="TravelHub services">
-            <button className="feature-card" onClick={() => navigateTo('taxi')} type="button">
-              <span className="feature-icon">T</span>
-              <strong>Taxi booking</strong>
-              <small>Choose a taxi service and view contacts for your trip.</small>
-            </button>
-
-            <button className="feature-card" onClick={() => navigateTo('hotels')} type="button">
-              <span className="feature-icon">H</span>
-              <strong>Hotel booking</strong>
-              <small>Open hotels, choose a room, and create a booking.</small>
-            </button>
-
-            <button className="feature-card" onClick={() => navigateTo('places')} type="button">
-              <span className="feature-icon">P</span>
-              <strong>Interesting places</strong>
-              <small>View cities and places worth adding to your route.</small>
-            </button>
-          </section>
-        </>
-      )}
+      {page === 'home' && <HomePage onNavigate={navigateTo} />}
 
       {page === 'taxi' && (
         <section className="hotel-page taxi-page">
@@ -2353,12 +2142,12 @@ function App() {
                             required
                           />
                         </label>
-                        {renderRoomPhotoFields(
-                          room.imageUrls,
-                          (imageIndex, imageUrl) => updateHotelRoomImageUrl(index, imageIndex, imageUrl),
-                          () => addHotelRoomImageUrl(index),
-                          (imageIndex) => removeHotelRoomImageUrl(index, imageIndex),
-                        )}
+                        <RoomPhotoFields
+                          imageUrls={room.imageUrls}
+                          onAdd={() => addHotelRoomImageUrl(index)}
+                          onChange={(imageIndex, imageUrl) => updateHotelRoomImageUrl(index, imageIndex, imageUrl)}
+                          onRemove={(imageIndex) => removeHotelRoomImageUrl(index, imageIndex)}
+                        />
                         <label className="checkbox">
                           <input
                             checked={room.isAvailable}
@@ -2487,7 +2276,12 @@ function App() {
                             required
                           />
                         </label>
-                        {renderRoomPhotoFields(roomForm.imageUrls, updateRoomImageUrl, addRoomImageUrl, removeRoomImageUrl)}
+                        <RoomPhotoFields
+                          imageUrls={roomForm.imageUrls}
+                          onAdd={addRoomImageUrl}
+                          onChange={updateRoomImageUrl}
+                          onRemove={removeRoomImageUrl}
+                        />
                         <label className="checkbox">
                           <input
                             checked={roomForm.isAvailable}
@@ -2661,459 +2455,82 @@ function App() {
       )}
 
       {deleteTarget && (
-        <div className="modal-backdrop" role="presentation">
-          <section className="confirm-modal" aria-modal="true" role="dialog">
-            <p className="eyebrow">Confirm action</p>
-            <h3>Delete {deleteTarget.kind}?</h3>
-            <p>{deleteTarget.name} will be removed from the list.</p>
-            <div className="confirm-actions">
-              <button className="link-button" disabled={submitting} onClick={() => setDeleteTarget(null)} type="button">
-                Cancel
-              </button>
-              <button className="danger-button" disabled={submitting} onClick={() => void deleteSelectedItem()} type="button">
-                Delete
-              </button>
-            </div>
-          </section>
-        </div>
+        <ConfirmDeleteModal
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={deleteSelectedItem}
+          submitting={submitting}
+          target={deleteTarget}
+        />
       )}
 
-      {page === 'places' && (
-        <section className="page-section">
-          <div className="section-title">
-            <div>
-              <p className="eyebrow">Places</p>
-              <h2>Interesting places</h2>
-            </div>
-            <span>{places.length} places</span>
-          </div>
-
-          <div className="card-grid">
-            {places.map((place) => (
-              <article className="service-card" key={place.id}>
-                <img src={place.imageUrl || fallbackImage(place.name, 'azerbaijan landmark')} alt="" />
-                <strong>{place.name}</strong>
-                <span>{place.city}</span>
-                <small>{place.description}</small>
-              </article>
-            ))}
-
-            {!loading && places.length === 0 && <p className="empty">No places yet.</p>}
-          </div>
-        </section>
-      )}
+      {page === 'places' && <PlacesPage fallbackImage={fallbackImage} loading={loading} places={places} />}
 
       {page === 'auth' && (
-        <section className="auth-page">
-          <div className="auth-panel">
-            <p className="eyebrow">Account</p>
-            <h2>{authMode === 'register' ? 'Register' : 'Login'}</h2>
-
-            <form className="auth-form" onSubmit={(event) => void submitAuth(event)}>
-              {authMode === 'register' && (
-                <>
-                  <input
-                    placeholder="Name"
-                    value={authForm.name}
-                    onChange={(event) => setAuthForm({ ...authForm, name: event.target.value })}
-                    required
-                  />
-                  <div className="phone-field">
-                    <span>{accountPhonePrefix}</span>
-                    <input
-                      pattern={accountPhonePattern}
-                      placeholder="Phone number"
-                      type="tel"
-                      value={authForm.phoneNumber}
-                      onChange={(event) => setAuthForm({ ...authForm, phoneNumber: event.target.value })}
-                      required
-                    />
-                  </div>
-                </>
-              )}
-              <input
-                placeholder="Email"
-                type="email"
-                value={authForm.email}
-                onChange={(event) => setAuthForm({ ...authForm, email: event.target.value })}
-                required
-              />
-              <input
-                minLength={6}
-                placeholder="Password"
-                type="password"
-                value={authForm.password}
-                onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })}
-                required
-              />
-              <button className="primary" disabled={submitting} type="submit">
-                {authMode === 'register' ? 'Register' : 'Login'}
-              </button>
-              <button
-                className="link-button"
-                type="button"
-                onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
-              >
-                {authMode === 'register' ? 'Use existing account' : 'Create account'}
-              </button>
-            </form>
-          </div>
-        </section>
+        <AuthPage
+          accountPhonePattern={accountPhonePattern}
+          accountPhonePrefix={accountPhonePrefix}
+          authForm={authForm}
+          authMode={authMode}
+          onAuthFormChange={setAuthForm}
+          onSubmit={(event) => void submitAuth(event)}
+          onToggleMode={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
+          submitting={submitting}
+        />
       )}
 
       {page === 'profile' && currentUser && (
-        <section className="page-section">
-          <div className="section-title">
-            <div>
-              <p className="eyebrow">Profile</p>
-              <h2>Profile</h2>
-            </div>
-            <span>{bookings.length + taxiBookings.length} bookings</span>
-          </div>
-
-          <div className="profile-layout">
-            <div className="auth-panel">
-              {editingProfile ? (
-                <form className="auth-form" onSubmit={(event) => void submitProfile(event)}>
-                  <input
-                    placeholder="Name"
-                    value={profileForm.name}
-                    onChange={(event) => setProfileForm({ ...profileForm, name: event.target.value })}
-                    required
-                  />
-                  <div className="phone-field">
-                    <span>{accountPhonePrefix}</span>
-                    <input
-                      pattern={accountPhonePattern}
-                      placeholder="Phone number"
-                      type="tel"
-                      value={profileForm.phoneNumber}
-                      onChange={(event) => setProfileForm({ ...profileForm, phoneNumber: event.target.value })}
-                      required
-                    />
-                  </div>
-                  <button className="primary" disabled={submitting} type="submit">
-                    Save profile
-                  </button>
-                  <button className="link-button" onClick={() => setEditingProfile(false)} type="button">
-                    Cancel
-                  </button>
-                </form>
-              ) : (
-                <div className="profile-info">
-                  <span>
-                    <strong>Name</strong>
-                    {currentUser.name}
-                  </span>
-                  <span>
-                    <strong>Email</strong>
-                    {currentUser.email}
-                  </span>
-                  <span>
-                    <strong>Phone</strong>
-                    {currentUser.phoneNumber || 'Not set'}
-                  </span>
-                  <span>
-                    <strong>Role</strong>
-                    {currentUser.role}
-                  </span>
-                  <button className="primary" disabled={submitting} onClick={openProfileEditor} type="button">
-                    Edit profile
-                  </button>
-                  {currentUser.role !== 'SuperAdmin' && (
-                    <button className="danger-button" disabled={submitting} onClick={() => void deleteProfile()} type="button">
-                      Delete profile
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <section className="saved-cards">
-                <div className="section-title">
-                  <h3>Saved cards</h3>
-                  <span>{savedPaymentCards.length}</span>
-                </div>
-
-                {savedPaymentCards.map((card) => (
-                  <article className="saved-card" key={card.id}>
-                    <span>
-                      <strong>{card.brand} **** {card.last4}</strong>
-                      <small>
-                        {card.cardHolderName} / {String(card.expiryMonth).padStart(2, '0')}/{card.expiryYear}
-                      </small>
-                    </span>
-                    <button disabled={submitting} onClick={() => void deletePaymentCard(card.id)} type="button">
-                      Delete
-                    </button>
-                  </article>
-                ))}
-
-                {savedPaymentCards.length === 0 && <p className="empty">No saved cards yet.</p>}
-
-                {showPaymentCardForm ? (
-                  <form className="payment-card-form" onSubmit={(event) => void submitPaymentCard(event)}>
-                    <input
-                      inputMode="numeric"
-                      pattern={cardNumberPattern}
-                      placeholder="Card number"
-                      value={paymentCardForm.cardNumber}
-                      onChange={(event) => setPaymentCardForm({ ...paymentCardForm, cardNumber: event.target.value })}
-                      required
-                    />
-                    <input
-                      placeholder="Card holder"
-                      value={paymentCardForm.cardHolderName}
-                      onChange={(event) => setPaymentCardForm({ ...paymentCardForm, cardHolderName: event.target.value })}
-                      required
-                    />
-                    <input
-                      max="12"
-                      min="1"
-                      placeholder="Month"
-                      type="number"
-                      value={paymentCardForm.expiryMonth}
-                      onChange={(event) => setPaymentCardForm({ ...paymentCardForm, expiryMonth: event.target.value })}
-                      required
-                    />
-                    <input
-                      min={currentYear}
-                      placeholder="Year"
-                      type="number"
-                      value={paymentCardForm.expiryYear}
-                      onChange={(event) => setPaymentCardForm({ ...paymentCardForm, expiryYear: event.target.value })}
-                      required
-                    />
-                    <input
-                      inputMode="numeric"
-                      pattern={cvvPattern}
-                      placeholder="CVV"
-                      value={paymentCardForm.cvv}
-                      onChange={(event) => setPaymentCardForm({ ...paymentCardForm, cvv: event.target.value })}
-                      required
-                    />
-                    <button className="primary" disabled={submitting} type="submit">
-                      Save card
-                    </button>
-                    <button
-                      className="link-button"
-                      disabled={submitting}
-                      onClick={() => {
-                        setPaymentCardForm(emptyPaymentCardForm);
-                        setShowPaymentCardForm(false);
-                      }}
-                      type="button"
-                    >
-                      Cancel
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    className="small-primary-button"
-                    disabled={submitting}
-                    onClick={() => setShowPaymentCardForm(true)}
-                    type="button"
-                  >
-                    Add card
-                  </button>
-                )}
-              </section>
-            </div>
-
-            <div className="profile-booking-stack">
-            <section className="panel profile-bookings">
-              <div className="section-title">
-                <h3>Hotel bookings</h3>
-                {bookingsLoading && <span>Loading</span>}
-              </div>
-
-              <div className="booking-history">
-                {bookings.map((profileBooking) => (
-                  <article className="history-card" key={profileBooking.id}>
-                    <div>
-                      <p className="eyebrow">Booking #{profileBooking.id}</p>
-                      <h3>{profileBooking.hotelName}</h3>
-                      <p>
-                        {profileBooking.roomType} / {profileBooking.checkInDate} - {profileBooking.checkOutDate}
-                      </p>
-                      <small>
-                        Customer: {profileBooking.customerName} / {formatMoney(profileBooking.totalPrice)}
-                      </small>
-                      {profileBooking.savedCardLast4 && <small>Saved card: **** {profileBooking.savedCardLast4}</small>}
-                    </div>
-
-                    <div className="history-actions">
-                      <span className={`status-pill ${profileBooking.status.toLowerCase()}`}>
-                        {profileBooking.status}
-                      </span>
-                      {profileBooking.status === 'PendingPayment' && payingBookingId !== profileBooking.id && (
-                        <>
-                          <button
-                            className="primary"
-                            disabled={submitting}
-                            onClick={() => openPaymentForm(profileBooking.id)}
-                            type="button"
-                          >
-                            Pay
-                          </button>
-                          <button disabled={submitting} onClick={() => void cancelBooking(profileBooking)} type="button">
-                            Cancel
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    {profileBooking.status === 'PendingPayment' && payingBookingId === profileBooking.id && (
-                      renderPaymentForm(profileBooking)
-                    )}
-                  </article>
-                ))}
-
-                {!bookingsLoading && bookings.length === 0 && <p className="empty">No bookings yet.</p>}
-              </div>
-            </section>
-
-            <section className="panel profile-bookings">
-              <div className="section-title">
-                <h3>Taxi bookings</h3>
-                {taxiBookingsLoading && <span>Loading</span>}
-              </div>
-
-              <div className="booking-history">
-                {taxiBookings.map((profileTaxiBooking) => (
-                  <article className="history-card" key={profileTaxiBooking.id}>
-                    <div>
-                      <p className="eyebrow">Taxi booking #{profileTaxiBooking.id}</p>
-                      <h3>{profileTaxiBooking.taxiServiceName}</h3>
-                      <p>
-                        {profileTaxiBooking.pickupAddress} to {profileTaxiBooking.dropoffAddress}
-                      </p>
-                      <small>
-                        {formatTaxiCarClassName(profileTaxiBooking.carClassName)} / {profileTaxiBooking.distanceKm.toFixed(2)} km / {formatMoney(profileTaxiBooking.totalPrice)}
-                      </small>
-                      {profileTaxiBooking.savedCardLast4 && <small>Saved card: **** {profileTaxiBooking.savedCardLast4}</small>}
-                    </div>
-
-                    <div className="history-actions">
-                      <span className={`status-pill ${profileTaxiBooking.status.toLowerCase()}`}>
-                        {profileTaxiBooking.status}
-                      </span>
-                      {profileTaxiBooking.status === 'PendingPayment' && payingTaxiBookingId !== profileTaxiBooking.id && (
-                        <>
-                          <button
-                            className="primary"
-                            disabled={submitting}
-                            onClick={() => openTaxiPaymentForm(profileTaxiBooking.id)}
-                            type="button"
-                          >
-                            Pay
-                          </button>
-                          <button disabled={submitting} onClick={() => void cancelTaxiBooking(profileTaxiBooking)} type="button">
-                            Cancel
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    {profileTaxiBooking.status === 'PendingPayment' && payingTaxiBookingId === profileTaxiBooking.id && (
-                      renderPaymentForm(profileTaxiBooking, 'taxi')
-                    )}
-                  </article>
-                ))}
-
-                {!taxiBookingsLoading && taxiBookings.length === 0 && <p className="empty">No taxi bookings yet.</p>}
-              </div>
-            </section>
-            </div>
-          </div>
-        </section>
+        <ProfilePage
+          accountPhonePattern={accountPhonePattern}
+          accountPhonePrefix={accountPhonePrefix}
+          bookings={bookings}
+          bookingsLoading={bookingsLoading}
+          cardNumberPattern={cardNumberPattern}
+          currentUser={currentUser}
+          currentYear={currentYear}
+          cvvPattern={cvvPattern}
+          editingProfile={editingProfile}
+          formatTaxiCarClassName={formatTaxiCarClassName}
+          onCancelBooking={cancelBooking}
+          onCancelPaymentCardForm={() => {
+            setPaymentCardForm(emptyPaymentCardForm);
+            setShowPaymentCardForm(false);
+          }}
+          onCancelProfileEdit={() => setEditingProfile(false)}
+          onCancelTaxiBooking={cancelTaxiBooking}
+          onDeletePaymentCard={deletePaymentCard}
+          onDeleteProfile={deleteProfile}
+          onOpenPaymentForm={openPaymentForm}
+          onOpenProfileEditor={openProfileEditor}
+          onOpenTaxiPaymentForm={openTaxiPaymentForm}
+          onPaymentCardFormChange={setPaymentCardForm}
+          onProfileFormChange={setProfileForm}
+          onShowPaymentCardForm={setShowPaymentCardForm}
+          onSubmitPaymentCard={(event) => void submitPaymentCard(event)}
+          onSubmitProfile={(event) => void submitProfile(event)}
+          payingBookingId={payingBookingId}
+          payingTaxiBookingId={payingTaxiBookingId}
+          paymentCardForm={paymentCardForm}
+          renderPaymentForm={renderPaymentForm}
+          savedPaymentCards={savedPaymentCards}
+          profileForm={profileForm}
+          showPaymentCardForm={showPaymentCardForm}
+          submitting={submitting}
+          taxiBookings={taxiBookings}
+          taxiBookingsLoading={taxiBookingsLoading}
+        />
       )}
 
       {page === 'admin' && currentUser?.role === 'SuperAdmin' && (
-        <section className="page-section">
-          <div className="section-title">
-            <div>
-              <p className="eyebrow">Super Admin</p>
-              <h2>User management</h2>
-            </div>
-            <span>{admins.length} admins / {adminCandidates.length} users</span>
-          </div>
-
-          <h3>Admins</h3>
-          <div className="user-list">
-            {admins.map((user) => (
-              <article className="user-row" key={user.id}>
-                <span>
-                  <strong>{user.name}</strong>
-                  <small>{user.email}{user.isBlocked ? ' / blocked' : ''}</small>
-                </span>
-                <div className="user-actions">
-                  {user.isBlocked ? (
-                    <>
-                      <button disabled={submitting} onClick={() => void demoteAdmin(user.id)} type="button">
-                        Demote to user
-                      </button>
-                      <button disabled={submitting} onClick={() => void unblockUser(user.id)} type="button">
-                        Unban
-                      </button>
-                      <button disabled={submitting} onClick={() => void deleteAccount(user.id)} type="button">
-                        Delete account
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button disabled={submitting} onClick={() => void demoteAdmin(user.id)} type="button">
-                        Demote to user
-                      </button>
-                      <button disabled={submitting} onClick={() => void blockUser(user.id)} type="button">
-                        Ban
-                      </button>
-                    </>
-                  )}
-                </div>
-              </article>
-            ))}
-
-            {admins.length === 0 && <p className="empty">No admins yet.</p>}
-          </div>
-
-          <h3>Regular users</h3>
-          <div className="user-list">
-            {adminCandidates.map((user) => (
-              <article className="user-row" key={user.id}>
-                <span>
-                  <strong>{user.name}</strong>
-                  <small>{user.email}{user.isBlocked ? ' / blocked' : ''}</small>
-                </span>
-                <div className="user-actions">
-                  {user.isBlocked ? (
-                    <>
-                      <button disabled={submitting} onClick={() => void promoteToAdmin(user.id)} type="button">
-                        Make admin
-                      </button>
-                      <button disabled={submitting} onClick={() => void unblockUser(user.id)} type="button">
-                        Unban
-                      </button>
-                      <button disabled={submitting} onClick={() => void deleteAccount(user.id)} type="button">
-                        Delete account
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button disabled={submitting} onClick={() => void promoteToAdmin(user.id)} type="button">
-                        Make admin
-                      </button>
-                      <button disabled={submitting} onClick={() => void blockUser(user.id)} type="button">
-                        Ban
-                      </button>
-                    </>
-                  )}
-                </div>
-              </article>
-            ))}
-
-            {adminCandidates.length === 0 && <p className="empty">No regular users yet.</p>}
-          </div>
-        </section>
+        <AdminPage
+          adminCandidates={adminCandidates}
+          admins={admins}
+          onBlock={blockUser}
+          onDelete={deleteAccount}
+          onDemote={demoteAdmin}
+          onPromote={promoteToAdmin}
+          onUnblock={unblockUser}
+          submitting={submitting}
+        />
       )}
     </main>
   );
