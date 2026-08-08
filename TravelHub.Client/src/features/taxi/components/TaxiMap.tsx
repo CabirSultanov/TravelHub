@@ -17,6 +17,8 @@ type RouteGeometry = {
   coordinates: [number, number][];
 };
 
+type RouteGeoJSON = GeoJSON.Feature<GeoJSON.LineString> | GeoJSON.FeatureCollection<GeoJSON.LineString>;
+
 type TaxiMapProps = {
   pickup: Coordinates | null;
   dropoff: Coordinates | null;
@@ -115,7 +117,7 @@ function syncMarker(
 }
 
 function setRouteData(map: MapLibreMap, geometry: RouteGeometry | null) {
-  const data = geometry
+  const data: RouteGeoJSON = geometry
     ? {
         type: 'Feature',
         properties: {},
@@ -125,36 +127,37 @@ function setRouteData(map: MapLibreMap, geometry: RouteGeometry | null) {
         type: 'FeatureCollection',
         features: [],
       };
-  const serializedData = JSON.stringify(data);
   const source = map.getSource(ROUTE_SOURCE_ID);
 
   if (source?.type === 'geojson') {
-    (source as GeoJSONSource).setData(serializedData);
-    return;
+    void (source as GeoJSONSource).setData(data);
+  } else if (geometry && !source) {
+    map.addSource(ROUTE_SOURCE_ID, {
+      type: 'geojson',
+      data,
+    });
   }
 
-  if (!geometry) {
-    return;
+  if (geometry && !map.getLayer(ROUTE_LAYER_ID)) {
+    map.addLayer({
+      id: ROUTE_LAYER_ID,
+      type: 'line',
+      source: ROUTE_SOURCE_ID,
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+      paint: {
+        'line-color': '#1877f2',
+        'line-opacity': 0.9,
+        'line-width': 6,
+      },
+    });
   }
 
-  map.addSource(ROUTE_SOURCE_ID, {
-    type: 'geojson',
-    data: serializedData,
-  });
-  map.addLayer({
-    id: ROUTE_LAYER_ID,
-    type: 'line',
-    source: ROUTE_SOURCE_ID,
-    layout: {
-      'line-cap': 'round',
-      'line-join': 'round',
-    },
-    paint: {
-      'line-color': '#1877f2',
-      'line-opacity': 0.9,
-      'line-width': 6,
-    },
-  });
+  if (geometry && map.getLayer(ROUTE_LAYER_ID)) {
+    map.moveLayer(ROUTE_LAYER_ID);
+  }
 }
 
 function fitRouteBounds(map: MapLibreMap, pickup: Coordinates, dropoff: Coordinates, geometry: RouteGeometry) {

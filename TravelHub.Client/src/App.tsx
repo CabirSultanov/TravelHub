@@ -105,6 +105,7 @@ function App() {
   const [taxiBookingsLoading, setTaxiBookingsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [message, setMessage] = useState('');
 
   const taxiFeature = useTaxiFeature({
@@ -282,12 +283,17 @@ function App() {
 
     setSubmitting(true);
     setPaymentProcessing(true);
+    setPaymentSuccess(false);
     setMessage('');
 
     try {
       const payment = createPaymentPayload();
       await delay(3000);
       const paidBooking = await api.payBooking(targetBooking.id, payment);
+
+      setPaymentProcessing(false);
+      setPaymentSuccess(true);
+      await delay(3000);
 
       if (hotelsFeature.model.booking?.id === paidBooking.id) {
         hotelsFeature.actions.booking.setBooking(paidBooking);
@@ -306,6 +312,7 @@ function App() {
     } finally {
       setSubmitting(false);
       setPaymentProcessing(false);
+      setPaymentSuccess(false);
     }
   }
 
@@ -314,12 +321,17 @@ function App() {
 
     setSubmitting(true);
     setPaymentProcessing(true);
+    setPaymentSuccess(false);
     setMessage('');
 
     try {
       const payment = createPaymentPayload();
       await delay(3000);
       const paidBooking = await api.payTaxiBooking(targetBooking.id, payment);
+
+      setPaymentProcessing(false);
+      setPaymentSuccess(true);
+      await delay(3000);
 
       if (taxiFeature.model.taxiBooking?.id === paidBooking.id) {
         taxiFeature.actions.setBooking(paidBooking);
@@ -338,6 +350,7 @@ function App() {
     } finally {
       setSubmitting(false);
       setPaymentProcessing(false);
+      setPaymentSuccess(false);
     }
   }
 
@@ -728,11 +741,22 @@ function App() {
 
       {message && <div className="notice">{message}</div>}
 
-      {paymentProcessing && (
+      {(paymentProcessing || paymentSuccess) && (
         <div className="payment-processing-overlay" role="status" aria-live="polite">
-          <div className="payment-processing-panel">
-            <span className="payment-processing-spinner" aria-hidden="true" />
-            <strong>Processing payment...</strong>
+          <div className={`payment-processing-panel${paymentSuccess ? ' payment-success-panel' : ''}`}>
+            {paymentSuccess ? (
+              <>
+                <span className="payment-success-icon" aria-hidden="true">
+                  ✓
+                </span>
+                <strong>Paid</strong>
+              </>
+            ) : (
+              <>
+                <span className="payment-processing-spinner" aria-hidden="true" />
+                <strong>Processing payment...</strong>
+              </>
+            )}
           </div>
         </div>
       )}
