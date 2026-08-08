@@ -1,3 +1,45 @@
+export type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth' | 'admin' | 'profile';
+export type AuthMode = 'login' | 'register';
+export type PaymentMode = 'saved' | 'new';
+
+export type AuthForm = {
+  name: string;
+  email: string;
+  phoneNumber: string;
+  password: string;
+};
+
+export type ProfileForm = {
+  name: string;
+  phoneNumber: string;
+};
+
+export type PaymentForm = {
+  savedPaymentCardId: string;
+  cardNumber: string;
+  cardHolderName: string;
+  expiryMonth: string;
+  expiryYear: string;
+  cvv: string;
+  saveCard: boolean;
+};
+
+export type PaymentCardForm = {
+  cardNumber: string;
+  cardHolderName: string;
+  expiryMonth: string;
+  expiryYear: string;
+  cvv: string;
+};
+
+export type DeleteTarget = {
+  kind: 'hotel' | 'room';
+  id: number;
+  name: string;
+};
+
+export type BookingGuestMode = 'self' | 'other';
+
 export type UserRole = 'User' | 'Admin' | 'SuperAdmin';
 export type BookingStatus = 'PendingPayment' | 'Paid' | 'Cancelled';
 
@@ -8,6 +50,12 @@ export type AuthUser = {
   phoneNumber: string;
   role: UserRole;
   isBlocked: boolean;
+};
+
+export type AuthResponse = {
+  user: AuthUser;
+  accessToken: string;
+  accessTokenExpiresAt: string;
 };
 
 export type RegisterRequest = {

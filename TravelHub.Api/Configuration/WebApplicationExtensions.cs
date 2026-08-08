@@ -1,6 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
 
@@ -27,11 +25,16 @@ public static class WebApplicationExtensions
                 if (int.TryParse(value, out var userId))
                 {
                     var db = context.RequestServices.GetRequiredService<AppDbContext>();
-                    var isBlocked = await db.Users.AsNoTracking().AnyAsync(user => user.Id == userId && user.IsBlocked);
+                    var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(user => user.Id == userId);
 
-                    if (isBlocked)
+                    if (user is null)
                     {
-                        await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        return;
+                    }
+
+                    if (user.IsBlocked)
+                    {
                         context.Response.StatusCode = StatusCodes.Status403Forbidden;
                         return;
                     }

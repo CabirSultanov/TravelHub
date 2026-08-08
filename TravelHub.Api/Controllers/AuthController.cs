@@ -1,25 +1,33 @@
+using System.Data;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using TravelHub.Api.Configuration;
 using TravelHub.Api.Data;
 using TravelHub.Api.DTO;
 using TravelHub.Api.Models;
+using TravelHub.Api.Services;
 
 namespace TravelHub.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHasher) : ControllerBase
+public class AuthController(
+    AppDbContext db,
+    PasswordHasher<AppUser> passwordHasher,
+    ITokenService tokenService,
+    IOptions<JwtOptions> jwtOptions) : ControllerBase
 {
     private const string AzerbaijanPhonePrefix = "+994";
     private const int AzerbaijanPhoneDigitCount = 9;
+    private const string RefreshTokenCookieName = "TravelHub.RefreshToken";
+    private const string RefreshTokenCookiePath = "/api/auth";
 
     [HttpPost("register")]
-    public async Task<ActionResult<AuthUserDto>> Register(RegisterRequestDto request)
+    public async Task<ActionResult<AuthResponseDto>> Register(RegisterRequestDto request)
     {
         if (!IsValidNameEmailPassword(request.Name, request.Email, request.Password, out var error))
         {
@@ -49,13 +57,12 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
 
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        await SignInAsync(user);
 
-        return ToDto(user);
+        return await CreateSessionAsync(user);
     }
 
     [HttpPost("login")]
-    public async Task<ActionResult<AuthUserDto>> Login(LoginRequestDto request)
+    public async Task<ActionResult<AuthResponseDto>> Login(LoginRequestDto request)
     {
         var email = NormalizeEmail(request.Email);
         var user = await db.Users.FirstOrDefaultAsync(user => user.Email == email);
@@ -77,15 +84,77 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
             return Unauthorized("Invalid email or password.");
         }
 
-        await SignInAsync(user);
-        return ToDto(user);
+        return await CreateSessionAsync(user);
     }
 
-    [Authorize]
+    [AllowAnonymous]
+    [HttpPost("refresh")]
+    public async Task<ActionResult<AuthResponseDto>> Refresh()
+    {
+        var rawRefreshToken = Request.Cookies[RefreshTokenCookieName];
+
+        if (string.IsNullOrWhiteSpace(rawRefreshToken))
+        {
+            return Unauthorized();
+        }
+
+        var tokenHash = tokenService.HashRefreshToken(rawRefreshToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        var refreshToken = await db.RefreshTokens
+            .Include(token => token.User)
+            .SingleOrDefaultAsync(token => token.TokenHash == tokenHash);
+        var now = DateTime.UtcNow;
+
+        if (refreshToken is null
+            || refreshToken.User is null
+            || refreshToken.User.IsBlocked
+            || !RefreshTokenRules.IsUsable(refreshToken, now))
+        {
+            return Unauthorized();
+        }
+
+        var replacementRawToken = tokenService.CreateRefreshToken();
+        var replacementHash = tokenService.HashRefreshToken(replacementRawToken);
+
+        if (!RefreshTokenRules.TryRevokeForRotation(refreshToken, replacementHash, now))
+        {
+            return Unauthorized();
+        }
+
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = refreshToken.UserId,
+            TokenHash = replacementHash,
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(jwtOptions.Value.RefreshTokenDays)
+        });
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        SetRefreshTokenCookie(replacementRawToken);
+        return CreateAuthResponse(refreshToken.User);
+    }
+
+    [AllowAnonymous]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        var rawRefreshToken = Request.Cookies[RefreshTokenCookieName];
+
+        if (!string.IsNullOrWhiteSpace(rawRefreshToken))
+        {
+            var tokenHash = tokenService.HashRefreshToken(rawRefreshToken);
+            var refreshToken = await db.RefreshTokens
+                .FirstOrDefaultAsync(token => token.TokenHash == tokenHash);
+
+            if (refreshToken is not null && RefreshTokenRules.IsUsable(refreshToken, DateTime.UtcNow))
+            {
+                refreshToken.RevokedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        DeleteRefreshTokenCookie();
         return NoContent();
     }
 
@@ -141,7 +210,6 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
         user.Name = request.Name.Trim();
         user.PhoneNumber = NormalizePhoneNumber(request.PhoneNumber);
         await db.SaveChangesAsync();
-        await SignInAsync(user);
 
         return ToDto(user);
     }
@@ -175,26 +243,68 @@ public class AuthController(AppDbContext db, PasswordHasher<AppUser> passwordHas
 
         db.Users.Remove(user);
         await db.SaveChangesAsync();
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        DeleteRefreshTokenCookie();
 
         return NoContent();
     }
 
-    private async Task SignInAsync(AppUser user)
+    private async Task<AuthResponseDto> CreateSessionAsync(AppUser user)
     {
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Name, user.Name),
-            new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Role, user.Role)
-        };
+        var rawRefreshToken = tokenService.CreateRefreshToken();
+        var now = DateTime.UtcNow;
 
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-        await HttpContext.SignInAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme,
-            new ClaimsPrincipal(identity),
-            new AuthenticationProperties { IsPersistent = true });
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            TokenHash = tokenService.HashRefreshToken(rawRefreshToken),
+            CreatedAt = now,
+            ExpiresAt = now.AddDays(jwtOptions.Value.RefreshTokenDays)
+        });
+        await db.SaveChangesAsync();
+
+        SetRefreshTokenCookie(rawRefreshToken);
+        return CreateAuthResponse(user);
+    }
+
+    private AuthResponseDto CreateAuthResponse(AppUser user)
+    {
+        var accessToken = tokenService.CreateAccessToken(user);
+
+        return new AuthResponseDto
+        {
+            User = ToDto(user),
+            AccessToken = accessToken.Token,
+            AccessTokenExpiresAt = accessToken.ExpiresAt
+        };
+    }
+
+    private void SetRefreshTokenCookie(string rawRefreshToken)
+    {
+        Response.Cookies.Append(
+            RefreshTokenCookieName,
+            rawRefreshToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                SameSite = SameSiteMode.Lax,
+                Secure = Request.IsHttps,
+                Path = RefreshTokenCookiePath,
+                MaxAge = TimeSpan.FromDays(jwtOptions.Value.RefreshTokenDays)
+            });
+    }
+
+    private void DeleteRefreshTokenCookie()
+    {
+        Response.Cookies.Delete(
+            RefreshTokenCookieName,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                SameSite = SameSiteMode.Lax,
+                Secure = Request.IsHttps,
+                Path = RefreshTokenCookiePath,
+                MaxAge = TimeSpan.Zero
+            });
     }
 
     private int? GetCurrentUserId()
