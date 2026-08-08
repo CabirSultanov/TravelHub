@@ -64,3 +64,12 @@ public class AuthUserDto
 
     public bool IsBlocked { get; set; }
 }
+
+public class AuthResponseDto
+{
+    public AuthUserDto User { get; set; } = new();
+
+    public string AccessToken { get; set; } = string.Empty;
+
+    public DateTime AccessTokenExpiresAt { get; set; }
+}

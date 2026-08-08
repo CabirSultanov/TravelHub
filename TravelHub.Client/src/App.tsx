@@ -130,9 +130,29 @@ function App() {
   });
 
   useEffect(() => {
+    api.setSessionExpiredHandler(() => {
+      setCurrentUser(null);
+      hotelsFeature.actions.booking.setBooking(null);
+      taxiFeature.actions.setBooking(null);
+      setBookings([]);
+      setTaxiBookings([]);
+      setSavedPaymentCards([]);
+      setPayingBookingId(null);
+      setPayingTaxiBookingId(null);
+    });
+
+    return () => api.setSessionExpiredHandler(null);
+  }, []);
+
+  useEffect(() => {
     async function loadInitialData() {
       try {
-        setPlaces(await api.getPlaces());
+        const [loadedPlaces, restoredSession] = await Promise.all([api.getPlaces(), api.refresh()]);
+        setPlaces(loadedPlaces);
+
+        if (restoredSession) {
+          setCurrentUser(restoredSession.user);
+        }
       } catch (error) {
         setMessage(getErrorMessage(error));
       } finally {
@@ -141,7 +161,6 @@ function App() {
     }
 
     void loadInitialData();
-    void api.getMe().then(setCurrentUser).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -382,12 +401,12 @@ function App() {
     setMessage('');
 
     try {
-      const user =
+      const authResponse =
         authMode === 'register'
           ? await api.register({ ...authForm, phoneNumber: toAzerbaijanPhoneNumber(authForm.phoneNumber) })
           : await api.login({ email: authForm.email, password: authForm.password });
 
-      setCurrentUser(user);
+      setCurrentUser(authResponse.user);
       setAuthForm(emptyAuthForm);
       setMessage(authMode === 'register' ? 'Registration completed.' : 'Logged in.');
       navigateTo('home');
