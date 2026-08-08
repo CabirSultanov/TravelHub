@@ -1,4 +1,7 @@
-import type { TaxiCarClassOption } from '../types';
+type TaxiCarClassOption = {
+  value: string;
+  label: string;
+};
 
 export const taxiCarClassOptions: TaxiCarClassOption[] = [
   { value: 'Standard', label: 'Standard' },
