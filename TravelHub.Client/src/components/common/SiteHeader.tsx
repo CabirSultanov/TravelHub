@@ -36,9 +36,6 @@ export default function SiteHeader({
         <button className={page === 'hotels' ? 'active' : ''} onClick={() => onNavigate('hotels')} type="button">
           Hotels
         </button>
-        <button className={page === 'places' ? 'active' : ''} onClick={() => onNavigate('places')} type="button">
-          Places
-        </button>
         {currentUser?.role === 'SuperAdmin' && (
           <button className={page === 'admin' ? 'active' : ''} onClick={() => onNavigate('admin')} type="button">
             Admin

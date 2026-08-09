@@ -32,7 +32,6 @@ public static class DatabaseStartup
             try
             {
                 var db = services.GetRequiredService<AppDbContext>();
-                await BaselineExistingPlacesMigrationAsync(db);
                 await EnsureUserBlockingColumnAsync(db);
                 await EnsureUserPhoneNumberColumnAsync(db);
                 await EnsureHotelRoomImageUrlsColumnAsync(db);
@@ -56,31 +55,6 @@ public static class DatabaseStartup
         }
 
         throw new InvalidOperationException("Database startup failed.");
-    }
-
-    private static async Task BaselineExistingPlacesMigrationAsync(AppDbContext db)
-    {
-        await db.Database.ExecuteSqlRawAsync("""
-IF OBJECT_ID(N'[dbo].[__EFMigrationsHistory]', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[__EFMigrationsHistory] (
-        [MigrationId] nvarchar(150) NOT NULL,
-        [ProductVersion] nvarchar(32) NOT NULL,
-        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
-    );
-END;
-
-IF OBJECT_ID(N'[dbo].[Places]', N'U') IS NOT NULL
-    AND NOT EXISTS (
-        SELECT 1
-        FROM [dbo].[__EFMigrationsHistory]
-        WHERE [MigrationId] = N'20260703143000_InitialCreate'
-    )
-BEGIN
-    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
-    VALUES (N'20260703143000_InitialCreate', N'8.0.3');
-END;
-""");
     }
 
     private static async Task EnsureUserBlockingColumnAsync(AppDbContext db)

@@ -6,7 +6,6 @@ namespace TravelHub.Api.Data;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<AppUser> Users => Set<AppUser>();
-    public DbSet<Place> Places => Set<Place>();
     public DbSet<Hotel> Hotels => Set<Hotel>();
     public DbSet<HotelRoom> HotelRooms => Set<HotelRoom>();
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
