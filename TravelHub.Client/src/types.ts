@@ -210,6 +210,10 @@ export type TaxiBooking = {
   pickupY: number;
   dropoffX: number;
   dropoffY: number;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
   distanceKm: number;
   pricePerKm: number;
   totalPrice: number;
@@ -227,8 +231,8 @@ export type TaxiBookingCreate = {
   email: string;
   pickupAddress: string;
   dropoffAddress: string;
-  pickupX: number;
-  pickupY: number;
-  dropoffX: number;
-  dropoffY: number;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
 };

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../../../api';
 import { getErrorMessage } from '../../../utils/errors';
-import { splitTaxiCities, taxiCarClassOptions, toLegacyTaxiPoint } from '../../../utils/taxi';
+import { splitTaxiCities, taxiCarClassOptions } from '../../../utils/taxi';
 import type { TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
 import { createEmptyTaxiBookingForm, emptyTaxiForm } from '../taxi.constants';
 import type {
@@ -101,7 +101,7 @@ export function useTaxiFeature({
     selectedTaxiService?.carClasses[0] ??
     null;
   const taxiDistanceKm = taxiRouteState.status === 'success' ? taxiRouteState.distanceKm : 0;
-  const taxiEstimatedTotal = selectedTaxiCarClass ? taxiDistanceKm * selectedTaxiCarClass.pricePerKm : 0;
+  const taxiEstimatedTotal = selectedTaxiCarClass ? Math.round(taxiDistanceKm * selectedTaxiCarClass.pricePerKm * 100) / 100 : 0;
   const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
 
   function startCreateTaxiService() {
@@ -270,16 +270,14 @@ export function useTaxiFeature({
   }
 
   function updateTaxiMapPoint(coordinates: Coordinates) {
-    const legacyPoint = toLegacyTaxiPoint(coordinates);
-
     setTaxiCoordinates((currentCoordinates) => ({
       ...currentCoordinates,
       [taxiPointMode]: coordinates,
     }));
     setTaxiBookingForm((form) => ({
       ...form,
-      [taxiPointMode === 'pickup' ? 'pickupX' : 'dropoffX']: legacyPoint.x,
-      [taxiPointMode === 'pickup' ? 'pickupY' : 'dropoffY']: legacyPoint.y,
+      [taxiPointMode === 'pickup' ? 'pickupLatitude' : 'dropoffLatitude']: coordinates.latitude,
+      [taxiPointMode === 'pickup' ? 'pickupLongitude' : 'dropoffLongitude']: coordinates.longitude,
     }));
   }
 
@@ -335,10 +333,10 @@ export function useTaxiFeature({
         email: taxiBookingForm.email,
         pickupAddress: taxiBookingForm.pickupAddress,
         dropoffAddress: taxiBookingForm.dropoffAddress,
-        pickupX: taxiBookingForm.pickupX,
-        pickupY: taxiBookingForm.pickupY,
-        dropoffX: taxiBookingForm.dropoffX,
-        dropoffY: taxiBookingForm.dropoffY,
+        pickupLatitude: taxiCoordinates.pickup.latitude,
+        pickupLongitude: taxiCoordinates.pickup.longitude,
+        dropoffLatitude: taxiCoordinates.dropoff.latitude,
+        dropoffLongitude: taxiCoordinates.dropoff.longitude,
       });
 
       setTaxiBooking(createdBooking);

@@ -19,9 +19,9 @@ export function createEmptyTaxiBookingForm(user?: AuthUser | null, taxiService?:
     email: user?.email ?? '',
     pickupAddress: 'Airport terminal',
     dropoffAddress: 'City center',
-    pickupX: 22,
-    pickupY: 68,
-    dropoffX: 76,
-    dropoffY: 34,
+    pickupLatitude: 0,
+    pickupLongitude: 0,
+    dropoffLatitude: 0,
+    dropoffLongitude: 0,
   };
 }

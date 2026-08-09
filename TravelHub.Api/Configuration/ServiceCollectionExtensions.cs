@@ -23,6 +23,11 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(connectionString));
         services.AddHostedService<CancelledBookingCleanupService>();
+        services.AddHttpClient<IRoutingService, OsrmRoutingService>(client =>
+        {
+            client.BaseAddress = new Uri("https://router.project-osrm.org/");
+            client.Timeout = TimeSpan.FromSeconds(12);
+        });
         services.AddScoped<PasswordHasher<AppUser>>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddOptions<JwtOptions>()

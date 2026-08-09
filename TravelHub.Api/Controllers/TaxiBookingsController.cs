@@ -12,7 +12,7 @@ namespace TravelHub.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/taxi-bookings")]
-public class TaxiBookingsController(AppDbContext db) : ControllerBase
+public class TaxiBookingsController(AppDbContext db, IRoutingService routingService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<List<TaxiBookingResponseDto>>> GetTaxiBookings(bool mine = false)
@@ -49,6 +49,10 @@ public class TaxiBookingsController(AppDbContext db) : ControllerBase
                 PickupY = booking.PickupY,
                 DropoffX = booking.DropoffX,
                 DropoffY = booking.DropoffY,
+                PickupLatitude = booking.PickupLatitude,
+                PickupLongitude = booking.PickupLongitude,
+                DropoffLatitude = booking.DropoffLatitude,
+                DropoffLongitude = booking.DropoffLongitude,
                 DistanceKm = booking.DistanceKm,
                 PricePerKm = booking.PricePerKm,
                 TotalPrice = booking.TotalPrice,
@@ -61,7 +65,9 @@ public class TaxiBookingsController(AppDbContext db) : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<TaxiBookingResponseDto>> CreateTaxiBooking(TaxiBookingCreateDto bookingDto)
+    public async Task<ActionResult<TaxiBookingResponseDto>> CreateTaxiBooking(
+        TaxiBookingCreateDto bookingDto,
+        CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
 
@@ -79,15 +85,19 @@ public class TaxiBookingsController(AppDbContext db) : ControllerBase
             return BadRequest("CustomerName, PhoneNumber, Email, PickupAddress and DropoffAddress are required.");
         }
 
-        if (!TaxiBookingRules.IsCoordinate(bookingDto.PickupX) ||
-            !TaxiBookingRules.IsCoordinate(bookingDto.PickupY) ||
-            !TaxiBookingRules.IsCoordinate(bookingDto.DropoffX) ||
-            !TaxiBookingRules.IsCoordinate(bookingDto.DropoffY))
+        if (!TaxiBookingRules.IsLatitude(bookingDto.PickupLatitude) ||
+            !TaxiBookingRules.IsLongitude(bookingDto.PickupLongitude) ||
+            !TaxiBookingRules.IsLatitude(bookingDto.DropoffLatitude) ||
+            !TaxiBookingRules.IsLongitude(bookingDto.DropoffLongitude))
         {
-            return BadRequest("Map coordinates must be between 0 and 100.");
+            return BadRequest("Pickup and dropoff latitude/longitude values are invalid.");
         }
 
-        if (TaxiBookingRules.IsSamePoint(bookingDto.PickupX, bookingDto.PickupY, bookingDto.DropoffX, bookingDto.DropoffY))
+        if (TaxiBookingRules.IsSameLocation(
+            bookingDto.PickupLatitude,
+            bookingDto.PickupLongitude,
+            bookingDto.DropoffLatitude,
+            bookingDto.DropoffLongitude))
         {
             return BadRequest("Pickup and dropoff points must be different.");
         }
@@ -111,12 +121,25 @@ public class TaxiBookingsController(AppDbContext db) : ControllerBase
             return BadRequest("Car class does not belong to selected taxi service.");
         }
 
-        var distanceKm = TaxiBookingRules.CalculateDistanceKm(
-            bookingDto.PickupX,
-            bookingDto.PickupY,
-            bookingDto.DropoffX,
-            bookingDto.DropoffY);
+        decimal distanceKm;
+
+        try
+        {
+            distanceKm = await routingService.GetDrivingDistanceKmAsync(
+                bookingDto.PickupLatitude,
+                bookingDto.PickupLongitude,
+                bookingDto.DropoffLatitude,
+                bookingDto.DropoffLongitude,
+                cancellationToken);
+        }
+        catch (RoutingUnavailableException)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Unable to calculate taxi route. Please try again.");
+        }
+
         var totalPrice = TaxiBookingRules.CalculateTotalPrice(distanceKm, carClass.PricePerKm);
+        var pickupLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.PickupLatitude, bookingDto.PickupLongitude);
+        var dropoffLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.DropoffLatitude, bookingDto.DropoffLongitude);
 
         var taxiBooking = new TaxiBooking
         {
@@ -129,10 +152,14 @@ public class TaxiBookingsController(AppDbContext db) : ControllerBase
             Email = bookingDto.Email.Trim(),
             PickupAddress = bookingDto.PickupAddress.Trim(),
             DropoffAddress = bookingDto.DropoffAddress.Trim(),
-            PickupX = bookingDto.PickupX,
-            PickupY = bookingDto.PickupY,
-            DropoffX = bookingDto.DropoffX,
-            DropoffY = bookingDto.DropoffY,
+            PickupX = pickupLegacyPoint.X,
+            PickupY = pickupLegacyPoint.Y,
+            DropoffX = dropoffLegacyPoint.X,
+            DropoffY = dropoffLegacyPoint.Y,
+            PickupLatitude = bookingDto.PickupLatitude,
+            PickupLongitude = bookingDto.PickupLongitude,
+            DropoffLatitude = bookingDto.DropoffLatitude,
+            DropoffLongitude = bookingDto.DropoffLongitude,
             DistanceKm = distanceKm,
             PricePerKm = carClass.PricePerKm,
             TotalPrice = totalPrice,
@@ -271,6 +298,10 @@ public class TaxiBookingsController(AppDbContext db) : ControllerBase
         PickupY = booking.PickupY,
         DropoffX = booking.DropoffX,
         DropoffY = booking.DropoffY,
+        PickupLatitude = booking.PickupLatitude,
+        PickupLongitude = booking.PickupLongitude,
+        DropoffLatitude = booking.DropoffLatitude,
+        DropoffLongitude = booking.DropoffLongitude,
         DistanceKm = booking.DistanceKm,
         PricePerKm = booking.PricePerKm,
         TotalPrice = booking.TotalPrice,

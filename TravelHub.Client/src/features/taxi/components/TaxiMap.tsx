@@ -19,6 +19,11 @@ type RouteGeometry = {
 
 type RouteGeoJSON = GeoJSON.Feature<GeoJSON.LineString> | GeoJSON.FeatureCollection<GeoJSON.LineString>;
 
+const EMPTY_ROUTE_DATA: RouteGeoJSON = {
+  type: 'FeatureCollection',
+  features: [],
+};
+
 type TaxiMapProps = {
   pickup: Coordinates | null;
   dropoff: Coordinates | null;
@@ -116,29 +121,22 @@ function syncMarker(
   markerRef.current.setLngLat(position);
 }
 
-function setRouteData(map: MapLibreMap, geometry: RouteGeometry | null) {
-  const data: RouteGeoJSON = geometry
-    ? {
-        type: 'Feature',
-        properties: {},
-        geometry,
-      }
-    : {
-        type: 'FeatureCollection',
-        features: [],
-      };
-  const source = map.getSource(ROUTE_SOURCE_ID);
-
-  if (source?.type === 'geojson') {
-    void (source as GeoJSONSource).setData(data);
-  } else if (geometry && !source) {
-    map.addSource(ROUTE_SOURCE_ID, {
-      type: 'geojson',
-      data,
-    });
+function ensureRouteLayer(map: MapLibreMap) {
+  if (!map.isStyleLoaded()) {
+    return null;
   }
 
-  if (geometry && !map.getLayer(ROUTE_LAYER_ID)) {
+  let source = map.getSource(ROUTE_SOURCE_ID);
+
+  if (!source) {
+    map.addSource(ROUTE_SOURCE_ID, {
+      type: 'geojson',
+      data: EMPTY_ROUTE_DATA,
+    });
+    source = map.getSource(ROUTE_SOURCE_ID);
+  }
+
+  if (!map.getLayer(ROUTE_LAYER_ID)) {
     map.addLayer({
       id: ROUTE_LAYER_ID,
       type: 'line',
@@ -148,16 +146,32 @@ function setRouteData(map: MapLibreMap, geometry: RouteGeometry | null) {
         'line-join': 'round',
       },
       paint: {
-        'line-color': '#1877f2',
-        'line-opacity': 0.9,
+        'line-color': '#0f62fe',
+        'line-opacity': 0.95,
         'line-width': 6,
       },
     });
   }
 
-  if (geometry && map.getLayer(ROUTE_LAYER_ID)) {
-    map.moveLayer(ROUTE_LAYER_ID);
+  return source?.type === 'geojson' ? (source as GeoJSONSource) : null;
+}
+
+function setRouteData(map: MapLibreMap, geometry: RouteGeometry | null) {
+  const source = ensureRouteLayer(map);
+
+  if (!source) {
+    return;
   }
+
+  const data: RouteGeoJSON = geometry
+    ? {
+        type: 'Feature',
+        properties: {},
+        geometry,
+      }
+    : EMPTY_ROUTE_DATA;
+
+  void source.setData(data);
 }
 
 function fitRouteBounds(map: MapLibreMap, pickup: Coordinates, dropoff: Coordinates, geometry: RouteGeometry) {
@@ -225,6 +239,7 @@ export default function TaxiMap({ pickup, dropoff, mode, onModeChange, onPointCh
     });
     const handleLoad = () => {
       if (mountedRef.current) {
+        ensureRouteLayer(map);
         setMapReady(true);
       }
     };
