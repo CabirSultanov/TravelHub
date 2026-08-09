@@ -541,39 +541,6 @@ input[type='number']::-webkit-outer-spin-button {
   background: #e8eef3;
 }
 
-.taxi-map .maplibregl-canvas {
-  outline: none;
-}
-
-.taxi-map .maplibregl-ctrl-group {
-  overflow: hidden;
-  border: 1px solid rgba(22, 40, 52, 0.12);
-  border-radius: 8px;
-  box-shadow: 0 8px 22px rgba(22, 40, 52, 0.16);
-}
-
-.taxi-map .maplibregl-ctrl-attrib {
-  border-radius: 4px 0 0;
-  background: rgba(255, 255, 255, 0.86);
-}
-
-.taxi-map-marker {
-  display: block;
-  width: 18px;
-  height: 18px;
-  border: 3px solid #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 4px 12px rgba(22, 40, 52, 0.3);
-}
-
-.taxi-map-marker.pickup {
-  background: #1f7a8c;
-}
-
-.taxi-map-marker.dropoff {
-  background: #b43d3d;
-}
-
 .taxi-map-instructions {
   margin: 0;
   color: #5b6f7e;

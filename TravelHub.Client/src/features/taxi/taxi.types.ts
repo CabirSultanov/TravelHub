@@ -36,6 +36,8 @@ export type TaxiRouteStatus = 'idle' | 'loading' | 'success' | 'error';
 export type TaxiRouteState = {
   status: TaxiRouteStatus;
   distanceKm: number;
+  durationSeconds?: number;
+  encodedPolyline?: string;
 };
 
 export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {

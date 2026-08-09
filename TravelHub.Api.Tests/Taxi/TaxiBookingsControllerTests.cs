@@ -118,17 +118,18 @@ public class TaxiBookingsControllerTests
 
     private sealed class FakeRoutingService(decimal distanceKm) : IRoutingService
     {
-        public Task<decimal> GetDrivingDistanceKmAsync(
+        public Task<TaxiRouteResult> GetRouteAsync(
             decimal pickupLatitude,
             decimal pickupLongitude,
             decimal dropoffLatitude,
             decimal dropoffLongitude,
-            CancellationToken cancellationToken) => Task.FromResult(distanceKm);
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new TaxiRouteResult(distanceKm, 820, "encoded"));
     }
 
     private sealed class FailingRoutingService : IRoutingService
     {
-        public Task<decimal> GetDrivingDistanceKmAsync(
+        public Task<TaxiRouteResult> GetRouteAsync(
             decimal pickupLatitude,
             decimal pickupLongitude,
             decimal dropoffLatitude,

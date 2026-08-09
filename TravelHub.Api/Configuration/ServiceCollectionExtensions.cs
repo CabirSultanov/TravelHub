@@ -23,9 +23,11 @@ public static class ServiceCollectionExtensions
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(connectionString));
         services.AddHostedService<CancelledBookingCleanupService>();
-        services.AddHttpClient<IRoutingService, OsrmRoutingService>(client =>
+        services.AddOptions<GoogleMapsOptions>()
+            .Bind(configuration.GetSection(GoogleMapsOptions.SectionName));
+        services.AddHttpClient<IRoutingService, GoogleRoutesService>(client =>
         {
-            client.BaseAddress = new Uri("https://router.project-osrm.org/");
+            client.BaseAddress = new Uri("https://routes.googleapis.com/");
             client.Timeout = TimeSpan.FromSeconds(12);
         });
         services.AddScoped<PasswordHasher<AppUser>>();

@@ -270,15 +270,22 @@ export function useTaxiFeature({
   }
 
   function updateTaxiMapPoint(coordinates: Coordinates) {
+    const targetPointMode =
+      taxiPointMode === 'pickup' && taxiCoordinates.pickup && !taxiCoordinates.dropoff ? 'dropoff' : taxiPointMode;
+
     setTaxiCoordinates((currentCoordinates) => ({
       ...currentCoordinates,
-      [taxiPointMode]: coordinates,
+      [targetPointMode]: coordinates,
     }));
     setTaxiBookingForm((form) => ({
       ...form,
-      [taxiPointMode === 'pickup' ? 'pickupLatitude' : 'dropoffLatitude']: coordinates.latitude,
-      [taxiPointMode === 'pickup' ? 'pickupLongitude' : 'dropoffLongitude']: coordinates.longitude,
+      [targetPointMode === 'pickup' ? 'pickupLatitude' : 'dropoffLatitude']: coordinates.latitude,
+      [targetPointMode === 'pickup' ? 'pickupLongitude' : 'dropoffLongitude']: coordinates.longitude,
     }));
+
+    if (targetPointMode === 'pickup') {
+      setTaxiPointMode('dropoff');
+    }
   }
 
   function updateTaxiRoute(route: TaxiRouteState) {

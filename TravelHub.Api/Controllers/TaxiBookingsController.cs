@@ -121,11 +121,11 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
             return BadRequest("Car class does not belong to selected taxi service.");
         }
 
-        decimal distanceKm;
+        TaxiRouteResult route;
 
         try
         {
-            distanceKm = await routingService.GetDrivingDistanceKmAsync(
+            route = await routingService.GetRouteAsync(
                 bookingDto.PickupLatitude,
                 bookingDto.PickupLongitude,
                 bookingDto.DropoffLatitude,
@@ -137,7 +137,7 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
             return StatusCode(StatusCodes.Status503ServiceUnavailable, "Unable to calculate taxi route. Please try again.");
         }
 
-        var totalPrice = TaxiBookingRules.CalculateTotalPrice(distanceKm, carClass.PricePerKm);
+        var totalPrice = TaxiBookingRules.CalculateTotalPrice(route.DistanceKm, carClass.PricePerKm);
         var pickupLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.PickupLatitude, bookingDto.PickupLongitude);
         var dropoffLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.DropoffLatitude, bookingDto.DropoffLongitude);
 
@@ -160,7 +160,7 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
             PickupLongitude = bookingDto.PickupLongitude,
             DropoffLatitude = bookingDto.DropoffLatitude,
             DropoffLongitude = bookingDto.DropoffLongitude,
-            DistanceKm = distanceKm,
+            DistanceKm = route.DistanceKm,
             PricePerKm = carClass.PricePerKm,
             TotalPrice = totalPrice,
             Status = BookingStatus.PendingPayment

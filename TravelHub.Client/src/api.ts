@@ -16,6 +16,8 @@ import type {
   SavedPaymentCard,
   TaxiBooking,
   TaxiBookingCreate,
+  TaxiRoutePreview,
+  TaxiRoutePreviewRequest,
   TaxiService,
   TaxiServiceInput,
   UpdateProfileRequest,
@@ -252,6 +254,12 @@ export const api = {
     request<TaxiBooking>('/api/taxi-bookings', {
       method: 'POST',
       body: JSON.stringify(booking),
+    }),
+  previewTaxiRoute: (route: TaxiRoutePreviewRequest, signal?: AbortSignal) =>
+    request<TaxiRoutePreview>('/api/taxi-routes/preview', {
+      method: 'POST',
+      body: JSON.stringify(route),
+      signal,
     }),
   payTaxiBooking: (bookingId: number, payment: BookingPayment) =>
     request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/pay`, {

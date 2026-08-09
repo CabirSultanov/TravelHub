@@ -236,3 +236,16 @@ export type TaxiBookingCreate = {
   dropoffLatitude: number;
   dropoffLongitude: number;
 };
+
+export type TaxiRoutePreviewRequest = {
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
+};
+
+export type TaxiRoutePreview = {
+  distanceKm: number;
+  durationSeconds: number;
+  encodedPolyline: string;
+};
