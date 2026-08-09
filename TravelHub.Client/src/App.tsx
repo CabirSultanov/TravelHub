@@ -110,7 +110,10 @@ function App() {
 
   const taxiFeature = useTaxiFeature({
     currentUser,
-    onBookingCreated: upsertTaxiBooking,
+    onBookingCreated: (booking) => {
+      upsertTaxiBooking(booking);
+      void loadTaxiBookings();
+    },
     onRequireAuth: requireAuth,
     onResetPayment: resetPaymentForm,
     onResetTaxiPayment: () => setPayingTaxiBookingId(null),
