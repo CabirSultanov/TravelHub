@@ -1,4 +1,4 @@
-export type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth' | 'admin' | 'profile';
+export type Page = 'home' | 'taxi' | 'hotels' | 'auth' | 'admin' | 'profile';
 export type AuthMode = 'login' | 'register';
 export type PaymentMode = 'saved' | 'new';
 
@@ -147,14 +147,6 @@ export type PaymentCardCreate = {
   expiryMonth: number;
   expiryYear: number;
   cvv: string;
-};
-
-export type Place = {
-  id: number;
-  name: string;
-  city: string;
-  description: string;
-  imageUrl?: string | null;
 };
 
 export type Booking = {

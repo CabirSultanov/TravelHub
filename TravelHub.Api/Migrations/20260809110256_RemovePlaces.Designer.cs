@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TravelHub.Api.Data;
 
@@ -11,9 +12,11 @@ using TravelHub.Api.Data;
 namespace TravelHub.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809110256_RemovePlaces")]
+    partial class RemovePlaces
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -329,14 +332,6 @@ namespace TravelHub.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<decimal>("DropoffLatitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("decimal(9,6)");
-
-                    b.Property<decimal>("DropoffLongitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("decimal(9,6)");
-
                     b.Property<decimal>("DropoffX")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -362,14 +357,6 @@ namespace TravelHub.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
-
-                    b.Property<decimal>("PickupLatitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("decimal(9,6)");
-
-                    b.Property<decimal>("PickupLongitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("decimal(9,6)");
 
                     b.Property<decimal>("PickupX")
                         .HasPrecision(18, 2)

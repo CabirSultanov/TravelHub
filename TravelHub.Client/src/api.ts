@@ -11,7 +11,6 @@ import type {
   HotelUpdateInput,
   LoginRequest,
   PaymentCardCreate,
-  Place,
   RegisterRequest,
   SavedPaymentCard,
   TaxiBooking,
@@ -270,7 +269,6 @@ export const api = {
     request<void>(`/api/taxi-bookings/${bookingId}/cancel`, {
       method: 'PUT',
     }),
-  getPlaces: () => request<Place[]>('/api/places'),
   getBookings: (mine = false) => request<Booking[]>(`/api/booking-requests${mine ? '?mine=true' : ''}`),
   createBooking: (booking: BookingCreate) =>
     request<Booking>('/api/booking-requests', {
