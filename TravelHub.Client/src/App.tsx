@@ -9,11 +9,9 @@ import AdminPage from './pages/Admin/AdminPage';
 import AuthPage from './pages/Auth/AuthPage';
 import HomePage from './pages/Home/HomePage';
 import HotelsPage from './pages/Hotels/HotelsPage';
-import PlacesPage from './pages/Places/PlacesPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import TaxiPage from './pages/Taxi/TaxiPage';
 import { formatTaxiCarClassName } from './utils/formatting';
-import { fallbackImage } from './utils/images';
 import { getErrorMessage } from './utils/errors';
 import type {
   AuthForm,
@@ -26,18 +24,16 @@ import type {
   PaymentCardCreate,
   PaymentForm,
   PaymentMode,
-  Place,
   ProfileForm,
   SavedPaymentCard,
   TaxiBooking,
 } from './types';
 
-const appPages: Page[] = ['home', 'taxi', 'hotels', 'places', 'auth', 'admin', 'profile'];
+const appPages: Page[] = ['home', 'taxi', 'hotels', 'auth', 'admin', 'profile'];
 const pageRoutes: Record<Page, string> = {
   home: '/',
   taxi: '/taxi',
   hotels: '/hotels',
-  places: '/places',
   auth: '/auth',
   admin: '/admin',
   profile: '/profile',
@@ -84,7 +80,6 @@ const emptyProfileForm: ProfileForm = {
 function App() {
   const [page, setPage] = useState<Page>(() => getPageFromPathname(window.location.pathname));
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [places, setPlaces] = useState<Place[]>([]);
   const [admins, setAdmins] = useState<AuthUser[]>([]);
   const [adminCandidates, setAdminCandidates] = useState<AuthUser[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -151,8 +146,7 @@ function App() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [loadedPlaces, restoredSession] = await Promise.all([api.getPlaces(), api.refresh()]);
-        setPlaces(loadedPlaces);
+        const restoredSession = await api.refresh();
 
         if (restoredSession) {
           setCurrentUser(restoredSession.user);
@@ -799,8 +793,6 @@ function App() {
           target={hotelsFeature.model.deleteTarget}
         />
       )}
-
-      {page === 'places' && <PlacesPage fallbackImage={fallbackImage} loading={initialDataLoading} places={places} />}
 
       {page === 'auth' && (
         <AuthPage

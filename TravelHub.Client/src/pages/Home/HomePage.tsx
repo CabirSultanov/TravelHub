@@ -10,7 +10,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
       <section className="hero">
         <p className="eyebrow">TravelHub</p>
         <h1>Plan your trip in a few clicks.</h1>
-        <p>Taxi, hotels, and interesting places are gathered in one simple draft interface.</p>
+        <p>Taxi and hotel booking are gathered in one simple draft interface.</p>
       </section>
 
       <section className="home-steps" aria-label="TravelHub services">
@@ -26,11 +26,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           <small>Open hotels, choose a room, and create a booking.</small>
         </button>
 
-        <button className="feature-card" onClick={() => onNavigate('places')} type="button">
-          <span className="feature-icon">P</span>
-          <strong>Interesting places</strong>
-          <small>View cities and places worth adding to your route.</small>
-        </button>
       </section>
     </>
   );
