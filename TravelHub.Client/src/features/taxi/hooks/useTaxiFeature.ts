@@ -5,6 +5,15 @@ import { getErrorMessage } from '../../../utils/errors';
 import { splitTaxiCities, taxiCarClassOptions } from '../../../utils/taxi';
 import type { TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
 import { createEmptyTaxiBookingForm, emptyTaxiForm } from '../taxi.constants';
+import {
+  applyTaxiPointToCoordinates,
+  applyTaxiPointToForm,
+  applyTaxiPointAddressIfCoordinatesMatch,
+  clearTaxiPointCoordinates,
+  clearTaxiPointInForm,
+  canCreateTaxiBooking,
+  idleTaxiRouteState,
+} from '../taxi.state';
 import type {
   Coordinates,
   TaxiCoordinates,
@@ -30,7 +39,7 @@ export function useTaxiFeature({
   const [taxiBookingForm, setTaxiBookingForm] = useState(() => createEmptyTaxiBookingForm());
   const [taxiPointMode, setTaxiPointMode] = useState<'pickup' | 'dropoff'>('pickup');
   const [taxiCoordinates, setTaxiCoordinates] = useState<TaxiCoordinates>({ pickup: null, dropoff: null });
-  const [taxiRouteState, setTaxiRouteState] = useState<TaxiRouteState>({ status: 'idle', distanceKm: 0 });
+  const [taxiRouteState, setTaxiRouteState] = useState<TaxiRouteState>(idleTaxiRouteState);
   const [editingTaxiId, setEditingTaxiId] = useState<number | null>(null);
   const [showTaxiForm, setShowTaxiForm] = useState(false);
   const [taxiBookingGuestMode, setTaxiBookingGuestMode] = useState<'self' | 'other'>('self');
@@ -59,7 +68,7 @@ export function useTaxiFeature({
     setTaxiBookingGuestMode('self');
     setTaxiBookingForm(createEmptyTaxiBookingForm());
     setTaxiCoordinates({ pickup: null, dropoff: null });
-    setTaxiRouteState({ status: 'idle', distanceKm: 0 });
+    setTaxiRouteState(idleTaxiRouteState);
   }, [currentUser]);
 
   useEffect(() => {
@@ -269,23 +278,32 @@ export function useTaxiFeature({
     setMessage('');
   }
 
-  function updateTaxiMapPoint(coordinates: Coordinates) {
-    const targetPointMode =
-      taxiPointMode === 'pickup' && taxiCoordinates.pickup && !taxiCoordinates.dropoff ? 'dropoff' : taxiPointMode;
+  function clearTaxiRoutePreview() {
+    setTaxiBooking(null);
+    setTaxiRouteState(idleTaxiRouteState);
+    onResetTaxiPayment();
+  }
 
-    setTaxiCoordinates((currentCoordinates) => ({
-      ...currentCoordinates,
-      [targetPointMode]: coordinates,
-    }));
-    setTaxiBookingForm((form) => ({
-      ...form,
-      [targetPointMode === 'pickup' ? 'pickupLatitude' : 'dropoffLatitude']: coordinates.latitude,
-      [targetPointMode === 'pickup' ? 'pickupLongitude' : 'dropoffLongitude']: coordinates.longitude,
-    }));
+  function updateTaxiAddressText(mode: 'pickup' | 'dropoff', address: string) {
+    setTaxiCoordinates((currentCoordinates) => clearTaxiPointCoordinates(currentCoordinates, mode));
+    setTaxiBookingForm((form) => clearTaxiPointInForm(form, mode, address));
+    clearTaxiRoutePreview();
+  }
 
-    if (targetPointMode === 'pickup') {
+  function updateTaxiMapPoint(mode: 'pickup' | 'dropoff', coordinates: Coordinates, address: string) {
+    setTaxiCoordinates((currentCoordinates) => applyTaxiPointToCoordinates(currentCoordinates, mode, coordinates));
+    setTaxiBookingForm((form) => applyTaxiPointToForm(form, mode, coordinates, address));
+    clearTaxiRoutePreview();
+
+    if (mode === 'pickup') {
       setTaxiPointMode('dropoff');
     }
+  }
+
+  function updateTaxiPointAddress(mode: 'pickup' | 'dropoff', coordinates: Coordinates, address: string) {
+    setTaxiBookingForm((form) => {
+      return applyTaxiPointAddressIfCoordinatesMatch(form, mode, coordinates, address);
+    });
   }
 
   function updateTaxiRoute(route: TaxiRouteState) {
@@ -315,14 +333,13 @@ export function useTaxiFeature({
       return;
     }
 
+    const pickupCoordinates = taxiCoordinates.pickup;
+    const dropoffCoordinates = taxiCoordinates.dropoff;
+
     if (
-      !taxiCoordinates.pickup ||
-      !taxiCoordinates.dropoff ||
-      taxiRouteState.status !== 'success' ||
-      !Number.isFinite(taxiDistanceKm) ||
-      taxiDistanceKm <= 0 ||
-      !Number.isFinite(selectedTaxiCarClass.pricePerKm) ||
-      selectedTaxiCarClass.pricePerKm <= 0
+      !pickupCoordinates ||
+      !dropoffCoordinates ||
+      !canCreateTaxiBooking(taxiBookingForm, taxiCoordinates, taxiRouteState, selectedTaxiCarClass.pricePerKm)
     ) {
       setMessage('Select pickup and dropoff and wait for the route to be calculated.');
       return;
@@ -340,10 +357,10 @@ export function useTaxiFeature({
         email: taxiBookingForm.email,
         pickupAddress: taxiBookingForm.pickupAddress,
         dropoffAddress: taxiBookingForm.dropoffAddress,
-        pickupLatitude: taxiCoordinates.pickup.latitude,
-        pickupLongitude: taxiCoordinates.pickup.longitude,
-        dropoffLatitude: taxiCoordinates.dropoff.latitude,
-        dropoffLongitude: taxiCoordinates.dropoff.longitude,
+        pickupLatitude: pickupCoordinates.latitude,
+        pickupLongitude: pickupCoordinates.longitude,
+        dropoffLatitude: dropoffCoordinates.latitude,
+        dropoffLongitude: dropoffCoordinates.longitude,
       });
 
       setTaxiBooking(createdBooking);
@@ -361,7 +378,7 @@ export function useTaxiFeature({
     setTaxiBooking(null);
     setTaxiBookingForm(createEmptyTaxiBookingForm(currentUser, selectedTaxiService ?? taxiServices[0]));
     setTaxiCoordinates({ pickup: null, dropoff: null });
-    setTaxiRouteState({ status: 'idle', distanceKm: 0 });
+    setTaxiRouteState(idleTaxiRouteState);
     onResetTaxiPayment();
     setMessage('');
   }
@@ -407,7 +424,9 @@ export function useTaxiFeature({
         setForm: setTaxiBookingForm,
         selectGuestMode: selectTaxiBookingGuestMode,
         setPointMode: setTaxiPointMode,
+        updateAddressText: updateTaxiAddressText,
         updatePoint: updateTaxiMapPoint,
+        updatePointAddress: updateTaxiPointAddress,
         setRoute: updateTaxiRoute,
         submit: (event) => void submitTaxiBooking(event),
       },

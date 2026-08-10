@@ -60,7 +60,9 @@ export type TaxiBookingFormActions = {
   setForm: (form: TaxiBookingForm) => void;
   selectGuestMode: (mode: BookingGuestMode) => void;
   setPointMode: (mode: TaxiPointMode) => void;
-  updatePoint: (coordinates: Coordinates) => void;
+  updateAddressText: (mode: TaxiPointMode, address: string) => void;
+  updatePoint: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
+  updatePointAddress: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
   setRoute: (route: TaxiRouteState) => void;
   submit: (event: FormEvent<HTMLFormElement>) => void;
 };

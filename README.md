@@ -2,20 +2,21 @@
 
 ## Google Maps Setup
 
-Taxi booking uses Google Maps JavaScript API in the frontend and Google Routes API in the backend.
+Taxi booking uses Google Maps JavaScript, Places, and Geocoding APIs in the frontend, and Google Routes API in the backend.
 
 1. Create a Google Cloud project and enable billing.
 2. Enable Maps JavaScript API.
-3. Enable Routes API.
-4. Create a browser API key for the frontend and restrict it by HTTP referrer, including localhost for development.
-5. Create a backend API key for Routes API and restrict it to only the APIs it needs.
-6. In `TravelHub.Client/.env`, set:
+3. Enable Places API and Geocoding API for the frontend address fields and map-click reverse geocoding.
+4. Enable Routes API.
+5. Create a browser API key for the frontend and restrict it by HTTP referrer, including localhost for development.
+6. Create a backend API key for Routes API and restrict it to only the APIs it needs.
+7. In `TravelHub.Client/.env`, set:
 
    ```env
    VITE_GOOGLE_MAPS_API_KEY=YOUR_BROWSER_RESTRICTED_KEY
    ```
 
-7. For the backend, use user secrets:
+8. For the backend, use user secrets:
 
    ```bash
    dotnet user-secrets set "GoogleMaps:ApiKey" "YOUR_ROUTES_API_KEY" --project TravelHub.Api

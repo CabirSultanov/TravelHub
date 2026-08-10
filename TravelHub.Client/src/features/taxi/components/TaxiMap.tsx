@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { APIProvider, Map, Marker, Polyline, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
+import { Map, Marker, Polyline, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
 import type { MapMouseEvent } from '@vis.gl/react-google-maps';
 import { api } from '../../../api';
+import { BAKU_CENTER } from '../googleMapsConfig';
+import { canPreviewTaxiRoute, formatTaxiCoordinateAddress, getMapClickPointMode, idleTaxiRouteState } from '../taxi.state';
 import type { Coordinates, TaxiPointMode, TaxiRouteState } from '../taxi.types';
-
-const BAKU_CENTER = { lat: 40.4093, lng: 49.8671 };
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
 type TaxiMapProps = {
   pickup: Coordinates | null;
   dropoff: Coordinates | null;
   mode: TaxiPointMode;
   onModeChange: (mode: TaxiPointMode) => void;
-  onPointChange: (coordinates: Coordinates) => void;
+  onPointChange: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
+  onPointAddressChange: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
   onRouteChange: (route: TaxiRouteState) => void;
 };
 
@@ -63,11 +63,13 @@ function RoutePreview({
   );
 }
 
-function TaxiGoogleMap({ pickup, dropoff, onPointChange, onRouteChange }: TaxiMapProps) {
+function TaxiGoogleMap({ pickup, dropoff, mode, onPointAddressChange, onPointChange, onRouteChange }: TaxiMapProps) {
+  const geocodingLibrary = useMapsLibrary('geocoding');
   const routeRequestIdRef = useRef(0);
+  const geocodeRequestIdRef = useRef(0);
   const mountedRef = useRef(true);
   const onRouteChangeRef = useRef(onRouteChange);
-  const [routeState, setRouteState] = useState<TaxiRouteState>({ status: 'idle', distanceKm: 0 });
+  const [routeState, setRouteState] = useState<TaxiRouteState>(idleTaxiRouteState);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -85,8 +87,8 @@ function TaxiGoogleMap({ pickup, dropoff, onPointChange, onRouteChange }: TaxiMa
     const requestId = ++routeRequestIdRef.current;
     const controller = new AbortController();
 
-    if (!pickup || !dropoff) {
-      const nextState: TaxiRouteState = { status: 'idle', distanceKm: 0 };
+    if (!canPreviewTaxiRoute({ pickup, dropoff }) || !pickup || !dropoff) {
+      const nextState: TaxiRouteState = idleTaxiRouteState;
       setRouteState(nextState);
       onRouteChangeRef.current(nextState);
       return () => controller.abort();
@@ -138,15 +140,41 @@ function TaxiGoogleMap({ pickup, dropoff, onPointChange, onRouteChange }: TaxiMa
     return () => controller.abort();
   }, [dropoff, pickup]);
 
-  function handleMapClick(event: MapMouseEvent) {
+  async function handleMapClick(event: MapMouseEvent) {
     if (!event.detail.latLng) {
       return;
     }
 
-    onPointChange({
+    const coordinates = {
       latitude: event.detail.latLng.lat,
       longitude: event.detail.latLng.lng,
-    });
+    };
+    const targetMode = getMapClickPointMode(mode, pickup, dropoff);
+    const fallbackAddress = formatTaxiCoordinateAddress(coordinates);
+    const requestId = ++geocodeRequestIdRef.current;
+
+    onPointChange(targetMode, coordinates, fallbackAddress);
+
+    if (!geocodingLibrary) {
+      return;
+    }
+
+    try {
+      const geocoder = new geocodingLibrary.Geocoder();
+      const response = await geocoder.geocode({
+        componentRestrictions: { country: 'AZ' },
+        location: { lat: coordinates.latitude, lng: coordinates.longitude },
+      });
+      const address = response.results[0]?.formatted_address;
+
+      if (!mountedRef.current || geocodeRequestIdRef.current !== requestId || !address) {
+        return;
+      }
+
+      onPointAddressChange(targetMode, coordinates, address);
+    } catch {
+      // Keep the coordinate fallback address when reverse geocoding is unavailable.
+    }
   }
 
   const instruction =
@@ -184,31 +212,6 @@ function TaxiGoogleMap({ pickup, dropoff, onPointChange, onRouteChange }: TaxiMa
 }
 
 export default function TaxiMap(props: TaxiMapProps) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    return (
-      <div className="taxi-map-panel">
-        <div className="booking-mode taxi-point-mode" aria-label="Taxi map point mode">
-          <button
-            className={props.mode === 'pickup' ? 'active taxi-pickup-mode' : 'taxi-pickup-mode'}
-            onClick={() => props.onModeChange('pickup')}
-            type="button"
-          >
-            Pickup
-          </button>
-          <button
-            className={props.mode === 'dropoff' ? 'active taxi-dropoff-mode' : 'taxi-dropoff-mode'}
-            onClick={() => props.onModeChange('dropoff')}
-            type="button"
-          >
-            Dropoff
-          </button>
-        </div>
-        <p className="taxi-map-instructions">Google Maps API key is not configured.</p>
-        <div className="taxi-map" />
-      </div>
-    );
-  }
-
   return (
     <div className="taxi-map-panel">
       <div className="booking-mode taxi-point-mode" aria-label="Taxi map point mode">
@@ -227,9 +230,7 @@ export default function TaxiMap(props: TaxiMapProps) {
           Dropoff
         </button>
       </div>
-      <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={['geometry']} authReferrerPolicy="origin">
-        <TaxiGoogleMap {...props} />
-      </APIProvider>
+      <TaxiGoogleMap {...props} />
     </div>
   );
 }
