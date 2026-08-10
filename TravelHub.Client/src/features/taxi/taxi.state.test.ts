@@ -31,6 +31,17 @@ function emptyCoordinates(): TaxiCoordinates {
 }
 
 describe('taxi state helpers', () => {
+  it('starts new taxi bookings with empty unresolved addresses', () => {
+    const form = createEmptyTaxiBookingForm();
+
+    expect(form.pickupAddress).toBe('');
+    expect(form.dropoffAddress).toBe('');
+    expect(form.pickupLatitude).toBe(0);
+    expect(form.pickupLongitude).toBe(0);
+    expect(form.dropoffLatitude).toBe(0);
+    expect(form.dropoffLongitude).toBe(0);
+  });
+
   it('keeps map clicks on dropoff after pickup is selected', () => {
     expect(getMapClickPointMode('pickup', { latitude: 40.4, longitude: 49.8 }, null)).toBe('dropoff');
     expect(getMapClickPointMode('pickup', null, null)).toBe('pickup');
