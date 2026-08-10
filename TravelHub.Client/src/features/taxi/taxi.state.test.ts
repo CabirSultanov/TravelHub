@@ -6,8 +6,6 @@ import {
   applyTaxiPointToForm,
   canCreateTaxiBooking,
   canPreviewTaxiRoute,
-  clearTaxiPointCoordinates,
-  clearTaxiPointInForm,
   formatTaxiCoordinateAddress,
   getMapClickPointMode,
   getTaxiPointFormFields,
@@ -65,7 +63,7 @@ describe('taxi state helpers', () => {
     expect(formatTaxiCoordinateAddress({ latitude: 40.4093211, longitude: 49.8671119 })).toBe('40.409321, 49.867112');
   });
 
-  it('updates pickup coordinates and form fields from address search', () => {
+  it('updates pickup coordinates and form fields from map selection', () => {
     const form = applyTaxiPointToForm(createEmptyTaxiBookingForm(), 'pickup', airport, 'Heydar Aliyev International Airport');
     const coordinates = applyTaxiPointToCoordinates(emptyCoordinates(), 'pickup', airport);
 
@@ -75,7 +73,7 @@ describe('taxi state helpers', () => {
     expect(form.pickupLongitude).toBe(airport.longitude);
   });
 
-  it('updates dropoff coordinates and form fields from address search', () => {
+  it('updates dropoff coordinates and form fields from map selection', () => {
     const form = applyTaxiPointToForm(createEmptyTaxiBookingForm(), 'dropoff', portBaku, 'Port Baku');
     const coordinates = applyTaxiPointToCoordinates(emptyCoordinates(), 'dropoff', portBaku);
 
@@ -103,14 +101,14 @@ describe('taxi state helpers', () => {
     expect(form.dropoffAddress).toBe(address);
   });
 
-  it('supports pickup by address and dropoff by map as one route-ready state', () => {
+  it('supports pickup and dropoff map selections as one route-ready state', () => {
     const afterPickup = applyTaxiPointToCoordinates(emptyCoordinates(), 'pickup', airport);
     const afterDropoff = applyTaxiPointToCoordinates(afterPickup, 'dropoff', portBaku);
 
     expect(canPreviewTaxiRoute(afterDropoff)).toBe(true);
   });
 
-  it('supports pickup by map and dropoff by address as one route-ready state', () => {
+  it('keeps map fallback addresses until reverse geocoding replaces them', () => {
     const afterPickup = applyTaxiPointToCoordinates(emptyCoordinates(), 'pickup', airport);
     const afterDropoff = applyTaxiPointToCoordinates(afterPickup, 'dropoff', portBaku);
     const form = applyTaxiPointToForm(
@@ -125,24 +123,10 @@ describe('taxi state helpers', () => {
     expect(form.dropoffAddress).toBe('Port Baku');
   });
 
-  it('manual address edits clear stale coordinates for that point', () => {
-    const selectedForm = applyTaxiPointToForm(createEmptyTaxiBookingForm(), 'pickup', airport, 'Airport');
-    const selectedCoordinates = applyTaxiPointToCoordinates(emptyCoordinates(), 'pickup', airport);
-    const editedForm = clearTaxiPointInForm(selectedForm, 'pickup', 'Port Baku');
-    const editedCoordinates = clearTaxiPointCoordinates(selectedCoordinates, 'pickup');
+  it('keeps the route preview idle until both map points exist', () => {
+    const pickupOnlyCoordinates = { pickup: airport, dropoff: null };
 
-    expect(editedCoordinates.pickup).toBeNull();
-    expect(editedForm.pickupAddress).toBe('Port Baku');
-    expect(editedForm.pickupLatitude).toBe(0);
-    expect(editedForm.pickupLongitude).toBe(0);
-  });
-
-  it('clearing a point makes the route preview idle again', () => {
-    const routeReadyCoordinates = { pickup: airport, dropoff: portBaku };
-    const clearedCoordinates = clearTaxiPointCoordinates(routeReadyCoordinates, 'dropoff');
-
-    expect(canPreviewTaxiRoute(routeReadyCoordinates)).toBe(true);
-    expect(canPreviewTaxiRoute(clearedCoordinates)).toBe(false);
+    expect(canPreviewTaxiRoute(pickupOnlyCoordinates)).toBe(false);
     expect(idleTaxiRouteState).toEqual({ status: 'idle', distanceKm: 0 });
   });
 
@@ -154,7 +138,7 @@ describe('taxi state helpers', () => {
     expect(updatedRouteCoordinates.dropoff).toEqual(ganja);
   });
 
-  it('does not allow booking with unresolved typed address text', () => {
+  it('does not allow booking before map clicks resolve both addresses', () => {
     const selectedForm = applyTaxiPointToForm(
       applyTaxiPointToForm(createEmptyTaxiBookingForm(), 'pickup', airport, 'Airport'),
       'dropoff',
@@ -162,11 +146,11 @@ describe('taxi state helpers', () => {
       'Port Baku',
     );
     const selectedCoordinates = { pickup: airport, dropoff: portBaku };
-    const editedForm = clearTaxiPointInForm(selectedForm, 'pickup', 'Ganja');
-    const editedCoordinates = clearTaxiPointCoordinates(selectedCoordinates, 'pickup');
+    const initialForm = createEmptyTaxiBookingForm();
+    const initialCoordinates = emptyCoordinates();
 
     expect(canCreateTaxiBooking(selectedForm, selectedCoordinates, successRoute, 1.2)).toBe(true);
-    expect(canCreateTaxiBooking(editedForm, editedCoordinates, successRoute, 1.2)).toBe(false);
+    expect(canCreateTaxiBooking(initialForm, initialCoordinates, successRoute, 1.2)).toBe(false);
   });
 
   it('ignores stale reverse geocode addresses for old coordinates', () => {

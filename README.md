@@ -2,11 +2,11 @@
 
 ## Google Maps Setup
 
-Taxi booking uses Google Maps JavaScript, Places, and Geocoding APIs in the frontend, and Google Routes API in the backend.
+Taxi booking uses Google Maps JavaScript and Geocoding APIs in the frontend, and Google Routes API in the backend.
 
 1. Create a Google Cloud project and enable billing.
 2. Enable Maps JavaScript API.
-3. Enable Places API and Geocoding API for the frontend address fields and map-click reverse geocoding.
+3. Enable Geocoding API for map-click reverse geocoding.
 4. Enable Routes API.
 5. Create a browser API key for the frontend and restrict it by HTTP referrer, including localhost for development.
 6. Create a backend API key for Routes API and restrict it to only the APIs it needs.

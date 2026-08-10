@@ -1,6 +1,5 @@
 import type { FormEvent, ReactNode } from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
-import TaxiAddressAutocomplete from './TaxiAddressAutocomplete';
 import TaxiMap from './TaxiMap';
 import { formatMoney, formatTaxiCarClassName } from '../../../utils/formatting';
 import type { AuthUser, TaxiCarClass, TaxiService } from '../../../types';
@@ -127,24 +126,6 @@ export default function TaxiBookingForm({
           />
           {GOOGLE_MAPS_API_KEY ? (
             <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES} authReferrerPolicy="origin">
-              <TaxiAddressAutocomplete
-                id="taxi-pickup-address"
-                label="Pickup address"
-                mode="pickup"
-                onPlaceSelect={actions.updatePoint}
-                onTextChange={actions.updateAddressText}
-                placeholder="Pickup address"
-                value={taxiBookingForm.pickupAddress}
-              />
-              <TaxiAddressAutocomplete
-                id="taxi-dropoff-address"
-                label="Dropoff address"
-                mode="dropoff"
-                onPlaceSelect={actions.updatePoint}
-                onTextChange={actions.updateAddressText}
-                placeholder="Dropoff address"
-                value={taxiBookingForm.dropoffAddress}
-              />
               <TaxiMap
                 dropoff={taxiCoordinates.dropoff}
                 mode={taxiPointMode}

@@ -51,24 +51,6 @@ export function applyTaxiPointToForm(
   };
 }
 
-export function clearTaxiPointCoordinates(coordinates: TaxiCoordinates, mode: TaxiPointMode): TaxiCoordinates {
-  return {
-    ...coordinates,
-    [mode]: null,
-  };
-}
-
-export function clearTaxiPointInForm(form: TaxiBookingForm, mode: TaxiPointMode, address: string): TaxiBookingForm {
-  const fields = getTaxiPointFormFields(mode);
-
-  return {
-    ...form,
-    [fields.address]: address,
-    [fields.latitude]: 0,
-    [fields.longitude]: 0,
-  };
-}
-
 export function applyTaxiPointAddressIfCoordinatesMatch(
   form: TaxiBookingForm,
   mode: TaxiPointMode,

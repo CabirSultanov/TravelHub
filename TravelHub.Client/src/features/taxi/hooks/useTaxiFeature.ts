@@ -9,8 +9,6 @@ import {
   applyTaxiPointToCoordinates,
   applyTaxiPointToForm,
   applyTaxiPointAddressIfCoordinatesMatch,
-  clearTaxiPointCoordinates,
-  clearTaxiPointInForm,
   canCreateTaxiBooking,
   idleTaxiRouteState,
 } from '../taxi.state';
@@ -284,12 +282,6 @@ export function useTaxiFeature({
     onResetTaxiPayment();
   }
 
-  function updateTaxiAddressText(mode: 'pickup' | 'dropoff', address: string) {
-    setTaxiCoordinates((currentCoordinates) => clearTaxiPointCoordinates(currentCoordinates, mode));
-    setTaxiBookingForm((form) => clearTaxiPointInForm(form, mode, address));
-    clearTaxiRoutePreview();
-  }
-
   function updateTaxiMapPoint(mode: 'pickup' | 'dropoff', coordinates: Coordinates, address: string) {
     setTaxiCoordinates((currentCoordinates) => applyTaxiPointToCoordinates(currentCoordinates, mode, coordinates));
     setTaxiBookingForm((form) => applyTaxiPointToForm(form, mode, coordinates, address));
@@ -424,7 +416,6 @@ export function useTaxiFeature({
         setForm: setTaxiBookingForm,
         selectGuestMode: selectTaxiBookingGuestMode,
         setPointMode: setTaxiPointMode,
-        updateAddressText: updateTaxiAddressText,
         updatePoint: updateTaxiMapPoint,
         updatePointAddress: updateTaxiPointAddress,
         setRoute: updateTaxiRoute,
