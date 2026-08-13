@@ -9,6 +9,7 @@ import AdminPage from './pages/Admin/AdminPage';
 import AuthPage from './pages/Auth/AuthPage';
 import HomePage from './pages/Home/HomePage';
 import HotelsPage from './pages/Hotels/HotelsPage';
+import MyTripsPage from './pages/MyTrips/MyTripsPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import TaxiPage from './pages/Taxi/TaxiPage';
 import { formatTaxiCarClassName } from './utils/formatting';
@@ -29,7 +30,7 @@ import type {
   TaxiBooking,
 } from './types';
 
-const appPages: Page[] = ['home', 'taxi', 'hotels', 'auth', 'admin', 'profile'];
+const appPages: Page[] = ['home', 'taxi', 'hotels', 'auth', 'admin', 'profile', 'trips'];
 const pageRoutes: Record<Page, string> = {
   home: '/',
   taxi: '/taxi',
@@ -37,6 +38,7 @@ const pageRoutes: Record<Page, string> = {
   auth: '/auth',
   admin: '/admin',
   profile: '/profile',
+  trips: '/my-trips',
 };
 
 const phoneNumberPattern = String.raw`\+?[0-9\s()-]{7,30}`;
@@ -191,6 +193,14 @@ function App() {
     void loadTaxiBookings();
     void loadPaymentCards();
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (loading || currentUser || (page !== 'profile' && page !== 'trips')) {
+      return;
+    }
+
+    requireAuth('Please sign in to view this page.');
+  }, [currentUser, loading, page]);
 
   const initialDataLoading = loading || taxiFeature.model.loading || hotelsFeature.model.loading;
 
@@ -840,6 +850,25 @@ function App() {
           savedPaymentCards={savedPaymentCards}
           profileForm={profileForm}
           showPaymentCardForm={showPaymentCardForm}
+          submitting={submitting}
+          taxiBookings={taxiBookings}
+          taxiBookingsLoading={taxiBookingsLoading}
+        />
+      )}
+
+      {page === 'trips' && currentUser && (
+        <MyTripsPage
+          bookings={bookings}
+          bookingsLoading={bookingsLoading}
+          formatTaxiCarClassName={formatTaxiCarClassName}
+          onCancelBooking={cancelBooking}
+          onCancelTaxiBooking={cancelTaxiBooking}
+          onNavigate={navigateTo}
+          onOpenPaymentForm={openPaymentForm}
+          onOpenTaxiPaymentForm={openTaxiPaymentForm}
+          payingBookingId={payingBookingId}
+          payingTaxiBookingId={payingTaxiBookingId}
+          renderPaymentForm={renderPaymentForm}
           submitting={submitting}
           taxiBookings={taxiBookings}
           taxiBookingsLoading={taxiBookingsLoading}

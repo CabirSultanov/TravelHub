@@ -74,7 +74,7 @@ export default function SiteHeader({
         </nav>
 
         <div className="header-actions">
-          <button className="btn btn-secondary" onClick={() => onNavigate('profile')} type="button" disabled={!currentUser}>
+          <button className="btn btn-secondary" onClick={() => (currentUser ? onNavigate('trips') : onOpenAuth())} type="button">
             My Trips
           </button>
           {currentUser ? (

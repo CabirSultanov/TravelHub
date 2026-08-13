@@ -1,4 +1,4 @@
-export type Page = 'home' | 'taxi' | 'hotels' | 'auth' | 'admin' | 'profile';
+export type Page = 'home' | 'taxi' | 'hotels' | 'auth' | 'admin' | 'profile' | 'trips';
 export type AuthMode = 'login' | 'register';
 export type PaymentMode = 'saved' | 'new';
 

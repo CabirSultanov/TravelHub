@@ -1,166 +1,400 @@
+import type { FormEvent, MouseEvent } from 'react';
 import type { Page } from '../../types';
 
 type HomePageProps = {
   onNavigate: (page: Page) => void;
 };
 
+const homeMarkup = String.raw`<main>
+      <section class="hero" data-od-id="hero-section">
+        <div class="container hero-grid">
+          <div class="hero-copy" data-od-id="hero-image-panel">
+            <p class="hero-label" data-od-id="hero-kicker">Azerbaijan in one seamless trip</p>
+            <h1 data-od-id="hero-heading">Explore Azerbaijan Your Way</h1>
+            <p data-od-id="hero-copy">Discover stays across Baku, mountain retreats, and historic towns, then plan your taxi route with confidence.</p>
+            <div class="hero-actions" data-od-id="hero-actions">
+              <button class="btn btn-secondary" type="button" data-action="hotels" data-od-id="hero-find-hotel-cta">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V9a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v11"/><path d="M8 20v-5h8v5"/></svg>
+                Find a Hotel
+              </button>
+              <button class="btn btn-secondary" type="button" data-action="taxi" data-od-id="hero-book-taxi-cta">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16h14l-1.5-5h-11z"/><path d="M7 16v2M17 16v2"/><path d="M8 11l1-3h6l1 3"/></svg>
+                Book a Taxi
+              </button>
+            </div>
+            <div class="hero-intel" data-od-id="hero-travel-intel" aria-label="Travel highlights">
+              <div><span>Stays</span><strong>Baku to Sheki</strong></div>
+              <div><span>Routes</span><strong>Airport ready</strong></div>
+              <div><span>Style</span><strong>Hotels + Taxi</strong></div>
+            </div>
+          </div>
+
+          <aside class="booking-panel" data-od-id="hotel-search-panel" aria-label="Hotel search">
+            <div class="panel-title">
+              <h2 data-od-id="search-heading">Find your stay</h2>
+              <p>Search by destination, dates, and guests.</p>
+            </div>
+
+            <form class="search-form" data-od-id="hotel-search-form">
+              <div class="field" data-od-id="destination-field">
+                <label for="destination">Destination</label>
+                <div class="field-control has-select">
+                  <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s7-5.3 7-11a7 7 0 1 0-14 0c0 5.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+                  <select id="destination" name="destination">
+                    <option>Baku</option>
+                    <option>Gabala</option>
+                    <option>Sheki</option>
+                    <option>Ganja</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field-row">
+                <div class="field" data-od-id="checkin-field">
+                  <label for="checkin">Check-in</label>
+                  <div class="field-control">
+                    <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1z"/></svg></span>
+                    <input id="checkin" name="checkin" type="date" value="2026-08-20">
+                  </div>
+                </div>
+                <div class="field" data-od-id="checkout-field">
+                  <label for="checkout">Check-out</label>
+                  <div class="field-control">
+                    <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1z"/><path d="m9 15 2 2 4-5"/></svg></span>
+                    <input id="checkout" name="checkout" type="date" value="2026-08-24">
+                  </div>
+                </div>
+              </div>
+              <div class="field" data-od-id="guests-field">
+                <label for="guests">Guests</label>
+                <div class="field-control has-select">
+                  <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 19a4 4 0 0 0-8 0"/><circle cx="12" cy="9" r="4"/><path d="M21 19a3.5 3.5 0 0 0-4-3.4M3 19a3.5 3.5 0 0 1 4-3.4"/></svg></span>
+                  <select id="guests" name="guests">
+                    <option>2 guests</option>
+                    <option>1 guest</option>
+                    <option>3 guests</option>
+                    <option>4 guests</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-primary" type="submit" data-od-id="search-hotels-cta">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 3.5 3.5"/></svg>
+                Search Hotels
+              </button>
+              <p class="search-note" data-od-id="search-feedback" aria-live="polite">We will show available stays and nightly prices.</p>
+            </form>
+          </aside>
+          <div class="journey-ribbon" data-od-id="journey-ribbon" aria-label="TravelHub journey">
+            <span>Choose a city</span><i aria-hidden="true"></i><span>Compare stays</span><i aria-hidden="true"></i><span>Book route</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" data-od-id="services-section">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2 data-od-id="services-heading">TravelHub Services</h2>
+              <p>Hotel booking and routed taxi trips work together as one calm travel flow.</p>
+            </div>
+          </div>
+
+          <div class="service-grid" data-od-id="service-card-grid">
+            <article class="service-card" data-od-id="service-card-hotels">
+              <div class="service-content">
+                <div>
+                  <p class="service-kicker">Hotels</p>
+                  <h3>Stay Across Azerbaijan</h3>
+                  <p>Find city hotels, mountain retreats, and relaxed stays for weekend escapes.</p>
+                </div>
+                <button class="card-link" type="button" data-action="hotels" data-od-id="explore-hotels-cta">
+                  Explore Hotels
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                </button>
+              </div>
+              <div class="service-media" data-od-id="hotel-service-image">
+                <img src="/assets/destination-gabala.jpg" alt="Mountain landscape in Gabala">
+              </div>
+            </article>
+
+            <article class="service-card" data-od-id="service-card-taxi">
+              <div class="service-content">
+                <div>
+                  <p class="service-kicker">Taxi</p>
+                  <h3>Route-aware taxi booking</h3>
+                  <p>Set pickup and destination points, then preview distance, time, and estimated fare.</p>
+                </div>
+                <button class="card-link" type="button" data-action="taxi" data-od-id="book-taxi-cta">
+                  Book a Taxi
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+                </button>
+              </div>
+              <div class="taxi-visual" data-od-id="taxi-route-visual">
+                <div class="route-map" aria-hidden="true">
+                  <span class="route-line"></span>
+                  <span class="pin pin-start"></span>
+                  <span class="pin pin-end"></span>
+                </div>
+                <div class="route-chip">
+                  <strong>Baku City Center -> GYD Airport</strong>
+                  <span>Real road route with live estimate styling</span>
+                  <div class="route-details">
+                    <div class="route-detail"><span>Distance</span><strong>27 km</strong></div>
+                    <div class="route-detail"><span>Time</span><strong>32 min</strong></div>
+                    <div class="route-detail"><span>From</span><strong>22 AZN</strong></div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" data-od-id="destinations-section">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2 data-od-id="destinations-heading">Discover Azerbaijan</h2>
+              <p>Editorial picks for short breaks, business stays, and nature-focused escapes.</p>
+            </div>
+            <button class="section-link" type="button" data-action="destinations" data-od-id="all-destinations-link">All destinations</button>
+          </div>
+
+          <div class="dest-grid" data-od-id="destination-card-grid">
+            <article class="destination-card" data-od-id="destination-card-baku">
+              <img src="/assets/hero-baku.jpg" alt="Baku skyline near the Caspian Sea">
+              <span class="destination-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></span>
+              <div class="destination-meta">
+                <h3>Baku</h3>
+                <p>City lights, Caspian views & old-town streets</p>
+              </div>
+            </article>
+            <article class="destination-card" data-od-id="destination-card-gabala">
+              <img src="/assets/destination-gabala.jpg" alt="Green mountain landscape in Gabala">
+              <span class="destination-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></span>
+              <div class="destination-meta">
+                <h3>Gabala</h3>
+                <p>Mountains, lakes & weekend escapes</p>
+              </div>
+            </article>
+            <article class="destination-card" data-od-id="destination-card-sheki">
+              <img src="/assets/destination-sheki.jpg" alt="Sheki Khan Palace facade">
+              <span class="destination-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></span>
+              <div class="destination-meta">
+                <h3>Sheki</h3>
+                <p>Silk Road heritage & boutique stays</p>
+              </div>
+            </article>
+            <article class="destination-card" data-od-id="destination-card-ganja">
+              <img src="/assets/destination-ganja.jpg" alt="Street view in Ganja">
+              <span class="destination-arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></span>
+              <div class="destination-meta">
+                <h3>Ganja</h3>
+                <p>Cultural routes & a quieter urban rhythm</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" data-od-id="featured-hotels-section">
+        <div class="container">
+          <div class="section-head">
+            <div>
+              <h2 data-od-id="featured-hotels-heading">Recommended Hotels</h2>
+              <p>Polished stays for city breaks, mountain weekends, and historic routes.</p>
+            </div>
+            <button class="section-link" type="button" data-action="hotels" data-od-id="view-all-hotels-link">View all hotels</button>
+          </div>
+
+          <div class="hotel-grid" data-od-id="hotel-card-grid">
+            <article class="hotel-card" data-od-id="hotel-card-caspian">
+              <div class="hotel-photo">
+                <img src="/assets/hero-baku.jpg" alt="Cinematic Baku waterfront near premium hotels">
+                <span class="hotel-badge">Luxury city stay</span>
+                <button class="favorite-button" type="button" data-action="favorite" aria-label="Save Four Seasons Hotel Baku" data-od-id="hotel-caspian-favorite">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                </button>
+              </div>
+              <div class="hotel-body">
+                <div class="hotel-topline">
+                  <h3>Four Seasons Hotel Baku</h3>
+                  <span class="rating" aria-label="Rating 4.9 out of 5">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"/></svg>
+                    4.9
+                  </span>
+                </div>
+                <p>Baku, Azerbaijan / Caspian waterfront</p>
+                <div class="hotel-review"><strong>Exceptional</strong><span>/</span><span>320 reviews</span></div>
+                <div class="hotel-price">
+                  <span class="price">From $180 <span>/ night</span></span>
+                  <button class="card-link" type="button" data-action="hotel-caspian" data-od-id="hotel-caspian-cta">View stay</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="hotel-card" data-od-id="hotel-card-gabala">
+              <div class="hotel-photo">
+                <img src="/assets/destination-gabala.jpg" alt="Mountain retreat landscape in Gabala">
+                <span class="hotel-badge">Mountain retreat</span>
+                <button class="favorite-button is-selected" type="button" data-action="favorite" aria-label="Saved Qafqaz Riverside Resort" data-od-id="hotel-gabala-favorite">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                </button>
+              </div>
+              <div class="hotel-body">
+                <div class="hotel-topline">
+                  <h3>Qafqaz Riverside Resort</h3>
+                  <span class="rating" aria-label="Rating 4.8 out of 5">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"/></svg>
+                    4.8
+                  </span>
+                </div>
+                <p>Gabala, Azerbaijan / Mountain views</p>
+                <div class="hotel-review"><strong>Guest favorite</strong><span>/</span><span>214 reviews</span></div>
+                <div class="hotel-price">
+                  <span class="price">From $132 <span>/ night</span></span>
+                  <button class="card-link" type="button" data-action="hotel-gabala" data-od-id="hotel-gabala-cta">View stay</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="hotel-card" data-od-id="hotel-card-sheki">
+              <div class="hotel-photo">
+                <img src="/assets/destination-sheki.jpg" alt="Historic architecture in Sheki">
+                <span class="hotel-badge">Heritage stay</span>
+                <button class="favorite-button" type="button" data-action="favorite" aria-label="Save Sheki Palace Boutique" data-od-id="hotel-sheki-favorite">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                </button>
+              </div>
+              <div class="hotel-body">
+                <div class="hotel-topline">
+                  <h3>Sheki Palace Boutique</h3>
+                  <span class="rating" aria-label="Rating 4.7 out of 5">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"/></svg>
+                    4.7
+                  </span>
+                </div>
+                <p>Sheki, Azerbaijan / Historic quarter</p>
+                <div class="hotel-review"><strong>Highly rated</strong><span>/</span><span>168 reviews</span></div>
+                <div class="hotel-price">
+                  <span class="price">From $88 <span>/ night</span></span>
+                  <button class="card-link" type="button" data-action="hotel-sheki" data-od-id="hotel-sheki-cta">View stay</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="value-band" data-od-id="value-section">
+        <div class="container value-layout">
+          <div class="section-head" style="display:grid;margin:0;">
+            <div>
+              <h2 data-od-id="value-heading">Everything for the trip, in one account</h2>
+              <p>Bookings, taxi routes, payments, and trip history stay connected from search to arrival.</p>
+            </div>
+          </div>
+
+          <div class="value-grid" data-od-id="value-card-grid">
+            <article class="value-card" data-od-id="value-card-hotel-booking">
+              <span class="value-icon icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V9a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v11"/><path d="M8 20v-5h8v5"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg></span>
+              <h3>Easy Booking</h3>
+              <p>Clear dates, guests, nightly prices, and a direct path to payment.</p>
+            </article>
+            <article class="value-card" data-od-id="value-card-taxi-estimates">
+              <span class="value-icon icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 16h14l-1.5-5h-11z"/><path d="M7 16v2M17 16v2"/><path d="M8 11l1-3h6l1 3"/></svg></span>
+              <h3>Real Route Estimates</h3>
+              <p>Preview distance, time, and fare before confirming a taxi.</p>
+            </article>
+            <article class="value-card" data-od-id="value-card-secure-bookings">
+              <span class="value-icon icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6z"/><path d="m9.5 12 1.7 1.7 3.5-4"/></svg></span>
+              <h3>Secure Payments</h3>
+              <p>Saved cards and booking statuses stay protected in your profile.</p>
+            </article>
+            <article class="value-card" data-od-id="value-card-trip-history">
+              <span class="value-icon icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7h10M7 12h10M7 17h6"/><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg></span>
+              <h3>Trip History</h3>
+              <p>Past hotels, taxi rides, and payments remain available in My Trips.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+<footer class="site-footer" data-od-id="footer">
+      <div class="container footer-grid">
+        <div class="footer-brand" data-od-id="footer-brand">
+          <a class="brand" href="#" aria-label="TravelHub">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 17 12 4l8 13"/><path d="m8 17 4-6 4 6"/><path d="M5 17h14"/></svg>
+            </span>
+            <span>TravelHub</span>
+          </a>
+          <p>A modern platform for hotels and taxi trips across Azerbaijan.</p>
+        </div>
+        <div class="footer-col" data-od-id="footer-product-links">
+          <strong>Explore</strong>
+          <a class="footer-link" href="#">Hotels</a>
+          <a class="footer-link" href="#">Taxi</a>
+          <a class="footer-link" href="#">Destinations</a>
+        </div>
+        <div class="footer-col" data-od-id="footer-account-links">
+          <strong>Account</strong>
+          <a class="footer-link" href="#">My Trips</a>
+          <a class="footer-link" href="#">Profile</a>
+          <a class="footer-link" href="#">Sign In</a>
+        </div>
+        <div class="footer-col" data-od-id="footer-info-links">
+          <strong>Support</strong>
+          <a class="footer-link" href="#">Help</a>
+          <a class="footer-link" href="#">Terms</a>
+          <a class="footer-link" href="#">Privacy</a>
+        </div>
+      </div>
+    </footer>`;
+
 export default function HomePage({ onNavigate }: HomePageProps) {
+  function handleClick(event: MouseEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    const actionTarget = target.closest<HTMLElement>('[data-action]');
+    const linkTarget = target.closest<HTMLAnchorElement>('a[href="#"]');
+
+    if (actionTarget || linkTarget) {
+      event.preventDefault();
+    }
+
+    const action = actionTarget?.dataset.action;
+
+    if (action === 'taxi') {
+      onNavigate('taxi');
+    } else if (action === 'hotels' || action?.startsWith('hotel-')) {
+      onNavigate('hotels');
+    } else if (action === 'my-trips') {
+      onNavigate('trips');
+    } else if (action === 'signin') {
+      onNavigate('auth');
+    } else if (action === 'profile') {
+      onNavigate('profile');
+    } else if (action === 'favorite') {
+      actionTarget?.classList.toggle('is-selected');
+    }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLDivElement>) {
+    const form = (event.target as HTMLElement).closest('[data-od-id="hotel-search-form"]');
+
+    if (!form) {
+      return;
+    }
+
+    event.preventDefault();
+    onNavigate('hotels');
+  }
+
   return (
-    <div className="page-shell">
-      <main>
-        <section className="hero-section">
-          <div className="container hero-layout">
-            <div className="hero-copy">
-              <p className="eyebrow">Hotels and taxi across Azerbaijan</p>
-              <h1>Plan the whole trip in one calm place.</h1>
-              <p>
-                Discover polished stays, preview taxi routes, and keep every booking connected from search to arrival.
-              </p>
-              <div className="hero-actions">
-                <button className="btn btn-primary btn-lg" onClick={() => onNavigate('hotels')} type="button">
-                  Find a hotel
-                </button>
-                <button className="btn btn-secondary btn-lg" onClick={() => onNavigate('taxi')} type="button">
-                  Book a taxi
-                </button>
-              </div>
-            </div>
-
-            <div className="hero-card" aria-label="Baku travel preview">
-              <img src="/assets/hero-baku.jpg" alt="Baku skyline near the Caspian Sea" />
-              <div className="hero-card-overlay">
-                <span className="badge badge-glass">Baku today</span>
-                <strong>Hotels, rides, and trip history connected.</strong>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="section quick-actions-section">
-          <div className="container quick-actions-grid">
-            <article className="quick-action-card">
-              <span className="value-icon icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M4 20V9a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v11" />
-                  <path d="M8 20v-5h8v5" />
-                  <path d="M8 10h.01M12 10h.01M16 10h.01" />
-                </svg>
-              </span>
-              <h3>Hotel booking</h3>
-              <p>Choose a room, confirm guests, and continue straight to payment.</p>
-              <button className="card-link" onClick={() => onNavigate('hotels')} type="button">
-                Explore stays
-              </button>
-            </article>
-
-            <article className="quick-action-card">
-              <span className="value-icon icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M5 16h14l-1.5-5h-11z" />
-                  <path d="M7 16v2M17 16v2" />
-                  <path d="M8 11l1-3h6l1 3" />
-                </svg>
-              </span>
-              <h3>Taxi route preview</h3>
-              <p>Pick points on the map, see the road route, then confirm the ride.</p>
-              <button className="card-link" onClick={() => onNavigate('taxi')} type="button">
-                Open taxi
-              </button>
-            </article>
-
-            <article className="quick-action-card">
-              <span className="value-icon icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24">
-                  <path d="M7 7h10M7 12h10M7 17h6" />
-                  <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-                </svg>
-              </span>
-              <h3>Trip history</h3>
-              <p>Past hotels, taxi rides, and payments stay available in your profile.</p>
-              <button className="card-link" onClick={() => onNavigate('profile')} type="button">
-                My trips
-              </button>
-            </article>
-          </div>
-        </section>
-
-        <section className="section">
-          <div className="container">
-            <div className="section-head">
-              <div>
-                <h2>Popular destinations</h2>
-                <p>Start with Azerbaijan routes that match the Open Design reference.</p>
-              </div>
-            </div>
-
-            <div className="destination-grid">
-              <DestinationCard image="/assets/hero-baku.jpg" title="Baku" text="City lights, Caspian views and old-town streets" />
-              <DestinationCard image="/assets/destination-gabala.jpg" title="Gabala" text="Mountains, lakes and weekend escapes" />
-              <DestinationCard image="/assets/destination-sheki.jpg" title="Sheki" text="Silk Road heritage and boutique stays" />
-              <DestinationCard image="/assets/destination-ganja.jpg" title="Ganja" text="Cultural routes and a quieter urban rhythm" />
-            </div>
-          </div>
-        </section>
-
-        <section className="section">
-          <div className="container">
-            <div className="section-head">
-              <div>
-                <h2>Recommended hotels</h2>
-                <p>Polished stays for city breaks, mountain weekends, and historic routes.</p>
-              </div>
-              <button className="section-link" onClick={() => onNavigate('hotels')} type="button">
-                View all hotels
-              </button>
-            </div>
-
-            <div className="hotel-grid">
-              <HotelPreview image="/assets/hero-baku.jpg" name="Four Seasons Hotel Baku" place="Baku waterfront" price="$180" />
-              <HotelPreview image="/assets/destination-gabala.jpg" name="Qafqaz Riverside Resort" place="Gabala mountain views" price="$132" />
-              <HotelPreview image="/assets/destination-sheki.jpg" name="Sheki Palace Boutique" place="Historic quarter" price="$88" />
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
-  );
-}
-
-function DestinationCard({ image, title, text }: { image: string; title: string; text: string }) {
-  return (
-    <article className="destination-card">
-      <img src={image} alt={title} />
-      <span className="destination-arrow" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <path d="M7 17 17 7" />
-          <path d="M8 7h9v9" />
-        </svg>
-      </span>
-      <div className="destination-meta">
-        <h3>{title}</h3>
-        <p>{text}</p>
-      </div>
-    </article>
-  );
-}
-
-function HotelPreview({ image, name, place, price }: { image: string; name: string; place: string; price: string }) {
-  return (
-    <article className="hotel-card od-hotel-preview">
-      <div className="hotel-photo">
-        <img src={image} alt={name} />
-        <span className="hotel-badge">Guest favorite</span>
-      </div>
-      <div className="hotel-body">
-        <div className="hotel-topline">
-          <h3>{name}</h3>
-          <span className="rating">4.8</span>
-        </div>
-        <p>{place}</p>
-        <div className="hotel-price">
-          <span className="price">From {price} <span>/ night</span></span>
-        </div>
-      </div>
-    </article>
+    <div
+      className="page-shell od-home-page"
+      dangerouslySetInnerHTML={{ __html: homeMarkup }}
+      onClick={handleClick}
+      onSubmit={handleSubmit}
+    />
   );
 }

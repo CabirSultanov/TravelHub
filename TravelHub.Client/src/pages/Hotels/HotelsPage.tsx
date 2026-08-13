@@ -31,7 +31,82 @@ export default function HotelsPage({
   const { model, actions } = feature;
 
   return (
-    <section className="hotel-page">
+    <section className="page od-hotels-page">
+      <section className="hotels-hero">
+        <div className="container">
+          <div className="page-head">
+            <div className="breadcrumb">
+              <button onClick={() => actions.hotelList.setCityFilter('')} type="button">
+                Explore
+              </button>
+              <span>Stays</span>
+            </div>
+            <h1 className="page-title">Find your perfect stay</h1>
+            <p className="page-sub">Discover hotels across Azerbaijan and choose the room that fits your trip.</p>
+          </div>
+
+          <form className="search-bar" onSubmit={(event) => event.preventDefault()}>
+            <label className="field">
+              City
+              <div className="field-control has-select">
+                <select value={model.cityFilter} onChange={(event) => actions.hotelList.setCityFilter(event.target.value)}>
+                  <option value="">All cities</option>
+                  {model.cities.map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
+            <label className="field">
+              Check-in
+              <div className="field-control">
+                <input type="date" />
+              </div>
+            </label>
+            <label className="field">
+              Check-out
+              <div className="field-control">
+                <input type="date" />
+              </div>
+            </label>
+            <label className="field">
+              Guests
+              <div className="field-control has-select">
+                <select defaultValue="2 guests">
+                  <option>1 guest</option>
+                  <option>2 guests</option>
+                  <option>3 guests</option>
+                  <option>4 guests</option>
+                </select>
+              </div>
+            </label>
+            <button className="btn btn-primary" type="submit">
+              Search
+            </button>
+          </form>
+
+          <div className="filter-row">
+            <div className="chip-set" role="group" aria-label="Filter by city">
+              <button className={`chip ${model.cityFilter === '' ? 'is-active' : ''}`} onClick={() => actions.hotelList.setCityFilter('')} type="button">
+                All cities <span className="count">{model.visibleHotels.length}</span>
+              </button>
+              {model.cities.map((city) => (
+                <button
+                  className={`chip ${model.cityFilter === city ? 'is-active' : ''}`}
+                  key={city}
+                  onClick={() => actions.hotelList.setCityFilter(city)}
+                  type="button"
+                >
+                  {city}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <HotelList
         actions={actions.hotelList}
         canManageHotels={model.canManageHotels}
@@ -44,7 +119,8 @@ export default function HotelsPage({
         visibleHotels={model.visibleHotels}
       />
 
-      <section className="panel wide">
+      <section className="container od-hotel-workspace">
+        <div className="panel wide">
         <div className="section-title">
           <h2>{model.showHotelForm ? (model.editingHotelId ? 'Edit hotel' : 'Create hotel') : model.selectedHotel ? model.selectedHotel.name : 'Select a hotel'}</h2>
           {!model.showHotelForm && model.selectedHotel && <span>{model.selectedHotel.city}</span>}
@@ -120,6 +196,7 @@ export default function HotelsPage({
         ) : (
           <p className="empty">Choose a hotel to see rooms and booking options.</p>
         )}
+        </div>
       </section>
     </section>
   );

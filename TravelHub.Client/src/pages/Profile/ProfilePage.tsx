@@ -83,7 +83,16 @@ export default function ProfilePage({
   onCancelTaxiBooking,
 }: ProfilePageProps) {
   return (
-    <section className="page-section">
+    <div className="page-shell profile-page">
+      <main>
+        <section className="profile-hero">
+          <div className="container">
+            <p className="eyebrow">Account settings</p>
+            <h1>Profile and preferences</h1>
+          </div>
+        </section>
+
+    <section className="container od-profile-live">
       <div className="section-title">
         <div>
           <p className="eyebrow">Profile</p>
@@ -339,5 +348,7 @@ export default function ProfilePage({
         </div>
       </div>
     </section>
+      </main>
+    </div>
   );
 }
