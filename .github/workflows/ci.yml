@@ -19,10 +19,10 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore
-        run: dotnet restore TravelHub.sln
+        run: dotnet restore TravelHub.Api.Tests/TravelHub.Api.Tests.csproj
 
       - name: Build
-        run: dotnet build TravelHub.sln --configuration Release --no-restore
+        run: dotnet build TravelHub.Api.Tests/TravelHub.Api.Tests.csproj --configuration Release --no-restore
 
       - name: Unit tests
         run: dotnet test TravelHub.Api.Tests/TravelHub.Api.Tests.csproj --configuration Release --no-build
