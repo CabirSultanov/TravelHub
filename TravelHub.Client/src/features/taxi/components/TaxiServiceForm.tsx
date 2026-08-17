@@ -19,7 +19,7 @@ export default function TaxiServiceForm({
   actions,
 }: TaxiServiceFormProps) {
   return (
-    <form className="form-grid" onSubmit={(event) => void actions.submit(event)}>
+    <form className="form-grid taxi-service-form" onSubmit={(event) => void actions.submit(event)}>
       <h3>{editingTaxiId ? 'Edit taxi service' : 'New taxi service'}</h3>
       <input
         placeholder="Company name"
@@ -42,7 +42,7 @@ export default function TaxiServiceForm({
             </button>
           </div>
         ))}
-        <button className="link-button" onClick={actions.addCity} type="button">
+        <button className="link-button taxi-form-add-button" onClick={actions.addCity} type="button">
           Add city
         </button>
       </div>
@@ -97,7 +97,7 @@ export default function TaxiServiceForm({
           </div>
         ))}
         <button
-          className="link-button"
+          className="link-button taxi-form-add-button"
           disabled={taxiForm.carClasses.length === taxiCarClassOptions.length}
           onClick={actions.addCarClass}
           type="button"
@@ -120,12 +120,14 @@ export default function TaxiServiceForm({
         onChange={(event) => actions.setForm({ ...taxiForm, imageUrl: event.target.value })}
         required
       />
-      <button className="primary" disabled={submitting} type="submit">
-        {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}
-      </button>
-      <button className="link-button" disabled={submitting} onClick={actions.cancel} type="button">
-        Cancel
-      </button>
+      <div className="taxi-service-form-actions">
+        <button className="primary taxi-service-submit" disabled={submitting} type="submit">
+          {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}
+        </button>
+        <button className="link-button taxi-service-cancel" disabled={submitting} onClick={actions.cancel} type="button">
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

@@ -2,6 +2,7 @@ import type { FormEvent, ReactNode } from 'react';
 import type {
   AuthUser,
   Booking,
+  BookingStatus,
   PaymentCardForm,
   ProfileForm,
   SavedPaymentCard,
@@ -46,6 +47,14 @@ type ProfilePageProps = {
   onCancelTaxiBooking: (booking: TaxiBooking) => void | Promise<void>;
 };
 
+function formatProfilePaymentStatus(status: BookingStatus) {
+  if (status === 'PendingPayment') {
+    return 'Not paid';
+  }
+
+  return status;
+}
+
 export default function ProfilePage({
   currentUser,
   bookings,
@@ -58,15 +67,12 @@ export default function ProfilePage({
   profileForm,
   paymentCardForm,
   showPaymentCardForm,
-  payingBookingId,
-  payingTaxiBookingId,
   accountPhonePrefix,
   accountPhonePattern,
   cardNumberPattern,
   cvvPattern,
   currentYear,
   formatTaxiCarClassName,
-  renderPaymentForm,
   onProfileFormChange,
   onSubmitProfile,
   onCancelProfileEdit,
@@ -77,30 +83,11 @@ export default function ProfilePage({
   onCancelPaymentCardForm,
   onShowPaymentCardForm,
   onDeletePaymentCard,
-  onOpenPaymentForm,
-  onCancelBooking,
-  onOpenTaxiPaymentForm,
-  onCancelTaxiBooking,
 }: ProfilePageProps) {
   return (
     <div className="page-shell profile-page">
       <main>
-        <section className="profile-hero">
-          <div className="container">
-            <p className="eyebrow">Account settings</p>
-            <h1>Profile and preferences</h1>
-          </div>
-        </section>
-
     <section className="container od-profile-live">
-      <div className="section-title">
-        <div>
-          <p className="eyebrow">Profile</p>
-          <h2>Profile</h2>
-        </div>
-        <span>{bookings.length + taxiBookings.length} bookings</span>
-      </div>
-
       <div className="profile-layout">
         <div className="auth-panel">
           {editingProfile ? (
@@ -164,21 +151,23 @@ export default function ProfilePage({
               <span>{savedPaymentCards.length}</span>
             </div>
 
-            {savedPaymentCards.map((card) => (
-              <article className="saved-card" key={card.id}>
-                <span>
-                  <strong>{card.brand} **** {card.last4}</strong>
-                  <small>
-                    {card.cardHolderName} / {String(card.expiryMonth).padStart(2, '0')}/{card.expiryYear}
-                  </small>
-                </span>
-                <button disabled={submitting} onClick={() => void onDeletePaymentCard(card.id)} type="button">
-                  Delete
-                </button>
-              </article>
-            ))}
+            <div className="saved-card-list">
+              {savedPaymentCards.map((card) => (
+                <article className="saved-card" key={card.id}>
+                  <span>
+                    <strong>{card.brand} **** {card.last4}</strong>
+                    <small>
+                      {card.cardHolderName} / {String(card.expiryMonth).padStart(2, '0')}/{card.expiryYear}
+                    </small>
+                  </span>
+                  <button disabled={submitting} onClick={() => void onDeletePaymentCard(card.id)} type="button">
+                    Delete
+                  </button>
+                </article>
+              ))}
 
-            {savedPaymentCards.length === 0 && <p className="empty">No saved cards yet.</p>}
+              {savedPaymentCards.length === 0 && <p className="empty">No saved cards yet.</p>}
+            </div>
 
             {showPaymentCardForm ? (
               <form className="payment-card-form" onSubmit={onSubmitPaymentCard}>
@@ -265,28 +254,9 @@ export default function ProfilePage({
 
                   <div className="history-actions">
                     <span className={`status-pill ${profileBooking.status.toLowerCase()}`}>
-                      {profileBooking.status}
+                      {formatProfilePaymentStatus(profileBooking.status)}
                     </span>
-                    {profileBooking.status === 'PendingPayment' && payingBookingId !== profileBooking.id && (
-                      <>
-                        <button
-                          className="primary"
-                          disabled={submitting}
-                          onClick={() => onOpenPaymentForm(profileBooking.id)}
-                          type="button"
-                        >
-                          Pay
-                        </button>
-                        <button disabled={submitting} onClick={() => void onCancelBooking(profileBooking)} type="button">
-                          Cancel
-                        </button>
-                      </>
-                    )}
                   </div>
-
-                  {profileBooking.status === 'PendingPayment' && payingBookingId === profileBooking.id && (
-                    renderPaymentForm(profileBooking)
-                  )}
                 </article>
               ))}
 
@@ -317,28 +287,9 @@ export default function ProfilePage({
 
                   <div className="history-actions">
                     <span className={`status-pill ${profileTaxiBooking.status.toLowerCase()}`}>
-                      {profileTaxiBooking.status}
+                      {formatProfilePaymentStatus(profileTaxiBooking.status)}
                     </span>
-                    {profileTaxiBooking.status === 'PendingPayment' && payingTaxiBookingId !== profileTaxiBooking.id && (
-                      <>
-                        <button
-                          className="primary"
-                          disabled={submitting}
-                          onClick={() => onOpenTaxiPaymentForm(profileTaxiBooking.id)}
-                          type="button"
-                        >
-                          Pay
-                        </button>
-                        <button disabled={submitting} onClick={() => void onCancelTaxiBooking(profileTaxiBooking)} type="button">
-                          Cancel
-                        </button>
-                      </>
-                    )}
                   </div>
-
-                  {profileTaxiBooking.status === 'PendingPayment' && payingTaxiBookingId === profileTaxiBooking.id && (
-                    renderPaymentForm(profileTaxiBooking, 'taxi')
-                  )}
                 </article>
               ))}
 

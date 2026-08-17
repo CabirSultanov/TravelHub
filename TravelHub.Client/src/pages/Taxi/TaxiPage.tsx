@@ -5,8 +5,6 @@ import TaxiServiceForm from '../../features/taxi/components/TaxiServiceForm';
 import TaxiServiceList from '../../features/taxi/components/TaxiServiceList';
 import SiteFooter from '../../components/common/SiteFooter';
 import type { AuthUser, Booking, Page, TaxiBooking } from '../../types';
-import { formatMoney, formatTaxiCarClassName } from '../../utils/formatting';
-import { fallbackImage } from '../../utils/images';
 import type { TaxiFeature } from '../../features/taxi/taxi.types';
 
 type TaxiPageProps = {
@@ -53,17 +51,29 @@ export default function TaxiPage({
       </section>
 
       <section className="container od-taxi-workspace hotel-page taxi-page" id="taxi-booking">
-        <TaxiServiceList
-          actions={actions.service}
-          canManageTaxi={model.canManageTaxi}
-          loading={loading}
-          selectedTaxiService={selectedTaxiService}
-          showTaxiForm={model.showTaxiForm}
-          submitting={submitting}
-          taxiServices={model.taxiServices}
-        />
+        <div className="taxi-sidebar-column">
+          <TaxiServiceList
+            actions={actions.service}
+            canManageTaxi={model.canManageTaxi}
+            loading={loading}
+            selectedTaxiService={selectedTaxiService}
+            showTaxiForm={model.showTaxiForm}
+            submitting={submitting}
+            taxiServices={model.taxiServices}
+          />
 
-        <section className="panel wide">
+          {model.taxiBooking?.status === 'PendingPayment' && (
+            <section className="taxi-payment-slot" aria-label="Taxi payment">
+              <TaxiBookingResult
+                booking={model.taxiBooking}
+                onReset={actions.resetBooking}
+                renderPaymentForm={renderPaymentForm}
+              />
+            </section>
+          )}
+        </div>
+
+        <section className="panel wide taxi-detail-panel">
         <div className="section-title">
           <h2>{model.showTaxiForm ? (model.editingTaxiId ? 'Edit taxi service' : 'Create taxi service') : selectedTaxiService ? selectedTaxiService.companyName : 'Select a taxi service'}</h2>
           {!model.showTaxiForm && selectedTaxiService && <span>{selectedTaxiService.city}</span>}
@@ -79,47 +89,27 @@ export default function TaxiPage({
             taxiForm={model.taxiForm}
           />
         ) : selectedTaxiService ? (
-          <>
-            <img
-              className="selected-hotel-image"
-              src={selectedTaxiService.imageUrl || fallbackImage(selectedTaxiService.companyName, 'taxi')}
-              alt=""
-            />
-            <p className="description">{selectedTaxiService.description}</p>
-            <div className="tariff-list taxi-detail-tariffs">
-              {selectedTaxiService.carClasses.map((carClass) => (
-                <small key={carClass.id}>
-                  {formatTaxiCarClassName(carClass.name)}: {formatMoney(carClass.pricePerKm)}/km
-                </small>
-              ))}
-            </div>
-            <TaxiBookingForm
-              actions={actions.bookingForm}
-              currentUser={currentUser}
-              phoneNumberPattern={phoneNumberPattern}
-              selectedTaxiCarClass={selectedTaxiCarClass}
-              selectedTaxiService={selectedTaxiService}
-              submitting={submitting}
-              taxiBookingForm={model.taxiBookingForm}
-              taxiBookingGuestMode={model.taxiBookingGuestMode}
-              taxiCoordinates={model.taxiCoordinates}
-              taxiDistanceKm={model.taxiDistanceKm}
-              taxiEstimatedTotal={model.taxiEstimatedTotal}
-              taxiPointMode={model.taxiPointMode}
-              taxiRouteState={model.taxiRouteState}
-              onOpenAuth={onOpenAuth}
-            >
-              <TaxiBookingResult
-                booking={model.taxiBooking}
-                onReset={actions.resetBooking}
-                renderPaymentForm={renderPaymentForm}
-              />
-            </TaxiBookingForm>
-          </>
+          <TaxiBookingForm
+            actions={actions.bookingForm}
+            currentUser={currentUser}
+            phoneNumberPattern={phoneNumberPattern}
+            selectedTaxiCarClass={selectedTaxiCarClass}
+            selectedTaxiService={selectedTaxiService}
+            submitting={submitting}
+            taxiBookingForm={model.taxiBookingForm}
+            taxiBookingGuestMode={model.taxiBookingGuestMode}
+            taxiCoordinates={model.taxiCoordinates}
+            taxiDistanceKm={model.taxiDistanceKm}
+            taxiEstimatedTotal={model.taxiEstimatedTotal}
+            taxiPointMode={model.taxiPointMode}
+            taxiRouteState={model.taxiRouteState}
+            onOpenAuth={onOpenAuth}
+          />
         ) : (
           <p className="empty">Choose a taxi service to create an order.</p>
         )}
         </section>
+
       </section>
 
       <SiteFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />

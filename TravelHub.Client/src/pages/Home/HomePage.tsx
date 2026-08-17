@@ -48,9 +48,6 @@ function createHotelCards(hotels: Hotel[]) {
               <div class="hotel-photo">
                 <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(hotel.name)}">
                 <span class="hotel-badge">${escapeHtml(hotel.city)}</span>
-                <button class="favorite-button" type="button" aria-label="Favorite hotel">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
-                </button>
               </div>
               <div class="hotel-body">
                 <div class="hotel-topline">
@@ -334,8 +331,6 @@ export default function HomePage({ cities, hotels, onHotelSearch, onNavigate }: 
       onNavigate('profile');
     } else if (action === 'destinations') {
       document.querySelector('[data-od-id="destinations-section"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else if (action === 'favorite') {
-      actionTarget?.classList.toggle('is-selected');
     }
   }
 

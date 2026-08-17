@@ -346,7 +346,7 @@ export function useTaxiFeature({
         carClassName: selectedTaxiCarClass.name,
         customerName: taxiBookingForm.customerName,
         phoneNumber: taxiBookingForm.phoneNumber,
-        email: taxiBookingForm.email,
+        email: taxiBookingForm.email || currentUser.email,
         pickupAddress: taxiBookingForm.pickupAddress,
         dropoffAddress: taxiBookingForm.dropoffAddress,
         pickupLatitude: pickupCoordinates.latitude,

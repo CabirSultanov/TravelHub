@@ -167,6 +167,7 @@ export default function HotelsPage({
                   />
                 </div>
                 <div className="hotel-detail-copy">
+                  {model.selectedHotel.description && <p className="description">{model.selectedHotel.description}</p>}
                   <button className="btn btn-primary hotel-book-button" onClick={() => setShowRooms(true)} type="button">
                     Book
                   </button>
@@ -252,12 +253,6 @@ export default function HotelsPage({
                 </>
               )}
 
-              {model.selectedHotel.description && (
-                <section className="hotel-description-section" aria-label="Hotel description">
-                  <h3>About this hotel</h3>
-                  <p>{model.selectedHotel.description}</p>
-                </section>
-              )}
             </>
           ) : null}
         </div>

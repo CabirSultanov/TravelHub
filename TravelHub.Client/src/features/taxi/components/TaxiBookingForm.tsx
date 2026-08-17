@@ -59,11 +59,6 @@ export default function TaxiBookingForm({
 
   return (
     <section className="taxi-order">
-      <div className="section-title">
-        <h3>Order a taxi</h3>
-        <span>{selectedTaxiCarClass ? `${formatMoney(selectedTaxiCarClass.pricePerKm)}/km` : 'Choose class'}</span>
-      </div>
-
       {!currentUser ? (
         <div className="form-grid">
           <p className="empty">Please register or sign in to order a taxi.</p>
@@ -115,13 +110,6 @@ export default function TaxiBookingForm({
             type="tel"
             value={taxiBookingForm.phoneNumber}
             onChange={(event) => actions.setForm({ ...taxiBookingForm, phoneNumber: event.target.value })}
-            required
-          />
-          <input
-            placeholder="Email"
-            type="email"
-            value={taxiBookingForm.email}
-            onChange={(event) => actions.setForm({ ...taxiBookingForm, email: event.target.value })}
             required
           />
           {GOOGLE_MAPS_API_KEY ? (
