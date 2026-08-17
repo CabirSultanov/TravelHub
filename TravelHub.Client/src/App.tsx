@@ -939,7 +939,9 @@ function App() {
           currentUser={currentUser}
           feature={taxiFeature}
           loading={initialDataLoading}
+          onNavigate={navigateTo}
           onOpenAuth={openAuth}
+          onShowDestinations={showDestinations}
           phoneNumberPattern={phoneNumberPattern}
           pricePattern={pricePattern}
           renderPaymentForm={renderPaymentForm}

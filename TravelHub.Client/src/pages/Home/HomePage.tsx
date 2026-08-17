@@ -1,4 +1,5 @@
 import type { FormEvent, MouseEvent } from 'react';
+import SiteFooter from '../../components/common/SiteFooter';
 import type { Hotel, Page } from '../../types';
 import { fallbackImage } from '../../utils/images';
 
@@ -304,38 +305,7 @@ function createHomeMarkup(cities: string[], hotels: Hotel[]) {
           </div>
         </div>
       </section>
-    </main>
-<footer class="site-footer" data-od-id="footer">
-      <div class="container footer-grid">
-        <div class="footer-brand" data-od-id="footer-brand">
-          <a class="brand" href="#" aria-label="TravelHub">
-            <span class="brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M4 17 12 4l8 13"/><path d="m8 17 4-6 4 6"/><path d="M5 17h14"/></svg>
-            </span>
-            <span>TravelHub</span>
-          </a>
-          <p>A modern platform for hotels and taxi trips across Azerbaijan.</p>
-        </div>
-        <div class="footer-col" data-od-id="footer-product-links">
-          <strong>Explore</strong>
-          <a class="footer-link" href="#" data-action="hotels">Hotels</a>
-          <a class="footer-link" href="#" data-action="taxi">Taxi</a>
-          <a class="footer-link" href="#" data-action="destinations">Destinations</a>
-        </div>
-        <div class="footer-col" data-od-id="footer-account-links">
-          <strong>Account</strong>
-          <a class="footer-link" href="#" data-action="my-trips">My Trips</a>
-          <a class="footer-link" href="#" data-action="profile">Profile</a>
-          <a class="footer-link" href="#" data-action="signin">Sign In</a>
-        </div>
-        <div class="footer-col" data-od-id="footer-info-links">
-          <strong>Support</strong>
-          <a class="footer-link" href="#">Help</a>
-          <a class="footer-link" href="#">Terms</a>
-          <a class="footer-link" href="#">Privacy</a>
-        </div>
-      </div>
-    </footer>`;
+    </main>`;
 }
 
 export default function HomePage({ cities, hotels, onHotelSearch, onNavigate }: HomePageProps) {
@@ -416,10 +386,18 @@ export default function HomePage({ cities, hotels, onHotelSearch, onNavigate }: 
   return (
     <div
       className="page-shell od-home-page"
-      dangerouslySetInnerHTML={{ __html: createHomeMarkup(cities, hotels) }}
       onClick={handleClick}
       onChange={handleChange}
       onSubmit={handleSubmit}
-    />
+    >
+      <div dangerouslySetInnerHTML={{ __html: createHomeMarkup(cities, hotels) }} />
+      <SiteFooter
+        onNavigate={onNavigate}
+        onOpenAuth={() => onNavigate('auth')}
+        onShowDestinations={() =>
+          document.querySelector('[data-od-id="destinations-section"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      />
+    </div>
   );
 }

@@ -66,23 +66,27 @@ export default function RoomList({
 }
 
 export function RoomPhotoStrip({ room }: { room: HotelRoom | null }) {
-  if (!room || roomImageUrls(room).length === 0) {
+  if (!room) {
     return null;
   }
 
+  const imageUrls = roomImageUrls(room);
+
   return (
     <div className="room-photo-strip">
-      <div className="room-photo-gallery">
-        {roomImageUrls(room).map((imageUrl) => (
-          <img src={imageUrl} alt="" key={imageUrl} />
-        ))}
-      </div>
-      {room.description && (
-        <div className="room-detail-copy">
-          <h3>{room.roomType}</h3>
-          <p>{room.description}</p>
+      {imageUrls.length > 0 && (
+        <div className="room-photo-gallery">
+          {imageUrls.map((imageUrl) => (
+            <img src={imageUrl} alt="" key={imageUrl} />
+          ))}
         </div>
       )}
+      <div className="room-detail-copy">
+        <h3>{room.roomType}</h3>
+        {room.description && (
+          <p>{room.description}</p>
+        )}
+      </div>
     </div>
   );
 }

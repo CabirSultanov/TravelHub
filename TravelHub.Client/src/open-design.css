@@ -1938,170 +1938,31 @@
 
 /* ---- Open Design: taxi.html ---- */
 .taxi-hero {
-      padding: 56px 0 48px;
+      padding: 34px 0 30px;
       background:
-        radial-gradient(circle at 76% 18%, color-mix(in oklch, var(--th-primary) 16%, transparent), transparent 34%),
+        radial-gradient(circle at 82% 18%, color-mix(in oklch, var(--th-primary) 16%, transparent), transparent 34%),
         linear-gradient(135deg, var(--th-navy), color-mix(in oklch, var(--th-navy) 86%, var(--th-primary) 14%));
       color: var(--surface);
     }
 
     .taxi-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 0.92fr) minmax(420px, 1.08fr);
-      gap: 32px;
-      align-items: stretch;
+      display: block;
     }
 
     .taxi-copy {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      max-width: 620px;
+      max-width: 1040px;
     }
 
     .taxi-copy .eyebrow { color: color-mix(in oklch, var(--surface) 78%, var(--th-primary) 22%); }
-    .taxi-copy h1 { color: var(--surface); font-size: clamp(44px, 5vw, 68px); max-width: 10ch; }
-    .taxi-copy p { margin-top: 20px; max-width: 58ch; color: rgba(255,255,255,0.78); font-size: 18px; line-height: 1.58; }
-
-    .route-card {
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 28px;
-      background: rgba(255,255,255,0.96);
-      box-shadow: 0 26px 80px rgba(4, 18, 24, 0.34);
-      color: var(--fg);
-      overflow: hidden;
-    }
-
-    .route-form { padding: 26px; }
-    .route-form h2 { font-size: 22px; margin-bottom: 18px; }
-    .route-fields { display: grid; gap: 12px; }
-    .route-field {
-      display: grid;
-      grid-template-columns: 44px minmax(0, 1fr);
-      align-items: center;
-      min-height: 68px;
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background: var(--surface);
-      transition: border-color var(--motion-fast) var(--ease), box-shadow var(--motion-fast) var(--ease);
-    }
-
-    .route-field:focus-within {
-      border-color: var(--fg);
-      box-shadow: var(--focus-ring);
-    }
-
-    .route-dot {
-      justify-self: center;
-      width: 13px;
-      height: 13px;
-      border-radius: 50%;
-      border: 3px solid var(--surface);
-      box-shadow: 0 0 0 1px var(--border);
-    }
-
-    .route-dot.pickup { background: var(--th-primary); }
-    .route-dot.dropoff { background: var(--warn); }
-    .route-field label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-    .route-field input { width: 100%; border: 0; outline: 0; color: var(--fg); font: 600 16px/1.3 var(--font-body); background: transparent; }
-    .route-field input::placeholder { color: var(--meta); }
-
-    .vehicle-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; }
-    .vehicle-option {
-      min-height: 74px;
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background: var(--surface);
-      color: var(--fg);
-      text-align: left;
-      padding: 12px;
-      transition: transform var(--motion-fast) var(--ease), border-color var(--motion-fast) var(--ease), background var(--motion-fast) var(--ease);
-    }
-
-    .vehicle-option:hover,
-    .vehicle-option.is-selected {
-      border-color: var(--th-primary);
-      background: var(--th-primary-soft);
-      transform: translateY(-1px);
-    }
-
-    .vehicle-option strong { display: block; font-size: 14px; }
-    .vehicle-option span { color: var(--muted); font-size: 12px; }
-
-    .route-map {
-      position: relative;
-      min-height: 300px;
-      border-top: 1px solid var(--border-soft);
-      background:
-        linear-gradient(90deg, rgba(14,125,134,0.08) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(14,125,134,0.08) 1px, transparent 1px),
-        var(--th-bg-teal);
-      background-size: 54px 54px;
-      overflow: hidden;
-    }
-
-    .route-line {
-      position: absolute;
-      inset: 70px 90px 84px 76px;
-      border: 0;
-      border-top: 5px solid var(--th-primary);
-      border-right: 5px solid var(--th-primary);
-      border-radius: 0 70px 0 0;
-    }
-
-    .map-pin {
-      position: absolute;
-      display: grid;
-      gap: 6px;
-      color: var(--fg);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .map-pin::before {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      border: 4px solid var(--surface);
-      box-shadow: 0 8px 24px rgba(12, 32, 38, 0.16);
-      content: "";
-    }
-
-    .map-pin.pickup { left: 72px; top: 78px; }
-    .map-pin.pickup::before { background: var(--th-primary); }
-    .map-pin.dropoff { right: 72px; bottom: 72px; align-items: end; }
-    .map-pin.dropoff::before { background: var(--warn); }
-
-    .route-summary {
-      position: absolute;
-      right: 24px;
-      top: 24px;
-      width: 190px;
-      padding: 14px;
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background: rgba(255,255,255,0.94);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .route-summary span { color: var(--muted); font-size: 12px; }
-    .route-summary strong { display: block; margin-top: 4px; font-size: 18px; }
-
-    .taxi-band { padding: 54px 0; background: var(--th-bg-sand); }
-    .fare-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-    .fare-card { padding: 20px; border: 1px solid var(--border); border-radius: 22px; background: var(--surface); }
-    .fare-card svg { width: 22px; height: 22px; stroke: var(--th-primary); fill: none; stroke-width: 1.8; }
-    .fare-card h3 { margin-top: 14px; font-size: 17px; }
-    .fare-card p { margin-top: 6px; color: var(--muted); font-size: 14px; line-height: 1.5; }
-
-    @media (max-width: 980px) {
-      .taxi-layout { grid-template-columns: 1fr; }
-      .fare-grid { grid-template-columns: repeat(2, 1fr); }
-    }
+    .taxi-copy h1 { color: var(--surface); font-size: clamp(34px, 4vw, 56px); line-height: 1.06; max-width: 1080px; }
+    .taxi-copy p { margin-top: 12px; max-width: 850px; color: rgba(255,255,255,0.78); font-size: clamp(15px, 1.4vw, 18px); line-height: 1.55; }
 
     @media (max-width: 620px) {
-      .vehicle-row, .fare-grid { grid-template-columns: 1fr; }
-      .taxi-copy h1 { max-width: none; font-size: 42px; }
+      .taxi-hero { padding: 28px 0 24px; }
+      .taxi-copy h1 { font-size: 34px; }
     }
 
 
@@ -2876,6 +2737,27 @@ body {
   line-height: 1.62;
 }
 
+.hotel-description-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 34px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.hotel-description-section h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.hotel-description-section p {
+  max-width: 82ch;
+  margin: 0;
+  color: var(--fg-2);
+  font-size: 17px;
+  line-height: 1.65;
+}
+
 .hotel-book-button {
   align-self: end;
   min-width: 140px;
@@ -2977,7 +2859,7 @@ body {
 
 .hotel-rooms-band {
   width: auto;
-  margin: 34px calc(50% - 50vw) 76px;
+  margin: 34px calc(50% - 50vw) 42px;
   padding: 42px 0;
   background: var(--th-navy);
 }
@@ -3041,12 +2923,30 @@ body {
   padding: 0 18px 18px;
 }
 
+.hotel-room-booking-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(500px, 560px);
+  gap: 32px;
+  align-items: start;
+  margin: 0 0 34px;
+}
+
+.hotel-room-booking-media,
+.hotel-room-booking-panel {
+  min-width: 0;
+}
+
 .od-hotel-workspace .room-photo-strip {
   display: grid;
   grid-template-columns: minmax(280px, 560px) minmax(260px, 1fr);
   align-items: start;
   gap: 32px;
   margin: 0 0 34px;
+}
+
+.hotel-room-booking-layout .room-photo-strip {
+  grid-template-columns: 1fr;
+  margin: 0;
 }
 
 .od-hotel-workspace .room-photo-gallery {
@@ -3085,10 +2985,10 @@ body {
 
 .hotel-booking-payment-row {
   display: grid;
-  grid-template-columns: minmax(520px, 0.95fr) minmax(420px, 0.85fr);
-  gap: 28px;
+  grid-template-columns: 1fr;
+  gap: 18px;
   align-items: start;
-  margin-top: 28px;
+  margin-top: 0;
 }
 
 .hotel-booking-card {
@@ -3282,6 +3182,12 @@ body {
   font-weight: 850;
 }
 
+@media (max-width: 1080px) {
+  .hotel-room-booking-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 860px) {
   .hotel-detail-overview {
     grid-template-columns: 1fr;
@@ -3302,6 +3208,10 @@ body {
   }
 
   .hotel-booking-card {
+    grid-template-columns: 1fr;
+  }
+
+  .hotel-room-booking-layout {
     grid-template-columns: 1fr;
   }
 
@@ -3341,17 +3251,6 @@ body {
 
 .od-taxi-workspace {
   padding: 46px 0;
-}
-
-.od-route-preview .route-field strong {
-  display: block;
-  color: var(--fg);
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.od-route-preview .route-map {
-  min-height: 300px;
 }
 
 .od-profile-live {

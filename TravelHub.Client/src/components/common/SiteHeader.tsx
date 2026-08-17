@@ -72,22 +72,14 @@ export default function SiteHeader({
               <button className="btn btn-secondary" onClick={() => onNavigate('profile')} type="button">
                 Profile
               </button>
-              <button className="btn btn-secondary" onClick={() => onNavigate('trips')} type="button">
-                My Trips
-              </button>
               <button className="btn btn-secondary" disabled={submitting} onClick={() => void onLogout()} type="button">
                 Sign Out
               </button>
             </>
           ) : (
-            <>
-              <button className="btn btn-secondary" onClick={onOpenAuth} type="button">
-                My Trips
-              </button>
-              <button className="btn btn-primary" onClick={onOpenAuth} type="button">
-                Sign In
-              </button>
-            </>
+            <button className="btn btn-primary" onClick={onOpenAuth} type="button">
+              Sign In
+            </button>
           )}
         </div>
       </div>

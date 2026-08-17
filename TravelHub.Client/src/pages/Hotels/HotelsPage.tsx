@@ -5,6 +5,7 @@ import HotelForm from '../../features/hotels/components/HotelForm';
 import HotelList from '../../features/hotels/components/HotelList';
 import RoomForm from '../../features/hotels/components/RoomForm';
 import RoomList, { RoomPhotoStrip } from '../../features/hotels/components/RoomList';
+import SiteFooter from '../../components/common/SiteFooter';
 import type { AuthUser, Booking, Hotel, Page, TaxiBooking } from '../../types';
 import { fallbackImage } from '../../utils/images';
 import type { HotelsFeature } from '../../features/hotels/hotels.types';
@@ -41,70 +42,6 @@ function addDateInputDays(dateValue: string, days: number) {
   date.setDate(date.getDate() + days);
 
   return toDateInputValue(date);
-}
-
-type HotelsFooterProps = {
-  onNavigate: (page: Page) => void;
-  onOpenAuth: () => void;
-  onShowDestinations: () => void;
-};
-
-function HotelsFooter({ onNavigate, onOpenAuth, onShowDestinations }: HotelsFooterProps) {
-  return (
-    <footer className="site-footer">
-      <div className="container footer-grid">
-        <div className="footer-brand">
-          <button className="brand" onClick={() => onNavigate('home')} type="button" aria-label="TravelHub home">
-            <span className="brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M4 17 12 4l8 13" />
-                <path d="m8 17 4-6 4 6" />
-                <path d="M5 17h14" />
-              </svg>
-            </span>
-            <span>TravelHub</span>
-          </button>
-          <p>A modern platform for hotels and taxi trips across Azerbaijan.</p>
-        </div>
-        <div className="footer-col">
-          <strong>Explore</strong>
-          <button className="footer-link" onClick={() => onNavigate('hotels')} type="button">
-            Hotels
-          </button>
-          <button className="footer-link" onClick={() => onNavigate('taxi')} type="button">
-            Taxi
-          </button>
-          <button className="footer-link" onClick={onShowDestinations} type="button">
-            Destinations
-          </button>
-        </div>
-        <div className="footer-col">
-          <strong>Account</strong>
-          <button className="footer-link" onClick={() => onNavigate('trips')} type="button">
-            My Trips
-          </button>
-          <button className="footer-link" onClick={() => onNavigate('profile')} type="button">
-            Profile
-          </button>
-          <button className="footer-link" onClick={onOpenAuth} type="button">
-            Sign In
-          </button>
-        </div>
-        <div className="footer-col">
-          <strong>Support</strong>
-          <a className="footer-link" href="#">
-            Help
-          </a>
-          <a className="footer-link" href="#">
-            Terms
-          </a>
-          <a className="footer-link" href="#">
-            Privacy
-          </a>
-        </div>
-      </div>
-    </footer>
-  );
 }
 
 export default function HotelsPage({
@@ -230,7 +167,6 @@ export default function HotelsPage({
                   />
                 </div>
                 <div className="hotel-detail-copy">
-                  {model.selectedHotel.description && <p className="description">{model.selectedHotel.description}</p>}
                   <button className="btn btn-primary hotel-book-button" onClick={() => setShowRooms(true)} type="button">
                     Book
                   </button>
@@ -284,28 +220,43 @@ export default function HotelsPage({
                     />
                   )}
 
-                  <RoomPhotoStrip room={model.selectedRoom} />
+                  {model.selectedRoom && (
+                    <div className="hotel-room-booking-layout">
+                      <div className="hotel-room-booking-media">
+                        <RoomPhotoStrip room={model.selectedRoom} />
+                      </div>
 
-                  <div className="hotel-booking-payment-row">
-                    <HotelBookingForm
-                      actions={actions.booking}
-                      booking={model.booking}
-                      bookingForm={model.bookingForm}
-                      bookingGuestMode={model.bookingGuestMode}
-                      currentUser={currentUser}
-                      phoneNumberPattern={phoneNumberPattern}
-                      selectedRoom={model.selectedRoom}
-                      submitting={submitting}
-                      onOpenAuth={onOpenAuth}
-                    />
+                      <div className="hotel-room-booking-panel">
+                        <div className="hotel-booking-payment-row">
+                          <HotelBookingForm
+                            actions={actions.booking}
+                            booking={model.booking}
+                            bookingForm={model.bookingForm}
+                            bookingGuestMode={model.bookingGuestMode}
+                            currentUser={currentUser}
+                            phoneNumberPattern={phoneNumberPattern}
+                            selectedRoom={model.selectedRoom}
+                            submitting={submitting}
+                            onOpenAuth={onOpenAuth}
+                          />
 
-                    <HotelBookingResult
-                      booking={model.booking}
-                      onReset={actions.booking.reset}
-                      renderPaymentForm={renderPaymentForm}
-                    />
-                  </div>
+                          <HotelBookingResult
+                            booking={model.booking}
+                            onReset={actions.booking.reset}
+                            renderPaymentForm={renderPaymentForm}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
+              )}
+
+              {model.selectedHotel.description && (
+                <section className="hotel-description-section" aria-label="Hotel description">
+                  <h3>About this hotel</h3>
+                  <p>{model.selectedHotel.description}</p>
+                </section>
               )}
             </>
           ) : null}
@@ -356,7 +307,7 @@ export default function HotelsPage({
         ) : (
           renderHotelWorkspace()
         )}
-        <HotelsFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
+        <SiteFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
       </section>
     );
   }
@@ -428,7 +379,7 @@ export default function HotelsPage({
       />
 
       {model.showHotelForm && renderHotelWorkspace()}
-      <HotelsFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
+      <SiteFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
     </section>
   );
 }

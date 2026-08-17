@@ -3,7 +3,8 @@ import TaxiBookingForm from '../../features/taxi/components/TaxiBookingForm';
 import TaxiBookingResult from '../../features/taxi/components/TaxiBookingResult';
 import TaxiServiceForm from '../../features/taxi/components/TaxiServiceForm';
 import TaxiServiceList from '../../features/taxi/components/TaxiServiceList';
-import type { AuthUser, Booking, TaxiBooking } from '../../types';
+import SiteFooter from '../../components/common/SiteFooter';
+import type { AuthUser, Booking, Page, TaxiBooking } from '../../types';
 import { formatMoney, formatTaxiCarClassName } from '../../utils/formatting';
 import { fallbackImage } from '../../utils/images';
 import type { TaxiFeature } from '../../features/taxi/taxi.types';
@@ -16,7 +17,9 @@ type TaxiPageProps = {
   phoneNumberPattern: string;
   pricePattern: string;
   renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
+  onNavigate: (page: Page) => void;
   onOpenAuth: () => void;
+  onShowDestinations: () => void;
 };
 
 export default function TaxiPage({
@@ -27,7 +30,9 @@ export default function TaxiPage({
   phoneNumberPattern,
   pricePattern,
   renderPaymentForm,
+  onNavigate,
   onOpenAuth,
+  onShowDestinations,
 }: TaxiPageProps) {
   const { model, actions } = feature;
   const { selectedTaxiService, selectedTaxiCarClass } = model;
@@ -43,62 +48,6 @@ export default function TaxiPage({
               Choose pickup and dropoff points on the map, compare car classes, and see a clear estimate before you confirm
               your Azerbaijan transfer.
             </p>
-            <div className="hero-actions">
-              <a className="btn btn-primary" href="#taxi-booking">
-                Start a ride
-              </a>
-              <a className="btn btn-ghost-dark" href="#taxi-benefits">
-                Ride details
-              </a>
-            </div>
-          </div>
-
-          <div className="route-card od-route-preview">
-            <div className="route-form">
-              <h2>Plan your ride</h2>
-              <div className="route-fields">
-                <div className="route-field">
-                  <span className="route-dot pickup" aria-hidden="true" />
-                  <div>
-                    <label>Pickup</label>
-                    <strong>{model.taxiBookingForm.pickupAddress || 'Choose pickup on map'}</strong>
-                  </div>
-                </div>
-                <div className="route-field">
-                  <span className="route-dot dropoff" aria-hidden="true" />
-                  <div>
-                    <label>Dropoff</label>
-                    <strong>{model.taxiBookingForm.dropoffAddress || 'Choose dropoff on map'}</strong>
-                  </div>
-                </div>
-              </div>
-              <div className="vehicle-row">
-                {selectedTaxiService?.carClasses.slice(0, 3).map((carClass) => (
-                  <button
-                    className={`vehicle-option ${selectedTaxiCarClass?.id === carClass.id ? 'is-selected' : ''}`}
-                    key={carClass.id}
-                    onClick={() => actions.bookingForm.setForm({ ...model.taxiBookingForm, carClassName: carClass.name })}
-                    type="button"
-                  >
-                    <strong>{formatTaxiCarClassName(carClass.name)}</strong>
-                    <span>{formatMoney(carClass.pricePerKm)}/km</span>
-                  </button>
-                ))}
-              </div>
-              <a className="btn btn-primary btn-wide" href="#taxi-booking">
-                Open booking map
-              </a>
-            </div>
-            <div className="route-map">
-              <div className="route-line" aria-hidden="true" />
-              <div className="map-pin pickup">Pickup</div>
-              <div className="map-pin dropoff">Dropoff</div>
-              <div className="route-summary">
-                <span>Estimated route</span>
-                <strong>{model.taxiDistanceKm > 0 ? `${model.taxiDistanceKm.toFixed(2)} km` : 'Choose route'}</strong>
-                <span>{model.taxiEstimatedTotal > 0 ? formatMoney(model.taxiEstimatedTotal) : 'Fare appears after route'}</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -173,35 +122,7 @@ export default function TaxiPage({
         </section>
       </section>
 
-      <section className="taxi-band" id="taxi-benefits">
-        <div className="container">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Built for city and airport transfers</p>
-              <h2>Clear details before every ride</h2>
-            </div>
-            <p>Compact controls, realistic fare states, and a route-first map make taxi booking feel connected to TravelHub.</p>
-          </div>
-          <div className="fare-grid">
-            <article className="fare-card">
-              <h3>Route based</h3>
-              <p>Distance and time are tied to the actual road route.</p>
-            </article>
-            <article className="fare-card">
-              <h3>Car classes</h3>
-              <p>Compare comfort, business, and group options quickly.</p>
-            </article>
-            <article className="fare-card">
-              <h3>Secure payment</h3>
-              <p>Pay online or keep the ride ready for confirmation.</p>
-            </article>
-            <article className="fare-card">
-              <h3>Trip history</h3>
-              <p>Airport pickups and repeat routes stay easy to manage.</p>
-            </article>
-          </div>
-        </div>
-      </section>
+      <SiteFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
     </div>
   );
 }
