@@ -25,13 +25,27 @@ export default function HotelBookingForm({
   actions,
   onOpenAuth,
 }: HotelBookingFormProps) {
-  if (!selectedRoom || booking) {
+  if (!selectedRoom) {
     return null;
   }
 
+  const bookingCreated = Boolean(booking);
+  const phoneNumberIsValid = new RegExp(`^(?:${phoneNumberPattern})$`).test(bookingForm.phoneNumber);
+  const datesAreValid =
+    Boolean(bookingForm.checkInDate) &&
+    Boolean(bookingForm.checkOutDate) &&
+    bookingForm.checkOutDate > bookingForm.checkInDate;
+  const bookingFormIsReady =
+    bookingForm.customerName.trim().length > 0 &&
+    bookingForm.email.trim().length > 0 &&
+    phoneNumberIsValid &&
+    datesAreValid;
+  const formLocked = submitting || bookingCreated;
+  const canCreateBooking = bookingFormIsReady && !formLocked;
+
   if (!currentUser) {
     return (
-      <div className="form-grid">
+      <div className="form-grid hotel-booking-card">
         <h3>{selectedRoom.roomType} booking</h3>
         <p className="empty">Please register or sign in to create a booking.</p>
         <button className="primary" onClick={onOpenAuth} type="button">
@@ -42,11 +56,15 @@ export default function HotelBookingForm({
   }
 
   return (
-    <form className="form-grid" onSubmit={(event: FormEvent<HTMLFormElement>) => void actions.submit(event)}>
+    <form
+      className={`form-grid hotel-booking-card${bookingCreated ? ' is-created' : ''}`}
+      onSubmit={(event: FormEvent<HTMLFormElement>) => void actions.submit(event)}
+    >
       <h3>{selectedRoom.roomType} booking</h3>
       <div className="booking-mode">
         <button
           className={bookingGuestMode === 'self' ? 'active' : ''}
+          disabled={formLocked}
           onClick={() => actions.selectGuestMode('self')}
           type="button"
         >
@@ -54,6 +72,7 @@ export default function HotelBookingForm({
         </button>
         <button
           className={bookingGuestMode === 'other' ? 'active' : ''}
+          disabled={formLocked}
           onClick={() => actions.selectGuestMode('other')}
           type="button"
         >
@@ -61,12 +80,14 @@ export default function HotelBookingForm({
         </button>
       </div>
       <input
+        disabled={formLocked}
         placeholder="Customer name"
         value={bookingForm.customerName}
         onChange={(event) => actions.setForm({ ...bookingForm, customerName: event.target.value })}
         required
       />
       <input
+        disabled={formLocked}
         pattern={phoneNumberPattern}
         placeholder="Phone number"
         type="tel"
@@ -75,6 +96,7 @@ export default function HotelBookingForm({
         required
       />
       <input
+        disabled={formLocked}
         placeholder="Email"
         type="email"
         value={bookingForm.email}
@@ -82,19 +104,21 @@ export default function HotelBookingForm({
         required
       />
       <input
+        disabled={formLocked}
         type="date"
         value={bookingForm.checkInDate}
         onChange={(event) => actions.setForm({ ...bookingForm, checkInDate: event.target.value })}
         required
       />
       <input
+        disabled={formLocked}
         type="date"
         value={bookingForm.checkOutDate}
         onChange={(event) => actions.setForm({ ...bookingForm, checkOutDate: event.target.value })}
         required
       />
-      <button className="primary" disabled={submitting} type="submit">
-        Create booking
+      <button className="primary" disabled={!canCreateBooking} type="submit">
+        {submitting ? 'Creating...' : bookingCreated ? 'Booking created' : 'Create booking'}
       </button>
     </form>
   );

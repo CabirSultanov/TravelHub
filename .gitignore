@@ -4,5 +4,8 @@ obj/
 *.user
 *.suo
 *.log
+.env
+.env.*
+!.env.example
 .agents/
 skills-lock.json

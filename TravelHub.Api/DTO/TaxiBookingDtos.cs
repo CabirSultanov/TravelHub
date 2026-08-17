@@ -31,17 +31,17 @@ public class TaxiBookingCreateDto
     [MaxLength(200)]
     public string DropoffAddress { get; set; } = string.Empty;
 
-    [Range(0, 100)]
-    public decimal PickupX { get; set; }
+    [Range(-90, 90)]
+    public decimal PickupLatitude { get; set; }
 
-    [Range(0, 100)]
-    public decimal PickupY { get; set; }
+    [Range(-180, 180)]
+    public decimal PickupLongitude { get; set; }
 
-    [Range(0, 100)]
-    public decimal DropoffX { get; set; }
+    [Range(-90, 90)]
+    public decimal DropoffLatitude { get; set; }
 
-    [Range(0, 100)]
-    public decimal DropoffY { get; set; }
+    [Range(-180, 180)]
+    public decimal DropoffLongitude { get; set; }
 }
 
 public class TaxiBookingResponseDto
@@ -73,6 +73,14 @@ public class TaxiBookingResponseDto
     public decimal DropoffX { get; set; }
 
     public decimal DropoffY { get; set; }
+
+    public decimal PickupLatitude { get; set; }
+
+    public decimal PickupLongitude { get; set; }
+
+    public decimal DropoffLatitude { get; set; }
+
+    public decimal DropoffLongitude { get; set; }
 
     public decimal DistanceKm { get; set; }
 

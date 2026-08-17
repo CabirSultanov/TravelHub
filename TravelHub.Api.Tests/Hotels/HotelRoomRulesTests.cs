@@ -89,7 +89,19 @@ public class HotelRoomRulesTests
             out var error);
 
         Assert.Empty(urls);
-        Assert.Equal("Image URLs must be valid http or https URLs.", error);
+        Assert.Equal("Image URLs must be valid http, https, or uploaded image URLs.", error);
+    }
+
+    [Fact]
+    public void NormalizeImageUrls_AllowsUploadedImageUrls()
+    {
+        var urls = HotelRoomRules.NormalizeImageUrls(
+            ["/images/rooms/room.jpg", "/images/hotel-covers/hotel.webp"],
+            null,
+            out var error);
+
+        Assert.Null(error);
+        Assert.Equal(["/images/rooms/room.jpg", "/images/hotel-covers/hotel.webp"], urls);
     }
 
     [Fact]

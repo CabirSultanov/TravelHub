@@ -1,4 +1,4 @@
-export type Page = 'home' | 'taxi' | 'hotels' | 'places' | 'auth' | 'admin' | 'profile';
+export type Page = 'home' | 'taxi' | 'hotels' | 'auth' | 'admin' | 'profile' | 'trips';
 export type AuthMode = 'login' | 'register';
 export type PaymentMode = 'saved' | 'new';
 
@@ -149,14 +149,6 @@ export type PaymentCardCreate = {
   cvv: string;
 };
 
-export type Place = {
-  id: number;
-  name: string;
-  city: string;
-  description: string;
-  imageUrl?: string | null;
-};
-
 export type Booking = {
   id: number;
   userId?: number | null;
@@ -210,6 +202,10 @@ export type TaxiBooking = {
   pickupY: number;
   dropoffX: number;
   dropoffY: number;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
   distanceKm: number;
   pricePerKm: number;
   totalPrice: number;
@@ -227,8 +223,21 @@ export type TaxiBookingCreate = {
   email: string;
   pickupAddress: string;
   dropoffAddress: string;
-  pickupX: number;
-  pickupY: number;
-  dropoffX: number;
-  dropoffY: number;
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
+};
+
+export type TaxiRoutePreviewRequest = {
+  pickupLatitude: number;
+  pickupLongitude: number;
+  dropoffLatitude: number;
+  dropoffLongitude: number;
+};
+
+export type TaxiRoutePreview = {
+  distanceKm: number;
+  durationSeconds: number;
+  encodedPolyline: string;
 };

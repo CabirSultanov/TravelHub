@@ -68,9 +68,9 @@ public static class HotelRoomRules
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (urls.Any(url => !IsHttpUrl(url)))
+        if (urls.Any(url => !IsAllowedImageUrl(url)))
         {
-            error = "Image URLs must be valid http or https URLs.";
+            error = "Image URLs must be valid http, https, or uploaded image URLs.";
             return new List<string>();
         }
 
@@ -100,9 +100,14 @@ public static class HotelRoomRules
         return NormalizeImageUrls(null, fallbackImageUrl, out _);
     }
 
-    private static bool IsHttpUrl(string imageUrl)
+    private static bool IsAllowedImageUrl(string imageUrl)
     {
-        return Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+        if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
+        {
+            return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+        }
+
+        return imageUrl.StartsWith("/images/rooms/", StringComparison.OrdinalIgnoreCase) ||
+            imageUrl.StartsWith("/images/hotel-covers/", StringComparison.OrdinalIgnoreCase);
     }
 }

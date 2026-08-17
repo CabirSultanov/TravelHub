@@ -53,6 +53,18 @@ public class TaxiBooking
     [Precision(18, 2)]
     public decimal DropoffY { get; set; }
 
+    [Precision(9, 6)]
+    public decimal PickupLatitude { get; set; }
+
+    [Precision(9, 6)]
+    public decimal PickupLongitude { get; set; }
+
+    [Precision(9, 6)]
+    public decimal DropoffLatitude { get; set; }
+
+    [Precision(9, 6)]
+    public decimal DropoffLongitude { get; set; }
+
     [Precision(18, 2)]
     public decimal DistanceKm { get; set; }
 

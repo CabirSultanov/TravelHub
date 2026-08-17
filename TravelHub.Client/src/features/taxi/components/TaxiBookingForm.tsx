@@ -1,7 +1,10 @@
 import type { FormEvent, ReactNode } from 'react';
+import { APIProvider } from '@vis.gl/react-google-maps';
 import TaxiMap from './TaxiMap';
 import { formatMoney, formatTaxiCarClassName } from '../../../utils/formatting';
 import type { AuthUser, TaxiCarClass, TaxiService } from '../../../types';
+import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../googleMapsConfig';
+import { canCreateTaxiBooking } from '../taxi.state';
 import type {
   TaxiBookingForm as TaxiBookingFormState,
   TaxiBookingFormActions,
@@ -45,12 +48,12 @@ export default function TaxiBookingForm({
   onOpenAuth,
   children,
 }: TaxiBookingFormProps) {
-  const canCreateBooking =
-    Boolean(taxiCoordinates.pickup && taxiCoordinates.dropoff) &&
-    taxiRouteState.status === 'success' &&
-    taxiDistanceKm > 0 &&
-    Number.isFinite(taxiDistanceKm) &&
-    Boolean(selectedTaxiCarClass && Number.isFinite(selectedTaxiCarClass.pricePerKm) && selectedTaxiCarClass.pricePerKm > 0);
+  const canCreateBooking = canCreateTaxiBooking(
+    taxiBookingForm,
+    taxiCoordinates,
+    taxiRouteState,
+    selectedTaxiCarClass?.pricePerKm,
+  );
   const distanceLabel =
     taxiRouteState.status === 'loading' ? 'Calculating...' : taxiDistanceKm > 0 ? `${taxiDistanceKm.toFixed(2)} km` : '-';
 
@@ -121,27 +124,24 @@ export default function TaxiBookingForm({
             onChange={(event) => actions.setForm({ ...taxiBookingForm, email: event.target.value })}
             required
           />
-          <input
-            placeholder="Pickup address"
-            value={taxiBookingForm.pickupAddress}
-            onChange={(event) => actions.setForm({ ...taxiBookingForm, pickupAddress: event.target.value })}
-            required
-          />
-          <input
-            placeholder="Dropoff address"
-            value={taxiBookingForm.dropoffAddress}
-            onChange={(event) => actions.setForm({ ...taxiBookingForm, dropoffAddress: event.target.value })}
-            required
-          />
-
-          <TaxiMap
-            dropoff={taxiCoordinates.dropoff}
-            mode={taxiPointMode}
-            onModeChange={actions.setPointMode}
-            onPointChange={actions.updatePoint}
-            onRouteChange={actions.setRoute}
-            pickup={taxiCoordinates.pickup}
-          />
+          {GOOGLE_MAPS_API_KEY ? (
+            <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES} authReferrerPolicy="origin">
+              <TaxiMap
+                dropoff={taxiCoordinates.dropoff}
+                mode={taxiPointMode}
+                onModeChange={actions.setPointMode}
+                onPointAddressChange={actions.updatePointAddress}
+                onPointChange={actions.updatePoint}
+                onRouteChange={actions.setRoute}
+                pickup={taxiCoordinates.pickup}
+              />
+            </APIProvider>
+          ) : (
+            <div className="taxi-map-panel">
+              <p className="taxi-map-instructions">Google Maps API key is not configured.</p>
+              <div className="taxi-map" />
+            </div>
+          )}
 
           <div className="taxi-estimate">
             <span>

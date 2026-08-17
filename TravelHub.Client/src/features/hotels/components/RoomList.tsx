@@ -34,8 +34,10 @@ export default function RoomList({
               <img src={roomMainImage(room)} alt="" />
               <span>
                 <strong>{room.roomType}</strong>
-                <small>
-                  {room.capacity} guests / {room.totalRooms} rooms / {formatMoney(room.pricePerNight)}
+                <small className="room-facts">
+                  <span>Guests: {room.capacity}</span>
+                  <span>Rooms: {room.totalRooms}</span>
+                  <span>Price: {formatMoney(room.pricePerNight)} / night</span>
                 </small>
               </span>
             </button>
@@ -59,14 +61,28 @@ export default function RoomList({
 
       {roomsLoading && <p className="empty">Loading rooms...</p>}
       {!roomsLoading && rooms.length === 0 && <p className="empty">No rooms for this hotel yet.</p>}
+    </>
+  );
+}
 
-      {selectedRoom && roomImageUrls(selectedRoom).length > 0 && (
-        <div className="room-photo-strip">
-          {roomImageUrls(selectedRoom).map((imageUrl) => (
-            <img src={imageUrl} alt="" key={imageUrl} />
-          ))}
+export function RoomPhotoStrip({ room }: { room: HotelRoom | null }) {
+  if (!room || roomImageUrls(room).length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="room-photo-strip">
+      <div className="room-photo-gallery">
+        {roomImageUrls(room).map((imageUrl) => (
+          <img src={imageUrl} alt="" key={imageUrl} />
+        ))}
+      </div>
+      {room.description && (
+        <div className="room-detail-copy">
+          <h3>{room.roomType}</h3>
+          <p>{room.description}</p>
         </div>
       )}
-    </>
+    </div>
   );
 }

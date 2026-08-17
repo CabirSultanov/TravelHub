@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import ConfirmDeleteModal from './components/common/ConfirmDeleteModal';
 import PaymentFormComponent from './components/booking/PaymentForm';
@@ -9,11 +9,10 @@ import AdminPage from './pages/Admin/AdminPage';
 import AuthPage from './pages/Auth/AuthPage';
 import HomePage from './pages/Home/HomePage';
 import HotelsPage from './pages/Hotels/HotelsPage';
-import PlacesPage from './pages/Places/PlacesPage';
+import MyTripsPage from './pages/MyTrips/MyTripsPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import TaxiPage from './pages/Taxi/TaxiPage';
 import { formatTaxiCarClassName } from './utils/formatting';
-import { fallbackImage } from './utils/images';
 import { getErrorMessage } from './utils/errors';
 import type {
   AuthForm,
@@ -21,26 +20,26 @@ import type {
   AuthUser,
   Booking,
   BookingPayment,
+  Hotel,
   Page,
   PaymentCardForm,
   PaymentCardCreate,
   PaymentForm,
   PaymentMode,
-  Place,
   ProfileForm,
   SavedPaymentCard,
   TaxiBooking,
 } from './types';
 
-const appPages: Page[] = ['home', 'taxi', 'hotels', 'places', 'auth', 'admin', 'profile'];
+const appPages: Page[] = ['home', 'taxi', 'hotels', 'auth', 'admin', 'profile', 'trips'];
 const pageRoutes: Record<Page, string> = {
   home: '/',
   taxi: '/taxi',
   hotels: '/hotels',
-  places: '/places',
   auth: '/auth',
   admin: '/admin',
   profile: '/profile',
+  trips: '/my-trips',
 };
 
 const phoneNumberPattern = String.raw`\+?[0-9\s()-]{7,30}`;
@@ -83,8 +82,10 @@ const emptyProfileForm: ProfileForm = {
 
 function App() {
   const [page, setPage] = useState<Page>(() => getPageFromPathname(window.location.pathname));
+  const [hotelDetailId, setHotelDetailId] = useState<number | null>(() => getHotelIdFromPathname(window.location.pathname));
+  const [hotelDetailLoading, setHotelDetailLoading] = useState(false);
+  const [hotelDetailNotFound, setHotelDetailNotFound] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [places, setPlaces] = useState<Place[]>([]);
   const [admins, setAdmins] = useState<AuthUser[]>([]);
   const [adminCandidates, setAdminCandidates] = useState<AuthUser[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -107,6 +108,10 @@ function App() {
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [message, setMessage] = useState('');
+  const [blockedHotelBackSignal, setBlockedHotelBackSignal] = useState(0);
+  const hotelEditOpenRef = useRef(false);
+  const currentPathRef = useRef(window.location.pathname);
+  const hotelEditGuardPathRef = useRef<string | null>(null);
 
   const taxiFeature = useTaxiFeature({
     currentUser,
@@ -129,6 +134,35 @@ function App() {
     setMessage,
     setSubmitting,
   });
+  const hotelEditIsOpen = hotelsFeature.model.showHotelForm || hotelsFeature.model.showRoomForm;
+
+  useEffect(() => {
+    hotelEditOpenRef.current = hotelEditIsOpen;
+  }, [hotelEditIsOpen]);
+
+  useEffect(() => {
+    currentPathRef.current = hotelDetailId === null ? pageRoutes[page] : `/hotels/${hotelDetailId}`;
+  }, [hotelDetailId, page]);
+
+  useEffect(() => {
+    const currentPath = currentPathRef.current;
+
+    if (!hotelEditIsOpen || !currentPath.startsWith('/hotels')) {
+      hotelEditGuardPathRef.current = null;
+      return;
+    }
+
+    if (hotelEditGuardPathRef.current === currentPath) {
+      return;
+    }
+
+    hotelEditGuardPathRef.current = currentPath;
+    window.history.pushState(
+      { page: 'hotels', hotelId: getHotelIdFromPathname(currentPath), editGuard: true },
+      '',
+      currentPath,
+    );
+  }, [hotelEditIsOpen]);
 
   useEffect(() => {
     api.setSessionExpiredHandler(() => {
@@ -148,8 +182,7 @@ function App() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [loadedPlaces, restoredSession] = await Promise.all([api.getPlaces(), api.refresh()]);
-        setPlaces(loadedPlaces);
+        const restoredSession = await api.refresh();
 
         if (restoredSession) {
           setCurrentUser(restoredSession.user);
@@ -166,10 +199,31 @@ function App() {
 
   useEffect(() => {
     const currentPage = getPageFromPathname(window.location.pathname);
-    window.history.replaceState({ page: currentPage }, '', pageRoutes[currentPage]);
+    const currentHotelId = getHotelIdFromPathname(window.location.pathname);
+    window.history.replaceState(
+      { page: currentPage, hotelId: currentHotelId },
+      '',
+      currentHotelId === null ? pageRoutes[currentPage] : `/hotels/${currentHotelId}`,
+    );
 
     function handleBrowserBack() {
+      if (hotelEditOpenRef.current && currentPathRef.current.startsWith('/hotels')) {
+        const currentPath = currentPathRef.current;
+        window.history.pushState(
+          { page: 'hotels', hotelId: getHotelIdFromPathname(currentPath), editGuard: true },
+          '',
+          currentPath,
+        );
+        hotelEditGuardPathRef.current = currentPath;
+        setBlockedHotelBackSignal((signal) => signal + 1);
+        return;
+      }
+
+      currentPathRef.current = window.location.pathname;
       setPage(getPageFromPathname(window.location.pathname));
+      setHotelDetailId(getHotelIdFromPathname(window.location.pathname));
+      setHotelDetailNotFound(false);
+      window.scrollTo({ top: 0, left: 0 });
     }
 
     window.addEventListener('popstate', handleBrowserBack);
@@ -198,15 +252,118 @@ function App() {
     void loadPaymentCards();
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    if (loading || currentUser || (page !== 'profile' && page !== 'trips')) {
+      return;
+    }
+
+    requireAuth('Please sign in to view this page.');
+  }, [currentUser, loading, page]);
+
   const initialDataLoading = loading || taxiFeature.model.loading || hotelsFeature.model.loading;
+
+  useEffect(() => {
+    if (page !== 'hotels' || hotelDetailId === null) {
+      return;
+    }
+
+    setHotelDetailNotFound(false);
+
+    if (hotelsFeature.model.selectedHotel?.id === hotelDetailId) {
+      setHotelDetailLoading(false);
+      return;
+    }
+
+    const existingHotel = hotelsFeature.model.hotels.find((hotel) => hotel.id === hotelDetailId);
+
+    if (existingHotel) {
+      setHotelDetailLoading(false);
+      hotelsFeature.actions.hotelList.select(existingHotel);
+      return;
+    }
+
+    if (hotelsFeature.model.loading) {
+      return;
+    }
+
+    let ignore = false;
+    setHotelDetailLoading(true);
+
+    api
+      .getHotel(hotelDetailId)
+      .then((hotel) => {
+        if (!ignore) {
+          hotelsFeature.actions.hotelList.select(hotel);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setHotelDetailNotFound(true);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setHotelDetailLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [hotelDetailId, hotelsFeature.model.hotels, hotelsFeature.model.loading, hotelsFeature.model.selectedHotel?.id, page]);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setMessage(''), 4000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [message]);
 
   function navigateTo(nextPage: Page) {
     setPage(nextPage);
+    setHotelDetailId(null);
+    setHotelDetailLoading(false);
+    setHotelDetailNotFound(false);
+    window.scrollTo({ top: 0, left: 0 });
     const nextPath = pageRoutes[nextPage];
 
     if (window.location.pathname !== nextPath) {
       window.history.pushState({ page: nextPage }, '', nextPath);
     }
+
+    currentPathRef.current = nextPath;
+  }
+
+  function searchHotelsFromHome(city: string) {
+    hotelsFeature.actions.hotelList.setCityFilter(city);
+    navigateTo('hotels');
+  }
+
+  function showDestinations() {
+    navigateTo('home');
+    window.requestAnimationFrame(() => {
+      document.querySelector('[data-od-id="destinations-section"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function openHotelDetail(hotel: Hotel) {
+    setPage('hotels');
+    setHotelDetailId(hotel.id);
+    setHotelDetailLoading(false);
+    setHotelDetailNotFound(false);
+    hotelsFeature.actions.hotelList.select(hotel);
+    window.scrollTo({ top: 0, left: 0 });
+
+    const nextPath = `/hotels/${hotel.id}`;
+
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ page: 'hotels', hotelId: hotel.id }, '', nextPath);
+    }
+
+    currentPathRef.current = nextPath;
   }
 
   async function loadBookings() {
@@ -739,7 +896,14 @@ function App() {
         submitting={submitting}
       />
 
-      {message && <div className="notice">{message}</div>}
+      {message && (
+        <div className="app-toast" role="status" aria-live="polite">
+          <span>{message}</span>
+          <button aria-label="Close notification" onClick={() => setMessage('')} type="button">
+            ×
+          </button>
+        </div>
+      )}
 
       {(paymentProcessing || paymentSuccess) && (
         <div className="payment-processing-overlay" role="status" aria-live="polite">
@@ -761,7 +925,14 @@ function App() {
         </div>
       )}
 
-      {page === 'home' && <HomePage onNavigate={navigateTo} />}
+      {page === 'home' && (
+        <HomePage
+          cities={hotelsFeature.model.cities}
+          hotels={hotelsFeature.model.hotels}
+          onHotelSearch={searchHotelsFromHome}
+          onNavigate={navigateTo}
+        />
+      )}
 
       {page === 'taxi' && (
         <TaxiPage
@@ -780,8 +951,16 @@ function App() {
         <HotelsPage
           currentUser={currentUser}
           feature={hotelsFeature}
+          hotelDetailId={hotelDetailId}
+          hotelDetailLoading={hotelDetailLoading}
+          hotelDetailNotFound={hotelDetailNotFound}
+          blockedBackSignal={blockedHotelBackSignal}
           loading={initialDataLoading}
+          onBackToHotels={() => navigateTo('hotels')}
+          onNavigate={navigateTo}
           onOpenAuth={openAuth}
+          onOpenHotel={openHotelDetail}
+          onShowDestinations={showDestinations}
           phoneNumberPattern={phoneNumberPattern}
           renderPaymentForm={renderPaymentForm}
           submitting={submitting}
@@ -796,8 +975,6 @@ function App() {
           target={hotelsFeature.model.deleteTarget}
         />
       )}
-
-      {page === 'places' && <PlacesPage fallbackImage={fallbackImage} loading={initialDataLoading} places={places} />}
 
       {page === 'auth' && (
         <AuthPage
@@ -854,6 +1031,25 @@ function App() {
         />
       )}
 
+      {page === 'trips' && currentUser && (
+        <MyTripsPage
+          bookings={bookings}
+          bookingsLoading={bookingsLoading}
+          formatTaxiCarClassName={formatTaxiCarClassName}
+          onCancelBooking={cancelBooking}
+          onCancelTaxiBooking={cancelTaxiBooking}
+          onNavigate={navigateTo}
+          onOpenPaymentForm={openPaymentForm}
+          onOpenTaxiPaymentForm={openTaxiPaymentForm}
+          payingBookingId={payingBookingId}
+          payingTaxiBookingId={payingTaxiBookingId}
+          renderPaymentForm={renderPaymentForm}
+          submitting={submitting}
+          taxiBookings={taxiBookings}
+          taxiBookingsLoading={taxiBookingsLoading}
+        />
+      )}
+
       {page === 'admin' && currentUser?.role === 'SuperAdmin' && (
         <AdminPage
           adminCandidates={adminCandidates}
@@ -881,7 +1077,17 @@ function stripAzerbaijanPhonePrefix(phoneNumber: string) {
 
 function getPageFromPathname(pathname: string): Page {
   const cleanPath = pathname.replace(/\/+$/, '') || '/';
+
+  if (cleanPath.startsWith('/hotels/')) {
+    return 'hotels';
+  }
+
   return appPages.find((currentPage) => pageRoutes[currentPage] === cleanPath) ?? 'home';
+}
+
+function getHotelIdFromPathname(pathname: string) {
+  const match = pathname.replace(/\/+$/, '').match(/^\/hotels\/(\d+)$/);
+  return match ? Number(match[1]) : null;
 }
 
 function delay(ms: number) {

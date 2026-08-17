@@ -12,77 +12,79 @@ type HotelListProps = {
   canManageHotels: boolean;
   submitting: boolean;
   actions: HotelsFeatureActions['hotelList'];
+  onOpenHotel: (hotel: Hotel) => void;
 };
 
 export default function HotelList({
   visibleHotels,
   selectedHotel,
-  cities,
   cityFilter,
   showHotelForm,
   loading,
   canManageHotels,
   submitting,
   actions,
+  onOpenHotel,
 }: HotelListProps) {
+  const heading = cityFilter ? `Hotels in ${cityFilter}` : 'Hotels in Azerbaijan';
+
   return (
-    <aside className="panel">
-      <div className="section-title">
+    <section className="container od-results-section">
+      <div className="results-head">
         <div>
-          <p className="eyebrow">Hotels</p>
-          <h2>Hotel booking</h2>
+          <h2>{heading}</h2>
+          <span className="count">{loading ? 'Loading stays...' : `${visibleHotels.length} stays available`}</span>
         </div>
-        <span>{loading ? 'Loading' : `${visibleHotels.length} available`}</span>
+        {canManageHotels && !showHotelForm && (
+          <button className="btn btn-primary" onClick={actions.startCreate} type="button">
+            Create hotel
+          </button>
+        )}
       </div>
 
-      {canManageHotels && !showHotelForm && (
-        <button className="primary" onClick={actions.startCreate} type="button">
-          Create hotel
-        </button>
-      )}
-
-      <label className="filter">
-        City
-        <select value={cityFilter} onChange={(event) => actions.setCityFilter(event.target.value)}>
-          <option value="">All cities</option>
-          {cities.map((city) => (
-            <option key={city} value={city}>
-              {city}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="hotel-list">
+      <div className="results">
         {visibleHotels.map((hotel) => (
-          <article className={`hotel-card ${selectedHotel?.id === hotel.id ? 'active' : ''}`} key={hotel.id}>
-            <button className="hotel-card-main" onClick={() => actions.select(hotel)} type="button">
+          <article className={`hresult ${selectedHotel?.id === hotel.id ? 'is-selected' : ''}`} key={hotel.id}>
+            <button className="hresult-photo" onClick={() => onOpenHotel(hotel)} type="button">
               <img src={hotel.imageUrl || fallbackImage(hotel.name, 'hotel')} alt="" />
-              <span>
-                <strong>{hotel.name}</strong>
-                <small>{hotel.city}</small>
-                <span className="hotel-card-stats">
-                  <small>{hotel.totalGuestPlaces} places</small>
-                  <small>{hotel.roomTypesCount} types</small>
-                  <small>{hotel.totalRoomsCount} rooms</small>
-                </span>
+              <span className="hresult-badge badge badge-glass">
+                {selectedHotel?.id === hotel.id ? 'Selected stay' : 'Available stay'}
               </span>
             </button>
-            {canManageHotels && (
-              <button
-                className="hotel-delete-button"
-                disabled={submitting}
-                onClick={() => actions.requestDelete({ kind: 'hotel', id: hotel.id, name: hotel.name })}
-                type="button"
-              >
-                Delete
+            <div className="hresult-body">
+              <div className="hresult-topline">
+                <div>
+                  <h2>{hotel.name}</h2>
+                  <span className="hresult-loc">{hotel.city}, Azerbaijan</span>
+                </div>
+              </div>
+              {hotel.description && <p className="hresult-desc">{hotel.description}</p>}
+              <div className="amenity-row">
+                <span className="amenity-tag">{hotel.totalGuestPlaces} guest places</span>
+                <span className="amenity-tag">{hotel.roomTypesCount} room types</span>
+                <span className="amenity-tag">{hotel.totalRoomsCount} rooms</span>
+              </div>
+            </div>
+            <div className="hresult-side">
+              <button className="btn btn-primary" onClick={() => onOpenHotel(hotel)} type="button">
+                View rooms
               </button>
-            )}
+              {canManageHotels && (
+                <button
+                  className="btn btn-secondary"
+                  disabled={submitting}
+                  onClick={() => actions.requestDelete({ kind: 'hotel', id: hotel.id, name: hotel.name })}
+                  type="button"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           </article>
         ))}
 
         {!loading && visibleHotels.length === 0 && <p className="empty">No hotels yet.</p>}
       </div>
-    </aside>
+    </section>
   );
 }

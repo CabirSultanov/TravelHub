@@ -17,11 +17,11 @@ export function createEmptyTaxiBookingForm(user?: AuthUser | null, taxiService?:
     customerName: user?.name ?? '',
     phoneNumber: user?.phoneNumber ?? '',
     email: user?.email ?? '',
-    pickupAddress: 'Airport terminal',
-    dropoffAddress: 'City center',
-    pickupX: 22,
-    pickupY: 68,
-    dropoffX: 76,
-    dropoffY: 34,
+    pickupAddress: '',
+    dropoffAddress: '',
+    pickupLatitude: 0,
+    pickupLongitude: 0,
+    dropoffLatitude: 0,
+    dropoffLongitude: 0,
   };
 }

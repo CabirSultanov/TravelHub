@@ -36,6 +36,8 @@ export type TaxiRouteStatus = 'idle' | 'loading' | 'success' | 'error';
 export type TaxiRouteState = {
   status: TaxiRouteStatus;
   distanceKm: number;
+  durationSeconds?: number;
+  encodedPolyline?: string;
 };
 
 export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {
@@ -58,7 +60,8 @@ export type TaxiBookingFormActions = {
   setForm: (form: TaxiBookingForm) => void;
   selectGuestMode: (mode: BookingGuestMode) => void;
   setPointMode: (mode: TaxiPointMode) => void;
-  updatePoint: (coordinates: Coordinates) => void;
+  updatePoint: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
+  updatePointAddress: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
   setRoute: (route: TaxiRouteState) => void;
   submit: (event: FormEvent<HTMLFormElement>) => void;
 };

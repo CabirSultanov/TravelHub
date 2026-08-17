@@ -11,11 +11,12 @@ import type {
   HotelUpdateInput,
   LoginRequest,
   PaymentCardCreate,
-  Place,
   RegisterRequest,
   SavedPaymentCard,
   TaxiBooking,
   TaxiBookingCreate,
+  TaxiRoutePreview,
+  TaxiRoutePreviewRequest,
   TaxiService,
   TaxiServiceInput,
   UpdateProfileRequest,
@@ -50,8 +51,9 @@ type RequestOptions = {
 
 async function fetchResponse(url: string, init: RequestInit | undefined, skipAccessToken: boolean) {
   const headers = new Headers(init?.headers);
+  const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData;
 
-  if (init?.body && !headers.has('Content-Type')) {
+  if (init?.body && !isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -193,6 +195,25 @@ export const api = {
       method: 'DELETE',
     }),
   getHotels: () => request<Hotel[]>('/api/hotels'),
+  getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
+  uploadHotelImage: (file: File) => {
+    const formData = new FormData();
+    formData.set('file', file);
+
+    return request<{ imageUrl: string }>('/api/hotel-images', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+  uploadRoomImage: (file: File) => {
+    const formData = new FormData();
+    formData.set('file', file);
+
+    return request<{ imageUrl: string }>('/api/room-images', {
+      method: 'POST',
+      body: formData,
+    });
+  },
   createHotel: (hotel: HotelInput) =>
     request<Hotel>('/api/hotels', {
       method: 'POST',
@@ -253,6 +274,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(booking),
     }),
+  previewTaxiRoute: (route: TaxiRoutePreviewRequest, signal?: AbortSignal) =>
+    request<TaxiRoutePreview>('/api/taxi-routes/preview', {
+      method: 'POST',
+      body: JSON.stringify(route),
+      signal,
+    }),
   payTaxiBooking: (bookingId: number, payment: BookingPayment) =>
     request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/pay`, {
       method: 'POST',
@@ -262,7 +289,6 @@ export const api = {
     request<void>(`/api/taxi-bookings/${bookingId}/cancel`, {
       method: 'PUT',
     }),
-  getPlaces: () => request<Place[]>('/api/places'),
   getBookings: (mine = false) => request<Booking[]>(`/api/booking-requests${mine ? '?mine=true' : ''}`),
   createBooking: (booking: BookingCreate) =>
     request<Booking>('/api/booking-requests', {
