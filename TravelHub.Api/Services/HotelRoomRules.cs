@@ -102,12 +102,13 @@ public static class HotelRoomRules
 
     private static bool IsAllowedImageUrl(string imageUrl)
     {
-        if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
+        if (imageUrl.StartsWith("/images/rooms/", StringComparison.OrdinalIgnoreCase) ||
+            imageUrl.StartsWith("/images/hotel-covers/", StringComparison.OrdinalIgnoreCase))
         {
-            return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+            return true;
         }
 
-        return imageUrl.StartsWith("/images/rooms/", StringComparison.OrdinalIgnoreCase) ||
-            imageUrl.StartsWith("/images/hotel-covers/", StringComparison.OrdinalIgnoreCase);
+        return Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 }
