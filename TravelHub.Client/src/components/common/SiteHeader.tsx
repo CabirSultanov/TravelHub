@@ -17,13 +17,6 @@ export default function SiteHeader({
   onOpenAuth,
   onLogout,
 }: SiteHeaderProps) {
-  const initials = currentUser?.name
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
   return (
     <header className="site-header">
       <div className="container nav-row">
@@ -54,7 +47,7 @@ export default function SiteHeader({
               <path d="M7 13V9.5h4V13" />
               <path d="M13 13V9.5h4V13" />
             </svg>
-            <span>Stays</span>
+            <span>Hotel</span>
           </button>
           <button className={`nav-link${page === 'taxi' ? ' is-active' : ''}`} onClick={() => onNavigate('taxi')} type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -64,7 +57,7 @@ export default function SiteHeader({
               <path d="M8 13h8" />
               <path d="M9 6h6" />
             </svg>
-            <span>Ride</span>
+            <span>Taxi</span>
           </button>
         {currentUser?.role === 'SuperAdmin' && (
           <button className={`nav-link${page === 'admin' ? ' is-active' : ''}`} onClick={() => onNavigate('admin')} type="button">
@@ -74,25 +67,27 @@ export default function SiteHeader({
         </nav>
 
         <div className="header-actions">
-          <button className="btn btn-secondary" onClick={() => (currentUser ? onNavigate('trips') : onOpenAuth())} type="button">
-            My Trips
-          </button>
           {currentUser ? (
             <>
-              <button className="profile-button" onClick={() => onNavigate('profile')} type="button">
-                <span className="avatar" aria-hidden="true">
-                  {initials}
-                </span>
-                <span>{currentUser.name}</span>
+              <button className="btn btn-secondary" onClick={() => onNavigate('profile')} type="button">
+                Profile
+              </button>
+              <button className="btn btn-secondary" onClick={() => onNavigate('trips')} type="button">
+                My Trips
               </button>
               <button className="btn btn-secondary" disabled={submitting} onClick={() => void onLogout()} type="button">
                 Sign Out
               </button>
             </>
           ) : (
-            <button className="btn btn-primary" onClick={onOpenAuth} type="button">
-              Sign In
-            </button>
+            <>
+              <button className="btn btn-secondary" onClick={onOpenAuth} type="button">
+                My Trips
+              </button>
+              <button className="btn btn-primary" onClick={onOpenAuth} type="button">
+                Sign In
+              </button>
+            </>
           )}
         </div>
       </div>

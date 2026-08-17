@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import ConfirmDeleteModal from './components/common/ConfirmDeleteModal';
 import PaymentFormComponent from './components/booking/PaymentForm';
@@ -20,6 +20,7 @@ import type {
   AuthUser,
   Booking,
   BookingPayment,
+  Hotel,
   Page,
   PaymentCardForm,
   PaymentCardCreate,
@@ -81,6 +82,9 @@ const emptyProfileForm: ProfileForm = {
 
 function App() {
   const [page, setPage] = useState<Page>(() => getPageFromPathname(window.location.pathname));
+  const [hotelDetailId, setHotelDetailId] = useState<number | null>(() => getHotelIdFromPathname(window.location.pathname));
+  const [hotelDetailLoading, setHotelDetailLoading] = useState(false);
+  const [hotelDetailNotFound, setHotelDetailNotFound] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [admins, setAdmins] = useState<AuthUser[]>([]);
   const [adminCandidates, setAdminCandidates] = useState<AuthUser[]>([]);
@@ -104,6 +108,10 @@ function App() {
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [message, setMessage] = useState('');
+  const [blockedHotelBackSignal, setBlockedHotelBackSignal] = useState(0);
+  const hotelEditOpenRef = useRef(false);
+  const currentPathRef = useRef(window.location.pathname);
+  const hotelEditGuardPathRef = useRef<string | null>(null);
 
   const taxiFeature = useTaxiFeature({
     currentUser,
@@ -126,6 +134,35 @@ function App() {
     setMessage,
     setSubmitting,
   });
+  const hotelEditIsOpen = hotelsFeature.model.showHotelForm || hotelsFeature.model.showRoomForm;
+
+  useEffect(() => {
+    hotelEditOpenRef.current = hotelEditIsOpen;
+  }, [hotelEditIsOpen]);
+
+  useEffect(() => {
+    currentPathRef.current = hotelDetailId === null ? pageRoutes[page] : `/hotels/${hotelDetailId}`;
+  }, [hotelDetailId, page]);
+
+  useEffect(() => {
+    const currentPath = currentPathRef.current;
+
+    if (!hotelEditIsOpen || !currentPath.startsWith('/hotels')) {
+      hotelEditGuardPathRef.current = null;
+      return;
+    }
+
+    if (hotelEditGuardPathRef.current === currentPath) {
+      return;
+    }
+
+    hotelEditGuardPathRef.current = currentPath;
+    window.history.pushState(
+      { page: 'hotels', hotelId: getHotelIdFromPathname(currentPath), editGuard: true },
+      '',
+      currentPath,
+    );
+  }, [hotelEditIsOpen]);
 
   useEffect(() => {
     api.setSessionExpiredHandler(() => {
@@ -162,10 +199,31 @@ function App() {
 
   useEffect(() => {
     const currentPage = getPageFromPathname(window.location.pathname);
-    window.history.replaceState({ page: currentPage }, '', pageRoutes[currentPage]);
+    const currentHotelId = getHotelIdFromPathname(window.location.pathname);
+    window.history.replaceState(
+      { page: currentPage, hotelId: currentHotelId },
+      '',
+      currentHotelId === null ? pageRoutes[currentPage] : `/hotels/${currentHotelId}`,
+    );
 
     function handleBrowserBack() {
+      if (hotelEditOpenRef.current && currentPathRef.current.startsWith('/hotels')) {
+        const currentPath = currentPathRef.current;
+        window.history.pushState(
+          { page: 'hotels', hotelId: getHotelIdFromPathname(currentPath), editGuard: true },
+          '',
+          currentPath,
+        );
+        hotelEditGuardPathRef.current = currentPath;
+        setBlockedHotelBackSignal((signal) => signal + 1);
+        return;
+      }
+
+      currentPathRef.current = window.location.pathname;
       setPage(getPageFromPathname(window.location.pathname));
+      setHotelDetailId(getHotelIdFromPathname(window.location.pathname));
+      setHotelDetailNotFound(false);
+      window.scrollTo({ top: 0, left: 0 });
     }
 
     window.addEventListener('popstate', handleBrowserBack);
@@ -204,13 +262,108 @@ function App() {
 
   const initialDataLoading = loading || taxiFeature.model.loading || hotelsFeature.model.loading;
 
+  useEffect(() => {
+    if (page !== 'hotels' || hotelDetailId === null) {
+      return;
+    }
+
+    setHotelDetailNotFound(false);
+
+    if (hotelsFeature.model.selectedHotel?.id === hotelDetailId) {
+      setHotelDetailLoading(false);
+      return;
+    }
+
+    const existingHotel = hotelsFeature.model.hotels.find((hotel) => hotel.id === hotelDetailId);
+
+    if (existingHotel) {
+      setHotelDetailLoading(false);
+      hotelsFeature.actions.hotelList.select(existingHotel);
+      return;
+    }
+
+    if (hotelsFeature.model.loading) {
+      return;
+    }
+
+    let ignore = false;
+    setHotelDetailLoading(true);
+
+    api
+      .getHotel(hotelDetailId)
+      .then((hotel) => {
+        if (!ignore) {
+          hotelsFeature.actions.hotelList.select(hotel);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setHotelDetailNotFound(true);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setHotelDetailLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [hotelDetailId, hotelsFeature.model.hotels, hotelsFeature.model.loading, hotelsFeature.model.selectedHotel?.id, page]);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setMessage(''), 4000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [message]);
+
   function navigateTo(nextPage: Page) {
     setPage(nextPage);
+    setHotelDetailId(null);
+    setHotelDetailLoading(false);
+    setHotelDetailNotFound(false);
+    window.scrollTo({ top: 0, left: 0 });
     const nextPath = pageRoutes[nextPage];
 
     if (window.location.pathname !== nextPath) {
       window.history.pushState({ page: nextPage }, '', nextPath);
     }
+
+    currentPathRef.current = nextPath;
+  }
+
+  function searchHotelsFromHome(city: string) {
+    hotelsFeature.actions.hotelList.setCityFilter(city);
+    navigateTo('hotels');
+  }
+
+  function showDestinations() {
+    navigateTo('home');
+    window.requestAnimationFrame(() => {
+      document.querySelector('[data-od-id="destinations-section"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function openHotelDetail(hotel: Hotel) {
+    setPage('hotels');
+    setHotelDetailId(hotel.id);
+    setHotelDetailLoading(false);
+    setHotelDetailNotFound(false);
+    hotelsFeature.actions.hotelList.select(hotel);
+    window.scrollTo({ top: 0, left: 0 });
+
+    const nextPath = `/hotels/${hotel.id}`;
+
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({ page: 'hotels', hotelId: hotel.id }, '', nextPath);
+    }
+
+    currentPathRef.current = nextPath;
   }
 
   async function loadBookings() {
@@ -743,7 +896,14 @@ function App() {
         submitting={submitting}
       />
 
-      {message && <div className="notice">{message}</div>}
+      {message && (
+        <div className="app-toast" role="status" aria-live="polite">
+          <span>{message}</span>
+          <button aria-label="Close notification" onClick={() => setMessage('')} type="button">
+            ×
+          </button>
+        </div>
+      )}
 
       {(paymentProcessing || paymentSuccess) && (
         <div className="payment-processing-overlay" role="status" aria-live="polite">
@@ -765,7 +925,14 @@ function App() {
         </div>
       )}
 
-      {page === 'home' && <HomePage onNavigate={navigateTo} />}
+      {page === 'home' && (
+        <HomePage
+          cities={hotelsFeature.model.cities}
+          hotels={hotelsFeature.model.hotels}
+          onHotelSearch={searchHotelsFromHome}
+          onNavigate={navigateTo}
+        />
+      )}
 
       {page === 'taxi' && (
         <TaxiPage
@@ -784,8 +951,16 @@ function App() {
         <HotelsPage
           currentUser={currentUser}
           feature={hotelsFeature}
+          hotelDetailId={hotelDetailId}
+          hotelDetailLoading={hotelDetailLoading}
+          hotelDetailNotFound={hotelDetailNotFound}
+          blockedBackSignal={blockedHotelBackSignal}
           loading={initialDataLoading}
+          onBackToHotels={() => navigateTo('hotels')}
+          onNavigate={navigateTo}
           onOpenAuth={openAuth}
+          onOpenHotel={openHotelDetail}
+          onShowDestinations={showDestinations}
           phoneNumberPattern={phoneNumberPattern}
           renderPaymentForm={renderPaymentForm}
           submitting={submitting}
@@ -902,7 +1077,17 @@ function stripAzerbaijanPhonePrefix(phoneNumber: string) {
 
 function getPageFromPathname(pathname: string): Page {
   const cleanPath = pathname.replace(/\/+$/, '') || '/';
+
+  if (cleanPath.startsWith('/hotels/')) {
+    return 'hotels';
+  }
+
   return appPages.find((currentPage) => pageRoutes[currentPage] === cleanPath) ?? 'home';
+}
+
+function getHotelIdFromPathname(pathname: string) {
+  const match = pathname.replace(/\/+$/, '').match(/^\/hotels\/(\d+)$/);
+  return match ? Number(match[1]) : null;
 }
 
 function delay(ms: number) {

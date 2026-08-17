@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using TravelHub.Api.Data;
 
 namespace TravelHub.Api.Configuration;
@@ -13,6 +14,19 @@ public static class WebApplicationExtensions
             app.UseSwagger();
             app.UseSwaggerUI();
             app.UseCors("LocalClient");
+        }
+
+        var projectRoot = Directory.GetParent(app.Environment.ContentRootPath)?.FullName;
+        var imagesPath = projectRoot is null ? null : Path.Combine(projectRoot, "images");
+
+        if (imagesPath is not null)
+        {
+            Directory.CreateDirectory(imagesPath);
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(imagesPath),
+                RequestPath = "/images"
+            });
         }
 
         app.UseAuthentication();

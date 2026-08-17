@@ -12,22 +12,27 @@ type HotelListProps = {
   canManageHotels: boolean;
   submitting: boolean;
   actions: HotelsFeatureActions['hotelList'];
+  onOpenHotel: (hotel: Hotel) => void;
 };
 
 export default function HotelList({
   visibleHotels,
   selectedHotel,
+  cityFilter,
   showHotelForm,
   loading,
   canManageHotels,
   submitting,
   actions,
+  onOpenHotel,
 }: HotelListProps) {
+  const heading = cityFilter ? `Hotels in ${cityFilter}` : 'Hotels in Azerbaijan';
+
   return (
     <section className="container od-results-section">
       <div className="results-head">
         <div>
-          <h2>Hotels in Azerbaijan</h2>
+          <h2>{heading}</h2>
           <span className="count">{loading ? 'Loading stays...' : `${visibleHotels.length} stays available`}</span>
         </div>
         {canManageHotels && !showHotelForm && (
@@ -40,7 +45,7 @@ export default function HotelList({
       <div className="results">
         {visibleHotels.map((hotel) => (
           <article className={`hresult ${selectedHotel?.id === hotel.id ? 'is-selected' : ''}`} key={hotel.id}>
-            <button className="hresult-photo" onClick={() => actions.select(hotel)} type="button">
+            <button className="hresult-photo" onClick={() => onOpenHotel(hotel)} type="button">
               <img src={hotel.imageUrl || fallbackImage(hotel.name, 'hotel')} alt="" />
               <span className="hresult-badge badge badge-glass">
                 {selectedHotel?.id === hotel.id ? 'Selected stay' : 'Available stay'}
@@ -52,7 +57,6 @@ export default function HotelList({
                   <h2>{hotel.name}</h2>
                   <span className="hresult-loc">{hotel.city}, Azerbaijan</span>
                 </div>
-                <span className="rating">4.8</span>
               </div>
               {hotel.description && <p className="hresult-desc">{hotel.description}</p>}
               <div className="amenity-row">
@@ -62,14 +66,7 @@ export default function HotelList({
               </div>
             </div>
             <div className="hresult-side">
-              <div className="review-mini">
-                <span className="review-score">4.8</span>
-                <span className="review-text">
-                  <strong>Recommended</strong>
-                  <span>TravelHub stay</span>
-                </span>
-              </div>
-              <button className="btn btn-primary" onClick={() => actions.select(hotel)} type="button">
+              <button className="btn btn-primary" onClick={() => onOpenHotel(hotel)} type="button">
                 View rooms
               </button>
               {canManageHotels && (

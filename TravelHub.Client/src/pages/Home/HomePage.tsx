@@ -1,11 +1,89 @@
 import type { FormEvent, MouseEvent } from 'react';
-import type { Page } from '../../types';
+import type { Hotel, Page } from '../../types';
+import { fallbackImage } from '../../utils/images';
 
 type HomePageProps = {
+  cities: string[];
+  hotels: Hotel[];
+  onHotelSearch: (city: string) => void;
   onNavigate: (page: Page) => void;
 };
 
-const homeMarkup = String.raw`<main>
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function pluralize(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDateInputDays(dateValue: string, days: number) {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+
+  return toDateInputValue(date);
+}
+
+function createHotelCards(hotels: Hotel[]) {
+  const cards = hotels.slice(0, 3).map((hotel) => {
+    const imageUrl = hotel.imageUrl || fallbackImage(hotel.name, 'hotel');
+    const description = hotel.description ? `<p>${escapeHtml(hotel.description)}</p>` : '';
+
+    return `<article class="hotel-card" data-od-id="hotel-card-${hotel.id}">
+              <div class="hotel-photo">
+                <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(hotel.name)}">
+                <span class="hotel-badge">${escapeHtml(hotel.city)}</span>
+                <button class="favorite-button" type="button" aria-label="Favorite hotel">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                </button>
+              </div>
+              <div class="hotel-body">
+                <div class="hotel-topline">
+                  <h3>${escapeHtml(hotel.name)}</h3>
+                </div>
+                ${description}
+                <div class="hotel-review">
+                  <span>${escapeHtml(pluralize(hotel.roomTypesCount, 'room type', 'room types'))}</span>
+                  <span>/</span>
+                  <span>${escapeHtml(pluralize(hotel.totalRoomsCount, 'room', 'rooms'))}</span>
+                  <span>/</span>
+                  <span>${escapeHtml(pluralize(hotel.totalGuestPlaces, 'guest place', 'guest places'))}</span>
+                </div>
+                <div class="hotel-price">
+                  <span class="price">${escapeHtml(hotel.city)}</span>
+                  <button class="card-link" type="button" data-action="hotel-city" data-city="${escapeHtml(hotel.city)}">View stay</button>
+                </div>
+              </div>
+            </article>`;
+  });
+
+  return cards.length ? cards.join('') : '<p class="empty">Hotels will appear here after they are added.</p>';
+}
+
+function createHomeMarkup(cities: string[], hotels: Hotel[]) {
+  const todayDate = toDateInputValue(new Date());
+  const minCheckOutDate = addDateInputDays(todayDate, 1);
+  const destinationOptions = [
+    '<option value="">All cities</option>',
+    ...cities.map((city) => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`),
+  ].join('');
+  const hotelCards = createHotelCards(hotels);
+
+  return String.raw`<main>
       <section class="hero" data-od-id="hero-section">
         <div class="container hero-grid">
           <div class="hero-copy" data-od-id="hero-image-panel">
@@ -22,17 +100,16 @@ const homeMarkup = String.raw`<main>
                 Book a Taxi
               </button>
             </div>
-            <div class="hero-intel" data-od-id="hero-travel-intel" aria-label="Travel highlights">
-              <div><span>Stays</span><strong>Baku to Sheki</strong></div>
-              <div><span>Routes</span><strong>Airport ready</strong></div>
-              <div><span>Style</span><strong>Hotels + Taxi</strong></div>
-            </div>
           </div>
+        </div>
+      </section>
 
+      <section class="booking-section" data-od-id="booking-section">
+        <div class="container">
           <aside class="booking-panel" data-od-id="hotel-search-panel" aria-label="Hotel search">
             <div class="panel-title">
               <h2 data-od-id="search-heading">Find your stay</h2>
-              <p>Search by destination, dates, and guests.</p>
+              <p>Search by destination and dates.</p>
             </div>
 
             <form class="search-form" data-od-id="hotel-search-form">
@@ -41,10 +118,7 @@ const homeMarkup = String.raw`<main>
                 <div class="field-control has-select">
                   <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s7-5.3 7-11a7 7 0 1 0-14 0c0 5.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
                   <select id="destination" name="destination">
-                    <option>Baku</option>
-                    <option>Gabala</option>
-                    <option>Sheki</option>
-                    <option>Ganja</option>
+                    ${destinationOptions}
                   </select>
                 </div>
               </div>
@@ -53,27 +127,15 @@ const homeMarkup = String.raw`<main>
                   <label for="checkin">Check-in</label>
                   <div class="field-control">
                     <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1z"/></svg></span>
-                    <input id="checkin" name="checkin" type="date" value="2026-08-20">
+                    <input id="checkin" name="checkin" type="date" min="${todayDate}">
                   </div>
                 </div>
                 <div class="field" data-od-id="checkout-field">
                   <label for="checkout">Check-out</label>
                   <div class="field-control">
                     <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 3v4M17 3v4M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1z"/><path d="m9 15 2 2 4-5"/></svg></span>
-                    <input id="checkout" name="checkout" type="date" value="2026-08-24">
+                    <input id="checkout" name="checkout" type="date" min="${minCheckOutDate}">
                   </div>
-                </div>
-              </div>
-              <div class="field" data-od-id="guests-field">
-                <label for="guests">Guests</label>
-                <div class="field-control has-select">
-                  <span class="field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 19a4 4 0 0 0-8 0"/><circle cx="12" cy="9" r="4"/><path d="M21 19a3.5 3.5 0 0 0-4-3.4M3 19a3.5 3.5 0 0 1 4-3.4"/></svg></span>
-                  <select id="guests" name="guests">
-                    <option>2 guests</option>
-                    <option>1 guest</option>
-                    <option>3 guests</option>
-                    <option>4 guests</option>
-                  </select>
                 </div>
               </div>
               <button class="btn btn-primary" type="submit" data-od-id="search-hotels-cta">
@@ -83,9 +145,6 @@ const homeMarkup = String.raw`<main>
               <p class="search-note" data-od-id="search-feedback" aria-live="polite">We will show available stays and nightly prices.</p>
             </form>
           </aside>
-          <div class="journey-ribbon" data-od-id="journey-ribbon" aria-label="TravelHub journey">
-            <span>Choose a city</span><i aria-hidden="true"></i><span>Compare stays</span><i aria-hidden="true"></i><span>Book route</span>
-          </div>
         </div>
       </section>
 
@@ -200,87 +259,14 @@ const homeMarkup = String.raw`<main>
         <div class="container">
           <div class="section-head">
             <div>
-              <h2 data-od-id="featured-hotels-heading">Recommended Hotels</h2>
-              <p>Polished stays for city breaks, mountain weekends, and historic routes.</p>
+              <h2 data-od-id="featured-hotels-heading">Available Hotels</h2>
+              <p>Real stays currently available in TravelHub.</p>
             </div>
             <button class="section-link" type="button" data-action="hotels" data-od-id="view-all-hotels-link">View all hotels</button>
           </div>
 
           <div class="hotel-grid" data-od-id="hotel-card-grid">
-            <article class="hotel-card" data-od-id="hotel-card-caspian">
-              <div class="hotel-photo">
-                <img src="/assets/hero-baku.jpg" alt="Cinematic Baku waterfront near premium hotels">
-                <span class="hotel-badge">Luxury city stay</span>
-                <button class="favorite-button" type="button" data-action="favorite" aria-label="Save Four Seasons Hotel Baku" data-od-id="hotel-caspian-favorite">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
-                </button>
-              </div>
-              <div class="hotel-body">
-                <div class="hotel-topline">
-                  <h3>Four Seasons Hotel Baku</h3>
-                  <span class="rating" aria-label="Rating 4.9 out of 5">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"/></svg>
-                    4.9
-                  </span>
-                </div>
-                <p>Baku, Azerbaijan / Caspian waterfront</p>
-                <div class="hotel-review"><strong>Exceptional</strong><span>/</span><span>320 reviews</span></div>
-                <div class="hotel-price">
-                  <span class="price">From $180 <span>/ night</span></span>
-                  <button class="card-link" type="button" data-action="hotel-caspian" data-od-id="hotel-caspian-cta">View stay</button>
-                </div>
-              </div>
-            </article>
-
-            <article class="hotel-card" data-od-id="hotel-card-gabala">
-              <div class="hotel-photo">
-                <img src="/assets/destination-gabala.jpg" alt="Mountain retreat landscape in Gabala">
-                <span class="hotel-badge">Mountain retreat</span>
-                <button class="favorite-button is-selected" type="button" data-action="favorite" aria-label="Saved Qafqaz Riverside Resort" data-od-id="hotel-gabala-favorite">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
-                </button>
-              </div>
-              <div class="hotel-body">
-                <div class="hotel-topline">
-                  <h3>Qafqaz Riverside Resort</h3>
-                  <span class="rating" aria-label="Rating 4.8 out of 5">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"/></svg>
-                    4.8
-                  </span>
-                </div>
-                <p>Gabala, Azerbaijan / Mountain views</p>
-                <div class="hotel-review"><strong>Guest favorite</strong><span>/</span><span>214 reviews</span></div>
-                <div class="hotel-price">
-                  <span class="price">From $132 <span>/ night</span></span>
-                  <button class="card-link" type="button" data-action="hotel-gabala" data-od-id="hotel-gabala-cta">View stay</button>
-                </div>
-              </div>
-            </article>
-
-            <article class="hotel-card" data-od-id="hotel-card-sheki">
-              <div class="hotel-photo">
-                <img src="/assets/destination-sheki.jpg" alt="Historic architecture in Sheki">
-                <span class="hotel-badge">Heritage stay</span>
-                <button class="favorite-button" type="button" data-action="favorite" aria-label="Save Sheki Palace Boutique" data-od-id="hotel-sheki-favorite">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
-                </button>
-              </div>
-              <div class="hotel-body">
-                <div class="hotel-topline">
-                  <h3>Sheki Palace Boutique</h3>
-                  <span class="rating" aria-label="Rating 4.7 out of 5">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6-5.4-2.9-5.4 2.9 1-6-4.4-4.3 6.1-.9z"/></svg>
-                    4.7
-                  </span>
-                </div>
-                <p>Sheki, Azerbaijan / Historic quarter</p>
-                <div class="hotel-review"><strong>Highly rated</strong><span>/</span><span>168 reviews</span></div>
-                <div class="hotel-price">
-                  <span class="price">From $88 <span>/ night</span></span>
-                  <button class="card-link" type="button" data-action="hotel-sheki" data-od-id="hotel-sheki-cta">View stay</button>
-                </div>
-              </div>
-            </article>
+            ${hotelCards}
           </div>
         </div>
       </section>
@@ -332,15 +318,15 @@ const homeMarkup = String.raw`<main>
         </div>
         <div class="footer-col" data-od-id="footer-product-links">
           <strong>Explore</strong>
-          <a class="footer-link" href="#">Hotels</a>
-          <a class="footer-link" href="#">Taxi</a>
-          <a class="footer-link" href="#">Destinations</a>
+          <a class="footer-link" href="#" data-action="hotels">Hotels</a>
+          <a class="footer-link" href="#" data-action="taxi">Taxi</a>
+          <a class="footer-link" href="#" data-action="destinations">Destinations</a>
         </div>
         <div class="footer-col" data-od-id="footer-account-links">
           <strong>Account</strong>
-          <a class="footer-link" href="#">My Trips</a>
-          <a class="footer-link" href="#">Profile</a>
-          <a class="footer-link" href="#">Sign In</a>
+          <a class="footer-link" href="#" data-action="my-trips">My Trips</a>
+          <a class="footer-link" href="#" data-action="profile">Profile</a>
+          <a class="footer-link" href="#" data-action="signin">Sign In</a>
         </div>
         <div class="footer-col" data-od-id="footer-info-links">
           <strong>Support</strong>
@@ -350,8 +336,9 @@ const homeMarkup = String.raw`<main>
         </div>
       </div>
     </footer>`;
+}
 
-export default function HomePage({ onNavigate }: HomePageProps) {
+export default function HomePage({ cities, hotels, onHotelSearch, onNavigate }: HomePageProps) {
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement;
     const actionTarget = target.closest<HTMLElement>('[data-action]');
@@ -365,7 +352,9 @@ export default function HomePage({ onNavigate }: HomePageProps) {
 
     if (action === 'taxi') {
       onNavigate('taxi');
-    } else if (action === 'hotels' || action?.startsWith('hotel-')) {
+    } else if (action === 'hotel-city') {
+      onHotelSearch(actionTarget?.dataset.city ?? '');
+    } else if (action === 'hotels') {
       onNavigate('hotels');
     } else if (action === 'my-trips') {
       onNavigate('trips');
@@ -373,6 +362,8 @@ export default function HomePage({ onNavigate }: HomePageProps) {
       onNavigate('auth');
     } else if (action === 'profile') {
       onNavigate('profile');
+    } else if (action === 'destinations') {
+      document.querySelector('[data-od-id="destinations-section"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (action === 'favorite') {
       actionTarget?.classList.toggle('is-selected');
     }
@@ -386,14 +377,48 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     }
 
     event.preventDefault();
-    onNavigate('hotels');
+    const data = new FormData(form as HTMLFormElement);
+    const city = String(data.get('destination') ?? '').trim();
+    const checkIn = String(data.get('checkin') ?? '').trim();
+    const checkOut = String(data.get('checkout') ?? '').trim();
+    const todayDate = toDateInputValue(new Date());
+
+    if ((checkIn && checkIn < todayDate) || (checkIn && checkOut && checkOut <= checkIn)) {
+      return;
+    }
+
+    onHotelSearch(city);
+  }
+
+  function handleChange(event: FormEvent<HTMLDivElement>) {
+    const target = event.target as HTMLInputElement;
+
+    if (target.name !== 'checkin') {
+      return;
+    }
+
+    const form = target.closest('[data-od-id="hotel-search-form"]');
+    const checkout = form?.querySelector<HTMLInputElement>('input[name="checkout"]');
+
+    if (!checkout) {
+      return;
+    }
+
+    const todayDate = toDateInputValue(new Date());
+    const minCheckOutDate = addDateInputDays(target.value || todayDate, 1);
+    checkout.min = minCheckOutDate;
+
+    if (checkout.value && checkout.value <= target.value) {
+      checkout.value = '';
+    }
   }
 
   return (
     <div
       className="page-shell od-home-page"
-      dangerouslySetInnerHTML={{ __html: homeMarkup }}
+      dangerouslySetInnerHTML={{ __html: createHomeMarkup(cities, hotels) }}
       onClick={handleClick}
+      onChange={handleChange}
       onSubmit={handleSubmit}
     />
   );

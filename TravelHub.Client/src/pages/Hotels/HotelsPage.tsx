@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import HotelBookingForm from '../../features/hotels/components/HotelBookingForm';
 import HotelBookingResult from '../../features/hotels/components/HotelBookingResult';
 import HotelForm from '../../features/hotels/components/HotelForm';
 import HotelList from '../../features/hotels/components/HotelList';
 import RoomForm from '../../features/hotels/components/RoomForm';
-import RoomList from '../../features/hotels/components/RoomList';
-import type { AuthUser, Booking, TaxiBooking } from '../../types';
+import RoomList, { RoomPhotoStrip } from '../../features/hotels/components/RoomList';
+import type { AuthUser, Booking, Hotel, Page, TaxiBooking } from '../../types';
 import { fallbackImage } from '../../utils/images';
 import type { HotelsFeature } from '../../features/hotels/hotels.types';
 
@@ -17,7 +17,95 @@ type HotelsPageProps = {
   phoneNumberPattern: string;
   renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
   onOpenAuth: () => void;
+  hotelDetailId: number | null;
+  hotelDetailLoading: boolean;
+  hotelDetailNotFound: boolean;
+  blockedBackSignal: number;
+  onBackToHotels: () => void;
+  onNavigate: (page: Page) => void;
+  onOpenHotel: (hotel: Hotel) => void;
+  onShowDestinations: () => void;
 };
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDateInputDays(dateValue: string, days: number) {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+
+  return toDateInputValue(date);
+}
+
+type HotelsFooterProps = {
+  onNavigate: (page: Page) => void;
+  onOpenAuth: () => void;
+  onShowDestinations: () => void;
+};
+
+function HotelsFooter({ onNavigate, onOpenAuth, onShowDestinations }: HotelsFooterProps) {
+  return (
+    <footer className="site-footer">
+      <div className="container footer-grid">
+        <div className="footer-brand">
+          <button className="brand" onClick={() => onNavigate('home')} type="button" aria-label="TravelHub home">
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 17 12 4l8 13" />
+                <path d="m8 17 4-6 4 6" />
+                <path d="M5 17h14" />
+              </svg>
+            </span>
+            <span>TravelHub</span>
+          </button>
+          <p>A modern platform for hotels and taxi trips across Azerbaijan.</p>
+        </div>
+        <div className="footer-col">
+          <strong>Explore</strong>
+          <button className="footer-link" onClick={() => onNavigate('hotels')} type="button">
+            Hotels
+          </button>
+          <button className="footer-link" onClick={() => onNavigate('taxi')} type="button">
+            Taxi
+          </button>
+          <button className="footer-link" onClick={onShowDestinations} type="button">
+            Destinations
+          </button>
+        </div>
+        <div className="footer-col">
+          <strong>Account</strong>
+          <button className="footer-link" onClick={() => onNavigate('trips')} type="button">
+            My Trips
+          </button>
+          <button className="footer-link" onClick={() => onNavigate('profile')} type="button">
+            Profile
+          </button>
+          <button className="footer-link" onClick={onOpenAuth} type="button">
+            Sign In
+          </button>
+        </div>
+        <div className="footer-col">
+          <strong>Support</strong>
+          <a className="footer-link" href="#">
+            Help
+          </a>
+          <a className="footer-link" href="#">
+            Terms
+          </a>
+          <a className="footer-link" href="#">
+            Privacy
+          </a>
+        </div>
+      </div>
+    </footer>
+  );
+}
 
 export default function HotelsPage({
   feature,
@@ -27,29 +115,266 @@ export default function HotelsPage({
   phoneNumberPattern,
   renderPaymentForm,
   onOpenAuth,
+  hotelDetailId,
+  hotelDetailLoading,
+  hotelDetailNotFound,
+  blockedBackSignal,
+  onBackToHotels,
+  onNavigate,
+  onOpenHotel,
+  onShowDestinations,
 }: HotelsPageProps) {
   const { model, actions } = feature;
+  const isHotelDetailPage = hotelDetailId !== null;
+  const [showRooms, setShowRooms] = useState(false);
+  const [searchCity, setSearchCity] = useState(model.cityFilter);
+  const [searchDates, setSearchDates] = useState({ checkIn: '', checkOut: '' });
+  const [showEditExitGuard, setShowEditExitGuard] = useState(false);
+  const [navigateAfterEditSave, setNavigateAfterEditSave] = useState(false);
+  const todayDate = toDateInputValue(new Date());
+  const minCheckOutDate = addDateInputDays(searchDates.checkIn || todayDate, 1);
+  const hasOpenEditForm = model.showHotelForm || model.showRoomForm;
+
+  useEffect(() => {
+    setShowRooms(false);
+  }, [hotelDetailId]);
+
+  useEffect(() => {
+    if (blockedBackSignal > 0 && hasOpenEditForm) {
+      setShowEditExitGuard(true);
+    }
+  }, [blockedBackSignal, hasOpenEditForm]);
+
+  useEffect(() => {
+    if (navigateAfterEditSave && !hasOpenEditForm) {
+      setNavigateAfterEditSave(false);
+      setShowEditExitGuard(false);
+      onBackToHotels();
+    }
+  }, [hasOpenEditForm, navigateAfterEditSave, onBackToHotels]);
+
+  function setSearchCheckIn(checkIn: string) {
+    setSearchDates((dates) => ({
+      checkIn,
+      checkOut: dates.checkOut && dates.checkOut <= checkIn ? '' : dates.checkOut,
+    }));
+  }
+
+  function submitHotelSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    actions.hotelList.setCityFilter(searchCity);
+  }
+
+  function handleBackToHotels() {
+    if (!hasOpenEditForm) {
+      onBackToHotels();
+      return;
+    }
+
+    setShowEditExitGuard(true);
+  }
+
+  function saveEditBeforeBack() {
+    const formId = model.showHotelForm ? 'hotel-edit-form' : 'room-edit-form';
+    const form = document.getElementById(formId) as HTMLFormElement | null;
+
+    setNavigateAfterEditSave(true);
+    form?.requestSubmit();
+  }
+
+  function cancelEditAndGoBack() {
+    if (model.showHotelForm) {
+      actions.hotelForm.cancel();
+    }
+
+    if (model.showRoomForm) {
+      actions.roomForm.cancel();
+    }
+
+    setShowEditExitGuard(false);
+    onBackToHotels();
+  }
+
+  function renderHotelWorkspace() {
+    return (
+      <section className="container od-hotel-workspace">
+        <div className="panel wide">
+          {isHotelDetailPage && (
+            <div className="hotel-back-area">
+              <button className="hotel-back-button" onClick={handleBackToHotels} type="button" aria-label="Back to hotels">
+                Back
+              </button>
+            </div>
+          )}
+
+          <div className="section-title">
+            <h2>{model.showHotelForm ? (model.editingHotelId ? 'Edit hotel' : 'Create hotel') : model.selectedHotel?.name}</h2>
+            {!model.showHotelForm && model.selectedHotel && <span>{model.selectedHotel.city}</span>}
+          </div>
+
+          {model.showHotelForm && model.canManageHotels ? (
+            <HotelForm
+              actions={actions.hotelForm}
+              editingHotelId={model.editingHotelId}
+              hotelForm={model.hotelForm}
+              submitting={submitting}
+            />
+          ) : model.selectedHotel ? (
+            <>
+              <div className="hotel-detail-overview">
+                <div className="hotel-image-frame">
+                  <img
+                    className="selected-hotel-image"
+                    src={model.selectedHotel.imageUrl || fallbackImage(model.selectedHotel.name, 'hotel')}
+                    alt=""
+                  />
+                </div>
+                <div className="hotel-detail-copy">
+                  {model.selectedHotel.description && <p className="description">{model.selectedHotel.description}</p>}
+                  <button className="btn btn-primary hotel-book-button" onClick={() => setShowRooms(true)} type="button">
+                    Book
+                  </button>
+                </div>
+              </div>
+
+              {model.canManageHotels && (
+                <>
+                  {!model.showRoomForm && (
+                    <div className="hotel-actions">
+                      <button className="small-primary-button" onClick={() => actions.hotelForm.edit(model.selectedHotel!)} type="button">
+                        Edit hotel
+                      </button>
+                      <button
+                        className="small-primary-button"
+                        onClick={() => {
+                          setShowRooms(true);
+                          actions.roomForm.startCreate();
+                        }}
+                        type="button"
+                      >
+                        Create room
+                      </button>
+                    </div>
+                  )}
+
+                </>
+              )}
+
+              {showRooms && (
+                <>
+                  <div className="hotel-rooms-band">
+                    <div className="hotel-rooms-band-inner">
+                      <RoomList
+                        actions={actions.roomList}
+                        canManageHotels={model.canManageHotels}
+                        rooms={model.rooms}
+                        roomsLoading={model.roomsLoading}
+                        selectedRoom={model.selectedRoom}
+                        submitting={submitting}
+                      />
+                    </div>
+                  </div>
+
+                  {model.showRoomForm && (
+                    <RoomForm
+                      actions={actions.roomForm}
+                      editingRoomId={model.editingRoomId}
+                      roomForm={model.roomForm}
+                      submitting={submitting}
+                    />
+                  )}
+
+                  <RoomPhotoStrip room={model.selectedRoom} />
+
+                  <div className="hotel-booking-payment-row">
+                    <HotelBookingForm
+                      actions={actions.booking}
+                      booking={model.booking}
+                      bookingForm={model.bookingForm}
+                      bookingGuestMode={model.bookingGuestMode}
+                      currentUser={currentUser}
+                      phoneNumberPattern={phoneNumberPattern}
+                      selectedRoom={model.selectedRoom}
+                      submitting={submitting}
+                      onOpenAuth={onOpenAuth}
+                    />
+
+                    <HotelBookingResult
+                      booking={model.booking}
+                      onReset={actions.booking.reset}
+                      renderPaymentForm={renderPaymentForm}
+                    />
+                  </div>
+                </>
+              )}
+            </>
+          ) : null}
+        </div>
+        {showEditExitGuard && hasOpenEditForm && (
+          <div className="edit-exit-guard-backdrop" role="presentation">
+            <div className="edit-exit-guard" role="dialog" aria-modal="true" aria-labelledby="edit-exit-title">
+              <strong id="edit-exit-title">Finish editing first</strong>
+              <span>Save your changes or cancel editing before going back.</span>
+              <div>
+                <button disabled={submitting} onClick={saveEditBeforeBack} type="button">
+                  Save changes
+                </button>
+                <button disabled={submitting} onClick={cancelEditAndGoBack} type="button">
+                  Cancel edit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  if (isHotelDetailPage) {
+    return (
+      <section className="page od-hotels-page">
+        {hotelDetailNotFound ? (
+          <section className="container od-hotel-workspace">
+            <div className="panel wide">
+              <button className="hotel-back-button" onClick={onBackToHotels} type="button" aria-label="Back to hotels">
+                Back
+              </button>
+              <div className="section-title">
+                <h2>Hotel not found</h2>
+              </div>
+              <p className="empty">This hotel does not exist or is no longer available.</p>
+            </div>
+          </section>
+        ) : hotelDetailLoading && !model.selectedHotel ? (
+          <section className="container od-hotel-workspace">
+            <div className="panel wide">
+              <div className="section-title">
+                <h2>Loading hotel...</h2>
+              </div>
+            </div>
+          </section>
+        ) : (
+          renderHotelWorkspace()
+        )}
+        <HotelsFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
+      </section>
+    );
+  }
 
   return (
     <section className="page od-hotels-page">
       <section className="hotels-hero">
         <div className="container">
           <div className="page-head">
-            <div className="breadcrumb">
-              <button onClick={() => actions.hotelList.setCityFilter('')} type="button">
-                Explore
-              </button>
-              <span>Stays</span>
-            </div>
             <h1 className="page-title">Find your perfect stay</h1>
             <p className="page-sub">Discover hotels across Azerbaijan and choose the room that fits your trip.</p>
           </div>
 
-          <form className="search-bar" onSubmit={(event) => event.preventDefault()}>
+          <form className="search-bar" onSubmit={submitHotelSearch}>
             <label className="field">
               City
               <div className="field-control has-select">
-                <select value={model.cityFilter} onChange={(event) => actions.hotelList.setCityFilter(event.target.value)}>
+                <select value={searchCity} onChange={(event) => setSearchCity(event.target.value)}>
                   <option value="">All cities</option>
                   {model.cities.map((city) => (
                     <option key={city} value={city}>
@@ -62,24 +387,23 @@ export default function HotelsPage({
             <label className="field">
               Check-in
               <div className="field-control">
-                <input type="date" />
+                <input
+                  min={todayDate}
+                  type="date"
+                  value={searchDates.checkIn}
+                  onChange={(event) => setSearchCheckIn(event.target.value)}
+                />
               </div>
             </label>
             <label className="field">
               Check-out
               <div className="field-control">
-                <input type="date" />
-              </div>
-            </label>
-            <label className="field">
-              Guests
-              <div className="field-control has-select">
-                <select defaultValue="2 guests">
-                  <option>1 guest</option>
-                  <option>2 guests</option>
-                  <option>3 guests</option>
-                  <option>4 guests</option>
-                </select>
+                <input
+                  min={minCheckOutDate}
+                  type="date"
+                  value={searchDates.checkOut}
+                  onChange={(event) => setSearchDates({ ...searchDates, checkOut: event.target.value })}
+                />
               </div>
             </label>
             <button className="btn btn-primary" type="submit">
@@ -87,23 +411,6 @@ export default function HotelsPage({
             </button>
           </form>
 
-          <div className="filter-row">
-            <div className="chip-set" role="group" aria-label="Filter by city">
-              <button className={`chip ${model.cityFilter === '' ? 'is-active' : ''}`} onClick={() => actions.hotelList.setCityFilter('')} type="button">
-                All cities <span className="count">{model.visibleHotels.length}</span>
-              </button>
-              {model.cities.map((city) => (
-                <button
-                  className={`chip ${model.cityFilter === city ? 'is-active' : ''}`}
-                  key={city}
-                  onClick={() => actions.hotelList.setCityFilter(city)}
-                  type="button"
-                >
-                  {city}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
@@ -117,87 +424,11 @@ export default function HotelsPage({
         showHotelForm={model.showHotelForm}
         submitting={submitting}
         visibleHotels={model.visibleHotels}
+        onOpenHotel={onOpenHotel}
       />
 
-      <section className="container od-hotel-workspace">
-        <div className="panel wide">
-        <div className="section-title">
-          <h2>{model.showHotelForm ? (model.editingHotelId ? 'Edit hotel' : 'Create hotel') : model.selectedHotel ? model.selectedHotel.name : 'Select a hotel'}</h2>
-          {!model.showHotelForm && model.selectedHotel && <span>{model.selectedHotel.city}</span>}
-        </div>
-
-        {model.showHotelForm && model.canManageHotels ? (
-          <HotelForm
-            actions={actions.hotelForm}
-            editingHotelId={model.editingHotelId}
-            hotelForm={model.hotelForm}
-            submitting={submitting}
-          />
-        ) : model.selectedHotel ? (
-          <>
-            <img
-              className="selected-hotel-image"
-              src={model.selectedHotel.imageUrl || fallbackImage(model.selectedHotel.name, 'hotel')}
-              alt=""
-            />
-            {model.selectedHotel.description && <p className="description">{model.selectedHotel.description}</p>}
-
-            {model.canManageHotels && (
-              <>
-                {!model.showRoomForm && (
-                  <div className="hotel-actions">
-                    <button className="small-primary-button" onClick={() => actions.hotelForm.edit(model.selectedHotel!)} type="button">
-                      Edit hotel
-                    </button>
-                    <button className="small-primary-button" onClick={actions.roomForm.startCreate} type="button">
-                      Create room
-                    </button>
-                  </div>
-                )}
-
-                {model.showRoomForm && (
-                  <RoomForm
-                    actions={actions.roomForm}
-                    editingRoomId={model.editingRoomId}
-                    roomForm={model.roomForm}
-                    submitting={submitting}
-                  />
-                )}
-              </>
-            )}
-
-            <RoomList
-              actions={actions.roomList}
-              canManageHotels={model.canManageHotels}
-              rooms={model.rooms}
-              roomsLoading={model.roomsLoading}
-              selectedRoom={model.selectedRoom}
-              submitting={submitting}
-            />
-
-            <HotelBookingForm
-              actions={actions.booking}
-              booking={model.booking}
-              bookingForm={model.bookingForm}
-              bookingGuestMode={model.bookingGuestMode}
-              currentUser={currentUser}
-              phoneNumberPattern={phoneNumberPattern}
-              selectedRoom={model.selectedRoom}
-              submitting={submitting}
-              onOpenAuth={onOpenAuth}
-            />
-
-            <HotelBookingResult
-              booking={model.booking}
-              onReset={actions.booking.reset}
-              renderPaymentForm={renderPaymentForm}
-            />
-          </>
-        ) : (
-          <p className="empty">Choose a hotel to see rooms and booking options.</p>
-        )}
-        </div>
-      </section>
+      {model.showHotelForm && renderHotelWorkspace()}
+      <HotelsFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
     </section>
   );
 }

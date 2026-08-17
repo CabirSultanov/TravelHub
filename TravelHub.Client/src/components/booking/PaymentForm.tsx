@@ -56,6 +56,7 @@ export default function PaymentForm({
 
       {paymentMode === 'saved' && canUseSavedCard ? (
         <select
+          className="payment-saved-card"
           value={paymentForm.savedPaymentCardId}
           onChange={(event) => onPaymentFormChange({ ...paymentForm, savedPaymentCardId: event.target.value })}
           required
@@ -69,6 +70,7 @@ export default function PaymentForm({
       ) : (
         <>
           <input
+            className="payment-card-number"
             inputMode="numeric"
             pattern={cardNumberPattern}
             placeholder="Card number"
@@ -77,12 +79,14 @@ export default function PaymentForm({
             required
           />
           <input
+            className="payment-card-holder"
             placeholder="Card holder"
             value={paymentForm.cardHolderName}
             onChange={(event) => onPaymentFormChange({ ...paymentForm, cardHolderName: event.target.value })}
             required
           />
           <input
+            className="payment-expiry-month"
             min="1"
             max="12"
             placeholder="Month"
@@ -92,6 +96,7 @@ export default function PaymentForm({
             required
           />
           <input
+            className="payment-expiry-year"
             min={currentYear}
             placeholder="Year"
             type="number"
@@ -100,6 +105,7 @@ export default function PaymentForm({
             required
           />
           <input
+            className="payment-cvv"
             inputMode="numeric"
             pattern={cvvPattern}
             placeholder="CVV"
@@ -121,7 +127,7 @@ export default function PaymentForm({
         {submitting && <span className="button-spinner" aria-hidden="true" />}
         {submitting ? 'Processing...' : 'Pay now'}
       </button>
-      <button disabled={submitting} onClick={onCancel} type="button">
+      <button className="payment-cancel-button" disabled={submitting} onClick={onCancel} type="button">
         Cancel booking
       </button>
     </form>

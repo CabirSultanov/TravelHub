@@ -1,3 +1,4 @@
+import type { ChangeEvent } from 'react';
 import RoomPhotoFields from './RoomPhotoFields';
 import type { HotelForm as HotelFormState, HotelFormActions } from '../hotels.types';
 
@@ -9,8 +10,18 @@ type HotelFormProps = {
 };
 
 export default function HotelForm({ hotelForm, editingHotelId, submitting, actions }: HotelFormProps) {
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (file) {
+      actions.uploadImage(file);
+    }
+
+    event.target.value = '';
+  }
+
   return (
-    <form className="form-grid hotel-create-form" onSubmit={(event) => void actions.submit(event)}>
+    <form id="hotel-edit-form" className="form-grid hotel-create-form" onSubmit={(event) => void actions.submit(event)}>
       <h3>{editingHotelId ? 'Edit hotel details' : 'Hotel details'}</h3>
       <label className="field-label">
         Name
@@ -38,15 +49,17 @@ export default function HotelForm({ hotelForm, editingHotelId, submitting, actio
           onChange={(event) => actions.setForm({ ...hotelForm, description: event.target.value })}
         />
       </label>
-      <label className="field-label">
-        Hotel image URL
-        <input
-          placeholder="Image URL"
-          type="url"
-          value={hotelForm.imageUrl}
-          onChange={(event) => actions.setForm({ ...hotelForm, imageUrl: event.target.value })}
-        />
-      </label>
+      <div className="field-label hotel-image-field">
+        Hotel image
+        {hotelForm.imageUrl && <img className="hotel-image-preview" src={hotelForm.imageUrl} alt="" />}
+        <div className="hotel-image-upload-row">
+          <input placeholder="No image selected" readOnly value={hotelForm.imageUrl} />
+          <label className={`small-primary-button image-upload-button${submitting ? ' is-disabled' : ''}`}>
+            Choose photo
+            <input accept="image/jpeg,image/png,image/webp" disabled={submitting} onChange={handleImageChange} type="file" />
+          </label>
+        </div>
+      </div>
 
       {editingHotelId === null && (
         <>
@@ -118,15 +131,9 @@ export default function HotelForm({ hotelForm, editingHotelId, submitting, actio
                 onAdd={() => actions.addRoomImageUrl(index)}
                 onChange={(imageIndex, imageUrl) => actions.updateRoomImageUrl(index, imageIndex, imageUrl)}
                 onRemove={(imageIndex) => actions.removeRoomImageUrl(index, imageIndex)}
+                onUpload={(file) => actions.uploadRoomImage(index, file)}
+                submitting={submitting}
               />
-              <label className="checkbox">
-                <input
-                  checked={room.isAvailable}
-                  type="checkbox"
-                  onChange={(event) => actions.updateRoom(index, { isAvailable: event.target.checked })}
-                />
-                Available for booking
-              </label>
               <button
                 className="link-button"
                 disabled={hotelForm.rooms.length <= 2}

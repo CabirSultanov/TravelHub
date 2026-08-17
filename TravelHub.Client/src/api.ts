@@ -51,8 +51,9 @@ type RequestOptions = {
 
 async function fetchResponse(url: string, init: RequestInit | undefined, skipAccessToken: boolean) {
   const headers = new Headers(init?.headers);
+  const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData;
 
-  if (init?.body && !headers.has('Content-Type')) {
+  if (init?.body && !isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -194,6 +195,25 @@ export const api = {
       method: 'DELETE',
     }),
   getHotels: () => request<Hotel[]>('/api/hotels'),
+  getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
+  uploadHotelImage: (file: File) => {
+    const formData = new FormData();
+    formData.set('file', file);
+
+    return request<{ imageUrl: string }>('/api/hotel-images', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+  uploadRoomImage: (file: File) => {
+    const formData = new FormData();
+    formData.set('file', file);
+
+    return request<{ imageUrl: string }>('/api/room-images', {
+      method: 'POST',
+      body: formData,
+    });
+  },
   createHotel: (hotel: HotelInput) =>
     request<Hotel>('/api/hotels', {
       method: 'POST',

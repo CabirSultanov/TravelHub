@@ -292,7 +292,7 @@ export function useHotelsFeature({
         const hotelRooms = await api.getHotelRooms(selectedHotel.id);
         setRooms(hotelRooms);
         syncHotelRoomStats(selectedHotel, hotelRooms);
-        setSelectedRoom(hotelRooms.find((hotelRoom) => hotelRoom.id === editingRoomId) ?? null);
+        setSelectedRoom(null);
         setMessage('Room updated.');
       } else {
         const createdRoom = await api.createHotelRoom(room);
@@ -335,6 +335,59 @@ export function useHotelsFeature({
       ...hotelForm,
       rooms: hotelForm.rooms.filter((_, currentIndex) => currentIndex !== index),
     });
+  }
+
+  async function uploadHotelImage(file: File) {
+    if (!canManageHotels) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const { imageUrl } = await api.uploadHotelImage(file);
+      setHotelForm((form) => ({ ...form, imageUrl }));
+      setMessage('Hotel image uploaded.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function addImageUrlToList(imageUrls: string[], imageUrl: string) {
+    const emptyIndex = imageUrls.findIndex((currentUrl) => currentUrl.trim() === '');
+
+    if (emptyIndex === -1) {
+      return [...imageUrls, imageUrl];
+    }
+
+    return imageUrls.map((currentUrl, currentIndex) => (currentIndex === emptyIndex ? imageUrl : currentUrl));
+  }
+
+  async function uploadHotelRoomImage(roomIndex: number, file: File) {
+    if (!canManageHotels) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const { imageUrl } = await api.uploadRoomImage(file);
+      setHotelForm((form) => ({
+        ...form,
+        rooms: form.rooms.map((room, currentIndex) =>
+          currentIndex === roomIndex ? { ...room, imageUrls: addImageUrlToList(room.imageUrls, imageUrl) } : room,
+        ),
+      }));
+      setMessage('Room image uploaded.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function updateHotelRoomImageUrl(roomIndex: number, imageIndex: number, imageUrl: string) {
@@ -384,7 +437,8 @@ export function useHotelsFeature({
   function editHotelRoom(room: HotelRoom) {
     setEditingRoomId(room.id);
     setRoomForm(roomToForm(room));
-    setSelectedRoom(room);
+    setSelectedRoom(null);
+    setBooking(null);
     setShowRoomForm(true);
     setMessage('');
   }
@@ -412,6 +466,25 @@ export function useHotelsFeature({
       ...roomForm,
       imageUrls: roomForm.imageUrls.filter((_, currentIndex) => currentIndex !== index),
     });
+  }
+
+  async function uploadRoomImage(file: File) {
+    if (!canManageHotels) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const { imageUrl } = await api.uploadRoomImage(file);
+      setRoomForm((form) => ({ ...form, imageUrls: addImageUrlToList(form.imageUrls, imageUrl) }));
+      setMessage('Room image uploaded.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function selectBookingGuestMode(mode: 'self' | 'other') {
@@ -562,6 +635,8 @@ export function useHotelsFeature({
         updateRoom: updateHotelFormRoom,
         addRoom: addHotelFormRoom,
         removeRoom: removeHotelFormRoom,
+        uploadImage: (file) => void uploadHotelImage(file),
+        uploadRoomImage: (roomIndex, file) => void uploadHotelRoomImage(roomIndex, file),
         updateRoomImageUrl: updateHotelRoomImageUrl,
         addRoomImageUrl: addHotelRoomImageUrl,
         removeRoomImageUrl: removeHotelRoomImageUrl,
@@ -578,6 +653,7 @@ export function useHotelsFeature({
         startCreate: startCreateRoom,
         edit: editHotelRoom,
         updateImageUrl: updateRoomImageUrl,
+        uploadImage: (file) => void uploadRoomImage(file),
         addImageUrl: addRoomImageUrl,
         removeImageUrl: removeRoomImageUrl,
         submit: (event) => void submitHotelRoom(event),

@@ -10,7 +10,7 @@ type RoomFormProps = {
 
 export default function RoomForm({ roomForm, editingRoomId, submitting, actions }: RoomFormProps) {
   return (
-    <form className="form-grid" onSubmit={(event) => void actions.submit(event)}>
+    <form id="room-edit-form" className="form-grid room-edit-form" onSubmit={(event) => void actions.submit(event)}>
       <h3>{editingRoomId ? 'Edit room' : 'Create room'}</h3>
       <label className="field-label">
         Room type
@@ -69,15 +69,9 @@ export default function RoomForm({ roomForm, editingRoomId, submitting, actions 
         onAdd={actions.addImageUrl}
         onChange={actions.updateImageUrl}
         onRemove={actions.removeImageUrl}
+        onUpload={actions.uploadImage}
+        submitting={submitting}
       />
-      <label className="checkbox">
-        <input
-          checked={roomForm.isAvailable}
-          type="checkbox"
-          onChange={(event) => actions.setForm({ ...roomForm, isAvailable: event.target.checked })}
-        />
-        Available for booking
-      </label>
       <button className="primary" disabled={submitting} type="submit">
         {editingRoomId ? 'Save room' : 'Create room'}
       </button>
