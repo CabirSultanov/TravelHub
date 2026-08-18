@@ -1,4 +1,4 @@
-import type { FormEvent, ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type {
   AuthUser,
   Booking,
@@ -8,6 +8,7 @@ import type {
   SavedPaymentCard,
   TaxiBooking,
 } from '../../types';
+import { getPasswordRequirements } from '../../utils/authValidation';
 import { formatMoney } from '../../utils/formatting';
 
 type ProfilePageProps = {
@@ -55,6 +56,53 @@ function formatProfilePaymentStatus(status: BookingStatus) {
   return status;
 }
 
+type PasswordInputProps = {
+  autoComplete: string;
+  label: string;
+  maxLength?: number;
+  minLength?: number;
+  placeholder: string;
+  value: string;
+  visible: boolean;
+  onChange: (value: string) => void;
+  onToggle: () => void;
+};
+
+function PasswordInput({
+  autoComplete,
+  label,
+  maxLength,
+  minLength,
+  placeholder,
+  value,
+  visible,
+  onChange,
+  onToggle,
+}: PasswordInputProps) {
+  return (
+    <div className="password-field">
+      <input
+        autoComplete={autoComplete}
+        maxLength={maxLength}
+        minLength={minLength}
+        placeholder={placeholder}
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <button
+        aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+        className="password-toggle"
+        onClick={onToggle}
+        title={visible ? `Hide ${label}` : `Show ${label}`}
+        type="button"
+      >
+        <span className={`auth-password-eye ${visible ? 'is-open' : ''}`} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export default function ProfilePage({
   currentUser,
   bookings,
@@ -84,6 +132,26 @@ export default function ProfilePage({
   onShowPaymentCardForm,
   onDeletePaymentCard,
 }: ProfilePageProps) {
+  const newPasswordRequirements = getPasswordRequirements(profileForm.newPassword);
+  const [visiblePasswords, setVisiblePasswords] = useState({
+    next: false,
+    confirm: false,
+  });
+
+  function togglePasswordVisibility(field: keyof typeof visiblePasswords) {
+    setVisiblePasswords((current) => ({ ...current, [field]: !current[field] }));
+  }
+
+  function cancelPasswordChange() {
+    onProfileFormChange({
+      ...profileForm,
+      changePassword: false,
+      newPassword: '',
+      confirmNewPassword: '',
+    });
+    setVisiblePasswords({ next: false, confirm: false });
+  }
+
   return (
     <div className="page-shell profile-page">
       <main>
@@ -92,29 +160,99 @@ export default function ProfilePage({
         <div className="auth-panel">
           {editingProfile ? (
             <form className="auth-form" onSubmit={onSubmitProfile}>
-              <input
-                placeholder="Name"
-                value={profileForm.name}
-                onChange={(event) => onProfileFormChange({ ...profileForm, name: event.target.value })}
-                required
-              />
-              <div className="phone-field">
-                <span>{accountPhonePrefix}</span>
+              <label className="field-box">
+                <span>Name</span>
                 <input
-                  pattern={accountPhonePattern}
-                  placeholder="Phone number"
-                  type="tel"
-                  value={profileForm.phoneNumber}
-                  onChange={(event) => onProfileFormChange({ ...profileForm, phoneNumber: event.target.value })}
+                  placeholder="Name"
+                  value={profileForm.name}
+                  onChange={(event) => onProfileFormChange({ ...profileForm, name: event.target.value })}
                   required
                 />
+              </label>
+              <label className="field-box">
+                <span>Email</span>
+                <input
+                  placeholder="Email"
+                  type="email"
+                  value={profileForm.email}
+                  onChange={(event) => onProfileFormChange({ ...profileForm, email: event.target.value })}
+                  required
+                />
+              </label>
+              <label className="field-box">
+                <span>Phone</span>
+                <div className="phone-field">
+                  <span>{accountPhonePrefix}</span>
+                  <input
+                    pattern={accountPhonePattern}
+                    placeholder="Phone number"
+                    type="tel"
+                    value={profileForm.phoneNumber}
+                    onChange={(event) => onProfileFormChange({ ...profileForm, phoneNumber: event.target.value })}
+                    required
+                  />
+                </div>
+              </label>
+
+              {profileForm.changePassword ? (
+                <section className="profile-password-section">
+                  <div className="profile-password-heading">
+                    <h3>Change password</h3>
+                    <button className="link-button" onClick={cancelPasswordChange} type="button">
+                      Cancel password change
+                    </button>
+                  </div>
+
+                  <PasswordInput
+                    autoComplete="new-password"
+                    label="new password"
+                    maxLength={128}
+                    minLength={8}
+                    placeholder="New password"
+                    visible={visiblePasswords.next}
+                    value={profileForm.newPassword}
+                    onChange={(value) => onProfileFormChange({ ...profileForm, newPassword: value })}
+                    onToggle={() => togglePasswordVisibility('next')}
+                  />
+                  <div className="password-requirements">
+                    <strong>Password requirements</strong>
+                    <ul>
+                      {newPasswordRequirements.map((requirement) => (
+                        <li className={requirement.valid ? 'is-valid' : 'is-invalid'} key={requirement.label}>
+                          <span aria-hidden="true">{requirement.valid ? '✓' : '✗'}</span>
+                          {requirement.label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <PasswordInput
+                    autoComplete="new-password"
+                    label="confirm new password"
+                    placeholder="Confirm new password"
+                    visible={visiblePasswords.confirm}
+                    value={profileForm.confirmNewPassword}
+                    onChange={(value) => onProfileFormChange({ ...profileForm, confirmNewPassword: value })}
+                    onToggle={() => togglePasswordVisibility('confirm')}
+                  />
+                </section>
+              ) : (
+                <button
+                  className="profile-change-password-button link-button"
+                  onClick={() => onProfileFormChange({ ...profileForm, changePassword: true })}
+                  type="button"
+                >
+                  Change password
+                </button>
+              )}
+
+              <div className="profile-edit-actions">
+                <button className="primary" disabled={submitting} type="submit">
+                  Save profile
+                </button>
+                <button className="link-button" onClick={onCancelProfileEdit} type="button">
+                  Cancel
+                </button>
               </div>
-              <button className="primary" disabled={submitting} type="submit">
-                Save profile
-              </button>
-              <button className="link-button" onClick={onCancelProfileEdit} type="button">
-                Cancel
-              </button>
             </form>
           ) : (
             <div className="profile-info">

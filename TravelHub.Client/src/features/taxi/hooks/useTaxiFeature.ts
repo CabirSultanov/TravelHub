@@ -22,6 +22,16 @@ import type {
   TaxiRouteState,
 } from '../taxi.types';
 
+function toAbsoluteImageUrl(imageUrl?: string | null) {
+  const trimmed = imageUrl?.trim() ?? '';
+
+  if (!trimmed || /^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return new URL(trimmed, window.location.origin).href;
+}
+
 export function useTaxiFeature({
   currentUser,
   setMessage,
@@ -135,7 +145,7 @@ export function useTaxiFeature({
       city: taxiForm.cities.map((city) => city.trim()).filter(Boolean).join(', '),
       phoneNumber: taxiForm.phoneNumber.trim(),
       description: taxiForm.description.trim(),
-      imageUrl: taxiForm.imageUrl?.trim() || null,
+      imageUrl: toAbsoluteImageUrl(taxiForm.imageUrl) || null,
       carClasses: taxiForm.carClasses.map((carClass) => ({
         name: carClass.name.trim(),
         pricePerKm: Number(carClass.pricePerKm),
@@ -238,6 +248,25 @@ export function useTaxiFeature({
       ...taxiForm,
       carClasses: [...taxiForm.carClasses, { name: nextOption.value, pricePerKm: '' }],
     });
+  }
+
+  async function uploadTaxiImage(file: File) {
+    if (!canManageTaxi) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const { imageUrl } = await api.uploadHotelImage(file);
+      setTaxiForm((form) => ({ ...form, imageUrl: toAbsoluteImageUrl(imageUrl) }));
+      setMessage('Taxi image uploaded.');
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function deleteTaxiService(taxiServiceId: number) {
@@ -409,6 +438,7 @@ export function useTaxiFeature({
         updateCarClass: updateTaxiCarClass,
         removeCarClass: removeTaxiCarClass,
         addCarClass: addTaxiCarClass,
+        uploadImage: (file) => void uploadTaxiImage(file),
         submit: (event) => void submitTaxiService(event),
         cancel: cancelTaxiForm,
       },

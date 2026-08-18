@@ -70,7 +70,7 @@ async function fetchResponse(url: string, init: RequestInit | undefined, skipAcc
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const message = await response.text();
+    const message = getApiErrorMessage(await response.text());
     throw new ApiError(message || 'Request failed with status ' + response.status, response.status);
   }
 
@@ -79,6 +79,42 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+function getApiErrorMessage(body: string) {
+  if (!body) {
+    return '';
+  }
+
+  try {
+    const parsed = JSON.parse(body) as unknown;
+
+    if (typeof parsed === 'string') {
+      return parsed;
+    }
+
+    if (parsed && typeof parsed === 'object') {
+      const problem = parsed as { title?: unknown; errors?: unknown };
+
+      if (problem.errors && typeof problem.errors === 'object') {
+        const firstError = Object.values(problem.errors as Record<string, unknown>)
+          .flatMap((value) => (Array.isArray(value) ? value : [value]))
+          .find((value): value is string => typeof value === 'string');
+
+        if (firstError) {
+          return firstError;
+        }
+      }
+
+      if (typeof problem.title === 'string') {
+        return problem.title;
+      }
+    }
+  } catch {
+    return body;
+  }
+
+  return body;
 }
 
 async function request<T>(url: string, init?: RequestInit, options: RequestOptions = {}): Promise<T> {

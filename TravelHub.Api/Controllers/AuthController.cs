@@ -1,8 +1,10 @@
 using System.Data;
+using System.Net.Mail;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TravelHub.Api.Configuration;
@@ -29,17 +31,10 @@ public class AuthController(
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterRequestDto request)
     {
-        if (!IsValidNameEmailPassword(request.Name, request.Email, request.Password, out var error))
+        if (!TryValidateRegistration(request, out var name, out var email, out var phoneNumber, out var error))
         {
             return BadRequest(error);
         }
-
-        if (!IsValidPhoneNumber(request.PhoneNumber))
-        {
-            return BadRequest("PhoneNumber must be a valid phone number.");
-        }
-
-        var email = NormalizeEmail(request.Email);
 
         if (await db.Users.AnyAsync(user => user.Email == email))
         {
@@ -48,15 +43,23 @@ public class AuthController(
 
         var user = new AppUser
         {
-            Name = request.Name.Trim(),
+            Name = name,
             Email = email,
-            PhoneNumber = NormalizePhoneNumber(request.PhoneNumber),
+            PhoneNumber = phoneNumber,
             Role = UserRoles.User
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
         db.Users.Add(user);
-        await db.SaveChangesAsync();
+
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (IsUniqueEmailConflict(exception))
+        {
+            return Conflict("User with this email already exists.");
+        }
 
         return await CreateSessionAsync(user);
     }
@@ -190,14 +193,19 @@ public class AuthController(
             return Unauthorized();
         }
 
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (!IsValidName(request.Name, out var nameError))
         {
-            return BadRequest("Name is required.");
+            return BadRequest(nameError);
         }
 
-        if (!IsValidPhoneNumber(request.PhoneNumber))
+        if (!IsValidEmail(request.Email, out var emailError))
         {
-            return BadRequest("PhoneNumber must be a valid phone number.");
+            return BadRequest(emailError);
+        }
+
+        if (!TryNormalizePhoneNumber(request.PhoneNumber, out var phoneNumber))
+        {
+            return BadRequest("Please enter a valid Azerbaijan phone number.");
         }
 
         var user = await db.Users.FirstOrDefaultAsync(user => user.Id == userId.Value);
@@ -207,9 +215,39 @@ public class AuthController(
             return Unauthorized();
         }
 
+        var email = NormalizeEmail(request.Email);
+
+        if (await db.Users.AnyAsync(candidate => candidate.Email == email && candidate.Id != user.Id))
+        {
+            return Conflict("This email is already in use.");
+        }
+
+        if (IsPasswordChangeRequested(request))
+        {
+            if (!IsValidPassword(request.NewPassword, out _))
+            {
+                return BadRequest("New password does not meet the password requirements.");
+            }
+
+            if (!string.Equals(request.NewPassword, request.ConfirmNewPassword, StringComparison.Ordinal))
+            {
+                return BadRequest("Passwords do not match.");
+            }
+
+            user.PasswordHash = passwordHasher.HashPassword(user, request.NewPassword);
+        }
+
         user.Name = request.Name.Trim();
-        user.PhoneNumber = NormalizePhoneNumber(request.PhoneNumber);
-        await db.SaveChangesAsync();
+        user.Email = email;
+        user.PhoneNumber = phoneNumber;
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (IsUniqueEmailConflict(exception))
+        {
+            return Conflict("This email is already in use.");
+        }
 
         return ToDto(user);
     }
@@ -313,17 +351,181 @@ public class AuthController(
         return int.TryParse(value, out var userId) ? userId : null;
     }
 
-    internal static bool IsValidNameEmailPassword(string name, string email, string password, out string error)
+    internal static bool TryValidateRegistration(
+        RegisterRequestDto request,
+        out string name,
+        out string email,
+        out string phoneNumber,
+        out string error)
     {
-        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        name = request.Name.Trim();
+        email = NormalizeEmail(request.Email);
+        phoneNumber = string.Empty;
+
+        if (!IsValidName(request.Name, out error))
         {
-            error = "Name, Email and Password are required.";
             return false;
         }
 
-        if (password.Length < 6)
+        if (!IsValidEmail(request.Email, out error))
         {
-            error = "Password must be at least 6 characters.";
+            return false;
+        }
+
+        if (!IsValidPassword(request.Password, out error))
+        {
+            return false;
+        }
+
+        if (!TryNormalizePhoneNumber(request.PhoneNumber, out phoneNumber))
+        {
+            error = "PhoneNumber must be a valid phone number.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsPasswordChangeRequested(UpdateProfileRequestDto request)
+    {
+        return request.ChangePassword
+            || !string.IsNullOrWhiteSpace(request.NewPassword)
+            || !string.IsNullOrWhiteSpace(request.ConfirmNewPassword);
+    }
+
+    internal static bool IsValidNameEmailPassword(string name, string email, string password, out string error)
+    {
+        if (!IsValidName(name, out error))
+        {
+            return false;
+        }
+
+        if (!IsValidEmail(email, out error))
+        {
+            return false;
+        }
+
+        return IsValidPassword(password, out error);
+    }
+
+    private static bool IsValidName(string name, out string error)
+    {
+        var trimmed = name.Trim();
+
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            error = "Name is required.";
+            return false;
+        }
+
+        if (trimmed.Length < 2)
+        {
+            error = "Name must be at least 2 characters.";
+            return false;
+        }
+
+        if (trimmed.Length > 100)
+        {
+            error = "Name must be at most 100 characters.";
+            return false;
+        }
+
+        if (!trimmed.Any(char.IsLetter)
+            || trimmed.Any(character => !char.IsLetter(character) && !char.IsWhiteSpace(character) && character is not '-' and not '\''))
+        {
+            error = "Name must contain letters and may include spaces, hyphens, or apostrophes.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool IsValidEmail(string email, out string error)
+    {
+        var trimmed = email.Trim();
+
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            error = "Email is required.";
+            return false;
+        }
+
+        if (trimmed.Length > 150)
+        {
+            error = "Email must be at most 150 characters.";
+            return false;
+        }
+
+        if (trimmed.Any(char.IsWhiteSpace))
+        {
+            error = "Please enter a valid email address.";
+            return false;
+        }
+
+        if (!MailAddress.TryCreate(trimmed, out var address)
+            || !string.Equals(address.Address, trimmed, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(address.User)
+            || string.IsNullOrWhiteSpace(address.Host)
+            || !address.Host.Contains('.', StringComparison.Ordinal)
+            || address.Host.StartsWith(".", StringComparison.Ordinal)
+            || address.Host.EndsWith(".", StringComparison.Ordinal))
+        {
+            error = "Please enter a valid email address.";
+            return false;
+        }
+
+        if (!NormalizeEmail(trimmed).EndsWith("@gmail.com", StringComparison.Ordinal))
+        {
+            error = "Only Gmail addresses (@gmail.com) are allowed.";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool IsValidPassword(string password, out string error)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            error = "Password is required.";
+            return false;
+        }
+
+        if (password.Length < 8)
+        {
+            error = "Password must be at least 8 characters.";
+            return false;
+        }
+
+        if (password.Length > 128)
+        {
+            error = "Password must be at most 128 characters.";
+            return false;
+        }
+
+        if (!password.Any(char.IsUpper))
+        {
+            error = "Password must contain an uppercase letter.";
+            return false;
+        }
+
+        if (!password.Any(char.IsLower))
+        {
+            error = "Password must contain a lowercase letter.";
+            return false;
+        }
+
+        if (!password.Any(char.IsDigit))
+        {
+            error = "Password must contain a number.";
+            return false;
+        }
+
+        if (!password.Any(character => !char.IsLetterOrDigit(character)))
+        {
+            error = "Password must contain a special character.";
             return false;
         }
 
@@ -335,24 +537,76 @@ public class AuthController(
 
     internal static string NormalizePhoneNumber(string phoneNumber)
     {
-        var trimmed = phoneNumber.Trim();
-        var rest = trimmed.StartsWith(AzerbaijanPhonePrefix, StringComparison.Ordinal)
-            ? trimmed[AzerbaijanPhonePrefix.Length..].Trim()
-            : trimmed;
+        TryNormalizePhoneNumber(phoneNumber, out var normalized);
+        return normalized;
+    }
 
-        return $"{AzerbaijanPhonePrefix} {rest}";
+    internal static bool TryNormalizePhoneNumber(string phoneNumber, out string normalized)
+    {
+        normalized = string.Empty;
+        var trimmed = phoneNumber.Trim();
+
+        if (string.IsNullOrWhiteSpace(trimmed)
+            || trimmed.Any(character => !char.IsDigit(character) && !char.IsWhiteSpace(character) && character is not '+' and not '-' and not '(' and not ')'))
+        {
+            return false;
+        }
+
+        var plusIndex = trimmed.IndexOf('+');
+
+        if (plusIndex > 0 || plusIndex != trimmed.LastIndexOf('+'))
+        {
+            return false;
+        }
+
+        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+        string localDigits;
+
+        if (trimmed.StartsWith(AzerbaijanPhonePrefix, StringComparison.Ordinal))
+        {
+            localDigits = digits.StartsWith("994", StringComparison.Ordinal) ? digits[3..] : string.Empty;
+        }
+        else if (digits.Length == 12 && digits.StartsWith("994", StringComparison.Ordinal))
+        {
+            localDigits = digits[3..];
+        }
+        else if (digits.Length == 10 && digits.StartsWith("0", StringComparison.Ordinal))
+        {
+            localDigits = digits[1..];
+        }
+        else
+        {
+            localDigits = digits;
+        }
+
+        if (localDigits.Length == 10 && localDigits.StartsWith("0", StringComparison.Ordinal))
+        {
+            localDigits = localDigits[1..];
+        }
+
+        if (localDigits.Length != AzerbaijanPhoneDigitCount || !localDigits.All(char.IsDigit))
+        {
+            return false;
+        }
+
+        normalized = $"{AzerbaijanPhonePrefix}{localDigits}";
+        return true;
     }
 
     internal static bool IsValidPhoneNumber(string phoneNumber)
     {
-        var trimmed = phoneNumber.Trim();
-        var rest = trimmed.StartsWith(AzerbaijanPhonePrefix, StringComparison.Ordinal)
-            ? trimmed[AzerbaijanPhonePrefix.Length..]
-            : string.Empty;
-        var digits = rest.Count(char.IsDigit);
+        return TryNormalizePhoneNumber(phoneNumber, out _);
+    }
 
-        return digits == AzerbaijanPhoneDigitCount
-            && rest.All(character => char.IsDigit(character) || char.IsWhiteSpace(character) || character is '-' or '(' or ')');
+    internal static bool IsUniqueEmailConflict(DbUpdateException exception)
+    {
+        if (exception.InnerException is SqlException sqlException
+            && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627))
+        {
+            return true;
+        }
+
+        return exception.ToString().Contains("IX_Users_Email", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static AuthUserDto ToDto(AppUser user) => new()

@@ -7,5 +7,6 @@ obj/
 .env
 .env.*
 !.env.example
+.codex/
 .agents/
 skills-lock.json

@@ -37,17 +37,10 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
     [HttpPost]
     public async Task<ActionResult<AuthUserDto>> CreateAdmin(CreateAdminRequestDto request)
     {
-        if (!AuthController.IsValidNameEmailPassword(request.Name, request.Email, request.Password, out var error))
+        if (!AuthController.TryValidateRegistration(request, out var name, out var email, out var phoneNumber, out var error))
         {
             return BadRequest(error);
         }
-
-        if (!AuthController.IsValidPhoneNumber(request.PhoneNumber))
-        {
-            return BadRequest("PhoneNumber must be a valid phone number.");
-        }
-
-        var email = AuthController.NormalizeEmail(request.Email);
 
         if (await db.Users.AnyAsync(user => user.Email == email))
         {
@@ -56,15 +49,22 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
 
         var user = new AppUser
         {
-            Name = request.Name.Trim(),
+            Name = name,
             Email = email,
-            PhoneNumber = request.PhoneNumber.Trim(),
+            PhoneNumber = phoneNumber,
             Role = UserRoles.Admin
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
         db.Users.Add(user);
-        await db.SaveChangesAsync();
+        try
+        {
+            await db.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (AuthController.IsUniqueEmailConflict(exception))
+        {
+            return Conflict("User with this email already exists.");
+        }
 
         return CreatedAtAction(nameof(GetAdmins), AuthController.ToDto(user));
     }

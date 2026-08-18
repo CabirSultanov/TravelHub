@@ -14,6 +14,7 @@ import ProfilePage from './pages/Profile/ProfilePage';
 import TaxiPage from './pages/Taxi/TaxiPage';
 import { formatTaxiCarClassName } from './utils/formatting';
 import { getErrorMessage } from './utils/errors';
+import { isStrongPassword } from './utils/authValidation';
 import type {
   AuthForm,
   AuthMode,
@@ -77,7 +78,11 @@ const emptyAuthForm: AuthForm = {
 
 const emptyProfileForm: ProfileForm = {
   name: '',
+  email: '',
   phoneNumber: '',
+  changePassword: false,
+  newPassword: '',
+  confirmNewPassword: '',
 };
 
 function App() {
@@ -567,8 +572,18 @@ function App() {
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitting(true);
     setMessage('');
+
+    if (authMode === 'register') {
+      const validationMessage = getRegistrationValidationMessage(authForm);
+
+      if (validationMessage) {
+        setMessage(validationMessage);
+        return;
+      }
+    }
+
+    setSubmitting(true);
 
     try {
       const authResponse =
@@ -644,7 +659,11 @@ function App() {
 
     setProfileForm({
       name: currentUser.name,
+      email: currentUser.email,
       phoneNumber: stripAzerbaijanPhonePrefix(currentUser.phoneNumber),
+      changePassword: false,
+      newPassword: '',
+      confirmNewPassword: '',
     });
     setEditingProfile(true);
     setMessage('');
@@ -652,18 +671,31 @@ function App() {
 
   async function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitting(true);
     setMessage('');
+
+    const validationMessage = getProfileValidationMessage(profileForm);
+
+    if (validationMessage) {
+      setMessage(validationMessage);
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const updatedUser = await api.updateProfile({
         name: profileForm.name.trim(),
+        email: profileForm.email.trim(),
         phoneNumber: toAzerbaijanPhoneNumber(profileForm.phoneNumber),
+        changePassword: profileForm.changePassword,
+        newPassword: profileForm.newPassword,
+        confirmNewPassword: profileForm.confirmNewPassword,
       });
 
       setCurrentUser(updatedUser);
+      setProfileForm(emptyProfileForm);
       setEditingProfile(false);
-      setMessage('Profile updated.');
+      setMessage('Profile updated successfully.');
     } catch (error) {
       setMessage(getErrorMessage(error));
     } finally {
@@ -896,7 +928,7 @@ function App() {
         submitting={submitting}
       />
 
-      {message && (
+      {message && page !== 'auth' && (
         <div className="app-toast" role="status" aria-live="polite">
           <span>{message}</span>
           <button aria-label="Close notification" onClick={() => setMessage('')} type="button">
@@ -984,6 +1016,7 @@ function App() {
           accountPhonePrefix={accountPhonePrefix}
           authForm={authForm}
           authMode={authMode}
+          message={message}
           onAuthFormChange={setAuthForm}
           onSubmit={(event) => void submitAuth(event)}
           onToggleMode={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
@@ -1069,12 +1102,135 @@ function App() {
 }
 
 function toAzerbaijanPhoneNumber(phoneNumber: string) {
-  return `${accountPhonePrefix} ${stripAzerbaijanPhonePrefix(phoneNumber)}`.trim();
+  return normalizeAzerbaijanPhoneNumber(phoneNumber) ?? `${accountPhonePrefix} ${stripAzerbaijanPhonePrefix(phoneNumber)}`.trim();
 }
 
 function stripAzerbaijanPhonePrefix(phoneNumber: string) {
   const trimmed = phoneNumber.trim();
   return trimmed.startsWith(accountPhonePrefix) ? trimmed.slice(accountPhonePrefix.length).trim() : trimmed;
+}
+
+function getRegistrationValidationMessage(form: AuthForm) {
+  const name = form.name.trim();
+  const email = form.email.trim();
+  const password = form.password;
+
+  if (name.length < 2) {
+    return 'Name must be at least 2 characters.';
+  }
+
+  if (!/^[\p{L}\s'-]+$/u.test(name) || !/\p{L}/u.test(name)) {
+    return 'Name must contain letters and may include spaces, hyphens, or apostrophes.';
+  }
+
+  if (email.length > 150 || /\s/.test(email) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return 'Please enter a valid email address.';
+  }
+
+  if (!email.toLowerCase().endsWith('@gmail.com')) {
+    return 'Only Gmail addresses (@gmail.com) are allowed.';
+  }
+
+  if (password.length < 8) {
+    return 'Password must be at least 8 characters.';
+  }
+
+  if (password.length > 128) {
+    return 'Password must be at most 128 characters.';
+  }
+
+  if (!/\p{Lu}/u.test(password)) {
+    return 'Password must contain an uppercase letter.';
+  }
+
+  if (!/\p{Ll}/u.test(password)) {
+    return 'Password must contain a lowercase letter.';
+  }
+
+  if (!/\p{Nd}/u.test(password)) {
+    return 'Password must contain a number.';
+  }
+
+  if (!/[^\p{L}\p{N}]/u.test(password)) {
+    return 'Password must contain a special character.';
+  }
+
+  if (!normalizeAzerbaijanPhoneNumber(form.phoneNumber)) {
+    return 'Please enter a valid Azerbaijan phone number.';
+  }
+
+  return '';
+}
+
+function getProfileValidationMessage(form: ProfileForm) {
+  const email = form.email.trim();
+  const passwordChangeRequested =
+    form.changePassword || Boolean(form.newPassword) || Boolean(form.confirmNewPassword);
+
+  if (form.name.trim().length < 2) {
+    return 'Name must be at least 2 characters.';
+  }
+
+  if (!/^[\p{L}\s'-]+$/u.test(form.name.trim()) || !/\p{L}/u.test(form.name.trim())) {
+    return 'Name must contain letters and may include spaces, hyphens, or apostrophes.';
+  }
+
+  if (email.length > 150 || /\s/.test(email) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return 'Please enter a valid email address.';
+  }
+
+  if (!email.toLowerCase().endsWith('@gmail.com')) {
+    return 'Only Gmail addresses (@gmail.com) are allowed.';
+  }
+
+  if (!normalizeAzerbaijanPhoneNumber(form.phoneNumber)) {
+    return 'Please enter a valid Azerbaijan phone number.';
+  }
+
+  if (!passwordChangeRequested) {
+    return '';
+  }
+
+  if (!isStrongPassword(form.newPassword)) {
+    return 'New password does not meet the password requirements.';
+  }
+
+  if (form.newPassword !== form.confirmNewPassword) {
+    return 'Passwords do not match.';
+  }
+
+  return '';
+}
+
+function normalizeAzerbaijanPhoneNumber(phoneNumber: string) {
+  const trimmed = phoneNumber.trim();
+
+  if (!trimmed || /[^0-9\s()+-]/.test(trimmed)) {
+    return null;
+  }
+
+  const plusIndex = trimmed.indexOf('+');
+
+  if (plusIndex > 0 || plusIndex !== trimmed.lastIndexOf('+')) {
+    return null;
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  let localDigits = digits;
+
+  if (trimmed.startsWith(accountPhonePrefix) && digits.startsWith('994')) {
+    localDigits = digits.slice(3);
+  } else if (digits.length === 12 && digits.startsWith('994')) {
+    localDigits = digits.slice(3);
+  } else if (digits.length === 10 && digits.startsWith('0')) {
+    localDigits = digits.slice(1);
+  }
+
+  if (localDigits.length === 10 && localDigits.startsWith('0')) {
+    localDigits = localDigits.slice(1);
+  }
+
+  return localDigits.length === 9 ? `${accountPhonePrefix}${localDigits}` : null;
 }
 
 function getPageFromPathname(pathname: string): Page {

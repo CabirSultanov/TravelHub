@@ -52,6 +52,7 @@ export type TaxiServiceFormActions = {
   updateCarClass: (index: number, update: Partial<TaxiCarClassForm>) => void;
   removeCarClass: (index: number) => void;
   addCarClass: () => void;
+  uploadImage: (file: File) => void;
   submit: (event: FormEvent<HTMLFormElement>) => void;
   cancel: () => void;
 };

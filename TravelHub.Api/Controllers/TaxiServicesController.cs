@@ -170,9 +170,9 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
             return "PhoneNumber must be a valid phone number.";
         }
 
-        if (!IsHttpUrl(imageUrl))
+        if (!IsAllowedImageUrl(imageUrl))
         {
-            return "ImageUrl must be a valid http or https URL.";
+            return "ImageUrl must be a valid http, https, or uploaded image URL.";
         }
 
         if (carClasses is null || carClasses.Count == 0)
@@ -256,9 +256,16 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
             trimmed.All(character => char.IsDigit(character) || char.IsWhiteSpace(character) || character is '+' or '-' or '(' or ')');
     }
 
-    private static bool IsHttpUrl(string imageUrl)
+    private static bool IsAllowedImageUrl(string imageUrl)
     {
-        return Uri.TryCreate(imageUrl.Trim(), UriKind.Absolute, out var uri) &&
+        var trimmed = imageUrl.Trim();
+
+        if (trimmed.StartsWith("/images/hotel-covers/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 }

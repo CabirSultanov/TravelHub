@@ -1,10 +1,12 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { AuthForm, AuthMode } from '../../types';
+import { getPasswordRequirements } from '../../utils/authValidation';
 
 type AuthPageProps = {
   authMode: AuthMode;
   authForm: AuthForm;
   submitting: boolean;
+  message: string;
   accountPhonePrefix: string;
   accountPhonePattern: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -16,12 +18,16 @@ export default function AuthPage({
   authMode,
   authForm,
   submitting,
+  message,
   accountPhonePrefix,
   accountPhonePattern,
   onSubmit,
   onAuthFormChange,
   onToggleMode,
 }: AuthPageProps) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const passwordRequirements = getPasswordRequirements(authForm.password);
+
   return (
     <section className="auth-page od-auth-page">
       <main className="auth-wrap">
@@ -82,17 +88,44 @@ export default function AuthPage({
                   required
                 />
               </label>
-              <label className="field-box">
+              <div className="field-box">
                 <span>Password</span>
-                <input
-                  minLength={6}
-                  placeholder="Password"
-                  type="password"
-                  value={authForm.password}
-                  onChange={(event) => onAuthFormChange({ ...authForm, password: event.target.value })}
-                  required
-                />
-              </label>
+                <div className="password-field">
+                  <input
+                    id="auth-password"
+                    maxLength={128}
+                    minLength={authMode === 'register' ? 8 : undefined}
+                    placeholder="Password"
+                    type={passwordVisible ? 'text' : 'password'}
+                    value={authForm.password}
+                    onChange={(event) => onAuthFormChange({ ...authForm, password: event.target.value })}
+                    required
+                  />
+                  <button
+                    aria-label={passwordVisible ? 'Hide password' : 'Show password'}
+                    className="password-toggle"
+                    onClick={() => setPasswordVisible((visible) => !visible)}
+                    title={passwordVisible ? 'Hide password' : 'Show password'}
+                    type="button"
+                  >
+                    <span className={`auth-password-eye ${passwordVisible ? 'is-open' : ''}`} aria-hidden="true" />
+                  </button>
+                </div>
+                {authMode === 'register' && (
+                  <div className="password-requirements">
+                    <strong>Password requirements</strong>
+                    <ul>
+                      {passwordRequirements.map((requirement) => (
+                        <li className={requirement.valid ? 'is-valid' : 'is-invalid'} key={requirement.label}>
+                          <span aria-hidden="true">{requirement.valid ? '✓' : '✗'}</span>
+                          {requirement.label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              {message && <p className="auth-message">{message}</p>}
               <button className="btn btn-primary btn-wide" disabled={submitting} type="submit">
                 {authMode === 'register' ? 'Create account' : 'Sign in'}
               </button>

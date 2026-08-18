@@ -75,4 +75,29 @@ describe('api authentication', () => {
     expect(calls.filter(([url]) => url === '/api/auth/refresh')).toHaveLength(1);
     expect(calls.filter(([url]) => url === '/api/auth/me')).toHaveLength(2);
   });
+
+  it('uses the first validation error message from API problem details', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(
+        {
+          title: 'One or more validation errors occurred.',
+          errors: {
+            Email: ['Please enter a valid email address.'],
+          },
+        },
+        400,
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    await expect(
+      api.register({
+        name: 'Jane Doe',
+        email: 'bad-email',
+        phoneNumber: '+994501234567',
+        password: 'Travel123!',
+      }),
+    ).rejects.toThrow('Please enter a valid email address.');
+  });
 });

@@ -22,7 +22,7 @@ export default function TaxiServiceList({
   actions,
 }: TaxiServiceListProps) {
   return (
-    <aside className="panel">
+    <aside className="panel taxi-service-sidebar">
       <div className="section-title">
         <div>
           <p className="eyebrow">Taxi</p>
@@ -37,7 +37,7 @@ export default function TaxiServiceList({
         </button>
       )}
 
-      <div className="hotel-list">
+      <div className="hotel-list taxi-service-list">
         {taxiServices.map((taxi) => (
           <article className={`hotel-card ${selectedTaxiService?.id === taxi.id && !showTaxiForm ? 'active' : ''}`} key={taxi.id}>
             <button className="hotel-card-main" onClick={() => actions.select(taxi)} type="button">

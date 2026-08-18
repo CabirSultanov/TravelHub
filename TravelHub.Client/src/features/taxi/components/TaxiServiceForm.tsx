@@ -1,3 +1,4 @@
+import type { ChangeEvent } from 'react';
 import type { TaxiForm, TaxiServiceFormActions } from '../taxi.types';
 import { taxiCarClassOptions } from '../../../utils/taxi';
 
@@ -18,6 +19,16 @@ export default function TaxiServiceForm({
   pricePattern,
   actions,
 }: TaxiServiceFormProps) {
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (file) {
+      actions.uploadImage(file);
+    }
+
+    event.target.value = '';
+  }
+
   return (
     <form className="form-grid taxi-service-form" onSubmit={(event) => void actions.submit(event)}>
       <h3>{editingTaxiId ? 'Edit taxi service' : 'New taxi service'}</h3>
@@ -111,15 +122,17 @@ export default function TaxiServiceForm({
         onChange={(event) => actions.setForm({ ...taxiForm, description: event.target.value })}
         required
       />
-      <input
-        placeholder="Image URL"
-        pattern="https?://.+"
-        title="Use a full http or https URL."
-        type="url"
-        value={taxiForm.imageUrl || ''}
-        onChange={(event) => actions.setForm({ ...taxiForm, imageUrl: event.target.value })}
-        required
-      />
+      <div className="field-label hotel-image-field">
+        Taxi image
+        {taxiForm.imageUrl && <img className="hotel-image-preview" src={taxiForm.imageUrl} alt="" />}
+        <div className="hotel-image-upload-row">
+          <input placeholder="No image selected" readOnly required value={taxiForm.imageUrl || ''} />
+          <label className={`small-primary-button image-upload-button${submitting ? ' is-disabled' : ''}`}>
+            Choose photo
+            <input accept="image/jpeg,image/png,image/webp" disabled={submitting} onChange={handleImageChange} type="file" />
+          </label>
+        </div>
+      </div>
       <div className="taxi-service-form-actions">
         <button className="primary taxi-service-submit" disabled={submitting} type="submit">
           {editingTaxiId ? 'Save taxi service' : 'Create taxi service'}

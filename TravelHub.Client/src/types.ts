@@ -11,7 +11,11 @@ export type AuthForm = {
 
 export type ProfileForm = {
   name: string;
+  email: string;
   phoneNumber: string;
+  changePassword: boolean;
+  newPassword: string;
+  confirmNewPassword: string;
 };
 
 export type PaymentForm = {
@@ -72,7 +76,11 @@ export type LoginRequest = {
 
 export type UpdateProfileRequest = {
   name: string;
+  email: string;
   phoneNumber: string;
+  changePassword?: boolean;
+  newPassword?: string;
+  confirmNewPassword?: string;
 };
 
 export type HotelUpdateInput = {
