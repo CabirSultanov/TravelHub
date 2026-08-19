@@ -1,5 +1,11 @@
 import type { FormEvent } from 'react';
 import type { AuthUser, Booking, BookingGuestMode, HotelRoom } from '../../../types';
+import {
+  clearInvalidHotelCheckOut,
+  hotelDateRangeErrorMessage,
+  minHotelCheckOutDate,
+  todayDateInputValue,
+} from '../../../utils/dateRange';
 import type { BookingForm, HotelBookingFormActions } from '../hotels.types';
 
 type HotelBookingFormProps = {
@@ -42,6 +48,9 @@ export default function HotelBookingForm({
     datesAreValid;
   const formLocked = submitting || bookingCreated;
   const canCreateBooking = bookingFormIsReady && !formLocked;
+  const todayDate = todayDateInputValue();
+  const minCheckOutDate = minHotelCheckOutDate(bookingForm.checkInDate || todayDate);
+  const showDateError = Boolean(bookingForm.checkInDate && bookingForm.checkOutDate && !datesAreValid);
 
   if (!currentUser) {
     return (
@@ -105,18 +114,31 @@ export default function HotelBookingForm({
       />
       <input
         disabled={formLocked}
+        min={todayDate}
         type="date"
         value={bookingForm.checkInDate}
-        onChange={(event) => actions.setForm({ ...bookingForm, checkInDate: event.target.value })}
+        onChange={(event) =>
+          actions.setForm({
+            ...bookingForm,
+            checkInDate: event.target.value,
+            checkOutDate: clearInvalidHotelCheckOut(event.target.value, bookingForm.checkOutDate),
+          })
+        }
         required
       />
       <input
         disabled={formLocked}
+        min={minCheckOutDate}
         type="date"
         value={bookingForm.checkOutDate}
         onChange={(event) => actions.setForm({ ...bookingForm, checkOutDate: event.target.value })}
         required
       />
+      {showDateError && (
+        <p className="hotel-booking-error" role="alert">
+          {hotelDateRangeErrorMessage}
+        </p>
+      )}
       <button className="primary" disabled={!canCreateBooking} type="submit">
         {submitting ? 'Creating...' : bookingCreated ? 'Booking created' : 'Create booking'}
       </button>

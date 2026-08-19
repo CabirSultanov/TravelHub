@@ -2,7 +2,7 @@ namespace TravelHub.Api.Services;
 
 public static class HotelBookingRules
 {
-    public const string InvalidDateRangeMessage = "CheckOutDate must be after CheckInDate.";
+    public const string InvalidDateRangeMessage = "Check-out date must be after check-in date.";
 
     public static string? ValidateDateRange(DateOnly checkInDate, DateOnly checkOutDate) =>
         checkOutDate > checkInDate ? null : InvalidDateRangeMessage;

@@ -1798,6 +1798,16 @@
     }
     .search-bar .btn-primary { min-height: 48px; }
 
+    .hotel-search-error,
+    .hotel-booking-error {
+      color: #9f1d1d;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.4;
+      margin: 8px 0 0;
+      overflow-wrap: anywhere;
+    }
+
     .filter-row {
       display: flex;
       flex-wrap: wrap;

@@ -30,7 +30,7 @@ public class HotelBookingRulesTests
             new DateOnly(checkInYear, checkInMonth, checkInDay),
             new DateOnly(checkOutYear, checkOutMonth, checkOutDay));
 
-        Assert.Equal("CheckOutDate must be after CheckInDate.", result);
+        Assert.Equal("Check-out date must be after check-in date.", result);
     }
 
     [Fact]

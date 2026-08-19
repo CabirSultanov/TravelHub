@@ -7,7 +7,15 @@ import RoomForm from '../../features/hotels/components/RoomForm';
 import RoomList, { RoomPhotoStrip } from '../../features/hotels/components/RoomList';
 import SiteFooter from '../../components/common/SiteFooter';
 import type { AuthUser, Booking, Hotel, Page, TaxiBooking } from '../../types';
+import {
+  clearInvalidHotelCheckOut,
+  hotelDateRangeErrorMessage,
+  isHotelDateRangeValid,
+  minHotelCheckOutDate,
+  todayDateInputValue,
+} from '../../utils/dateRange';
 import { fallbackImage } from '../../utils/images';
+import type { HotelRouteSearch } from '../../utils/routing';
 import type { HotelsFeature } from '../../features/hotels/hotels.types';
 
 type HotelsPageProps = {
@@ -25,24 +33,12 @@ type HotelsPageProps = {
   onBackToHotels: () => void;
   onNavigate: (page: Page) => void;
   onOpenHotel: (hotel: Hotel) => void;
+  onRoomSelect: (roomId: number) => void;
+  onSearchHotels: (search: Partial<HotelRouteSearch>) => void;
   onShowDestinations: () => void;
+  requestedRoomId: number | null;
+  search: HotelRouteSearch;
 };
-
-function toDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
-
-function addDateInputDays(dateValue: string, days: number) {
-  const [year, month, day] = dateValue.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  date.setDate(date.getDate() + days);
-
-  return toDateInputValue(date);
-}
 
 export default function HotelsPage({
   feature,
@@ -59,22 +55,44 @@ export default function HotelsPage({
   onBackToHotels,
   onNavigate,
   onOpenHotel,
+  onRoomSelect,
+  onSearchHotels,
   onShowDestinations,
+  requestedRoomId,
+  search,
 }: HotelsPageProps) {
   const { model, actions } = feature;
   const isHotelDetailPage = hotelDetailId !== null;
   const [showRooms, setShowRooms] = useState(false);
   const [searchCity, setSearchCity] = useState(model.cityFilter);
   const [searchDates, setSearchDates] = useState({ checkIn: '', checkOut: '' });
+  const [searchError, setSearchError] = useState('');
   const [showEditExitGuard, setShowEditExitGuard] = useState(false);
   const [navigateAfterEditSave, setNavigateAfterEditSave] = useState(false);
-  const todayDate = toDateInputValue(new Date());
-  const minCheckOutDate = addDateInputDays(searchDates.checkIn || todayDate, 1);
+  const todayDate = todayDateInputValue();
+  const minCheckOutDate = minHotelCheckOutDate(searchDates.checkIn || todayDate);
   const hasOpenEditForm = model.showHotelForm || model.showRoomForm;
 
   useEffect(() => {
     setShowRooms(false);
   }, [hotelDetailId]);
+
+  useEffect(() => {
+    setSearchCity(search.city);
+    setSearchDates({ checkIn: search.checkIn, checkOut: search.checkOut });
+  }, [search.checkIn, search.checkOut, search.city]);
+
+  useEffect(() => {
+    if (!requestedRoomId || !isHotelDetailPage || model.roomsLoading) {
+      return;
+    }
+
+    const requestedRoom = model.rooms.find((room) => room.id === requestedRoomId);
+
+    if (requestedRoom) {
+      setShowRooms(true);
+    }
+  }, [isHotelDetailPage, model.rooms, model.roomsLoading, requestedRoomId]);
 
   useEffect(() => {
     if (blockedBackSignal > 0 && hasOpenEditForm) {
@@ -93,13 +111,24 @@ export default function HotelsPage({
   function setSearchCheckIn(checkIn: string) {
     setSearchDates((dates) => ({
       checkIn,
-      checkOut: dates.checkOut && dates.checkOut <= checkIn ? '' : dates.checkOut,
+      checkOut: clearInvalidHotelCheckOut(checkIn, dates.checkOut),
     }));
+    setSearchError('');
   }
 
   function submitHotelSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    actions.hotelList.setCityFilter(searchCity);
+
+    if (
+      (searchDates.checkIn && searchDates.checkIn < todayDate) ||
+      (searchDates.checkIn && searchDates.checkOut && !isHotelDateRangeValid(searchDates.checkIn, searchDates.checkOut))
+    ) {
+      setSearchError(hotelDateRangeErrorMessage);
+      return;
+    }
+
+    setSearchError('');
+    onSearchHotels({ city: searchCity, checkIn: searchDates.checkIn, checkOut: searchDates.checkOut });
   }
 
   function handleBackToHotels() {
@@ -131,6 +160,14 @@ export default function HotelsPage({
     setShowEditExitGuard(false);
     onBackToHotels();
   }
+
+  const roomListActions = {
+    ...actions.roomList,
+    select: (room: Parameters<typeof actions.roomList.select>[0]) => {
+      actions.roomList.select(room);
+      onRoomSelect(room.id);
+    },
+  };
 
   function renderHotelWorkspace() {
     return (
@@ -202,7 +239,7 @@ export default function HotelsPage({
                   <div className="hotel-rooms-band">
                     <div className="hotel-rooms-band-inner">
                       <RoomList
-                        actions={actions.roomList}
+                        actions={roomListActions}
                         canManageHotels={model.canManageHotels}
                         rooms={model.rooms}
                         roomsLoading={model.roomsLoading}
@@ -348,7 +385,10 @@ export default function HotelsPage({
                   min={minCheckOutDate}
                   type="date"
                   value={searchDates.checkOut}
-                  onChange={(event) => setSearchDates({ ...searchDates, checkOut: event.target.value })}
+                  onChange={(event) => {
+                    setSearchDates({ ...searchDates, checkOut: event.target.value });
+                    setSearchError('');
+                  }}
                 />
               </div>
             </label>
@@ -356,6 +396,11 @@ export default function HotelsPage({
               Search
             </button>
           </form>
+          {searchError && (
+            <p className="hotel-search-error" role="alert">
+              {searchError}
+            </p>
+          )}
 
         </div>
       </section>

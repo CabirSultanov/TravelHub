@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../../../api';
+import { hotelDateRangeErrorMessage, isHotelDateRangeValid } from '../../../utils/dateRange';
 import { getErrorMessage } from '../../../utils/errors';
 import { cleanImageUrls } from '../../../utils/images';
 import type { Booking, Hotel, HotelInput, HotelRoom, HotelUpdateInput } from '../../../types';
@@ -497,6 +498,15 @@ export function useHotelsFeature({
     }));
   }
 
+  function setHotelSearch(search: { city: string; checkInDate?: string; checkOutDate?: string }) {
+    setCityFilter(search.city);
+    setBookingForm((form) => ({
+      ...form,
+      checkInDate: search.checkInDate ?? form.checkInDate,
+      checkOutDate: search.checkOutDate ?? form.checkOutDate,
+    }));
+  }
+
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -506,6 +516,11 @@ export function useHotelsFeature({
     }
 
     if (!selectedRoom) {
+      return;
+    }
+
+    if (!isHotelDateRangeValid(bookingForm.checkInDate, bookingForm.checkOutDate)) {
+      setMessage(hotelDateRangeErrorMessage);
       return;
     }
 
@@ -627,6 +642,7 @@ export function useHotelsFeature({
         startCreate: startCreateHotel,
         select: (hotel) => void selectHotel(hotel),
         setCityFilter,
+        setSearch: setHotelSearch,
         requestDelete: setDeleteTarget,
       },
       hotelForm: {

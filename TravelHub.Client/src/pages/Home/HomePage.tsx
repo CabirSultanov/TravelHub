@@ -1,12 +1,18 @@
 import type { FormEvent, MouseEvent } from 'react';
 import SiteFooter from '../../components/common/SiteFooter';
 import type { Hotel, Page } from '../../types';
+import {
+  addDateInputDays,
+  hotelDateRangeErrorMessage,
+  isHotelDateRangeValid,
+  todayDateInputValue,
+} from '../../utils/dateRange';
 import { fallbackImage } from '../../utils/images';
 
 type HomePageProps = {
   cities: string[];
   hotels: Hotel[];
-  onHotelSearch: (city: string) => void;
+  onHotelSearch: (city: string, checkIn?: string, checkOut?: string) => void;
   onNavigate: (page: Page) => void;
 };
 
@@ -21,22 +27,6 @@ function escapeHtml(value: string) {
 
 function pluralize(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
-}
-
-function toDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
-
-function addDateInputDays(dateValue: string, days: number) {
-  const [year, month, day] = dateValue.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  date.setDate(date.getDate() + days);
-
-  return toDateInputValue(date);
 }
 
 function createHotelCards(hotels: Hotel[]) {
@@ -73,7 +63,7 @@ function createHotelCards(hotels: Hotel[]) {
 }
 
 function createHomeMarkup(cities: string[], hotels: Hotel[]) {
-  const todayDate = toDateInputValue(new Date());
+  const todayDate = todayDateInputValue();
   const minCheckOutDate = addDateInputDays(todayDate, 1);
   const destinationOptions = [
     '<option value="">All cities</option>',
@@ -346,13 +336,21 @@ export default function HomePage({ cities, hotels, onHotelSearch, onNavigate }: 
     const city = String(data.get('destination') ?? '').trim();
     const checkIn = String(data.get('checkin') ?? '').trim();
     const checkOut = String(data.get('checkout') ?? '').trim();
-    const todayDate = toDateInputValue(new Date());
+    const feedback = (form as HTMLFormElement).querySelector<HTMLElement>('[data-od-id="search-feedback"]');
+    const todayDate = todayDateInputValue();
 
-    if ((checkIn && checkIn < todayDate) || (checkIn && checkOut && checkOut <= checkIn)) {
+    if ((checkIn && checkIn < todayDate) || (checkIn && checkOut && !isHotelDateRangeValid(checkIn, checkOut))) {
+      if (feedback) {
+        feedback.textContent = hotelDateRangeErrorMessage;
+      }
       return;
     }
 
-    onHotelSearch(city);
+    if (feedback) {
+      feedback.textContent = 'We will show available stays and nightly prices.';
+    }
+
+    onHotelSearch(city, checkIn, checkOut);
   }
 
   function handleChange(event: FormEvent<HTMLDivElement>) {
@@ -369,11 +367,11 @@ export default function HomePage({ cities, hotels, onHotelSearch, onNavigate }: 
       return;
     }
 
-    const todayDate = toDateInputValue(new Date());
+    const todayDate = todayDateInputValue();
     const minCheckOutDate = addDateInputDays(target.value || todayDate, 1);
     checkout.min = minCheckOutDate;
 
-    if (checkout.value && checkout.value <= target.value) {
+    if (!target.value || (checkout.value && checkout.value <= target.value)) {
       checkout.value = '';
     }
   }

@@ -15,6 +15,23 @@ import TaxiPage from './pages/Taxi/TaxiPage';
 import { formatTaxiCarClassName } from './utils/formatting';
 import { getErrorMessage } from './utils/errors';
 import { isStrongPassword } from './utils/authValidation';
+import {
+  buildAuthUrl,
+  buildHotelDetailUrl,
+  buildHotelsUrl,
+  buildParsedRouteUrl,
+  buildTaxiUrl,
+  emptyHotelRouteSearch,
+  emptyTaxiRouteSearch,
+  getHotelIdFromPathname,
+  normalizeHotelRouteSearch,
+  normalizeTaxiRouteSearch,
+  pageRoutes,
+  parseAppRoute,
+  type HotelRouteSearch,
+  type ParsedRoute,
+  type TaxiRouteSearch,
+} from './utils/routing';
 import type {
   AuthForm,
   AuthMode,
@@ -31,17 +48,6 @@ import type {
   SavedPaymentCard,
   TaxiBooking,
 } from './types';
-
-const appPages: Page[] = ['home', 'taxi', 'hotels', 'auth', 'admin', 'profile', 'trips'];
-const pageRoutes: Record<Page, string> = {
-  home: '/',
-  taxi: '/taxi',
-  hotels: '/hotels',
-  auth: '/auth',
-  admin: '/admin',
-  profile: '/profile',
-  trips: '/my-trips',
-};
 
 const phoneNumberPattern = String.raw`\+?[0-9\s()-]{7,30}`;
 const accountPhonePrefix = '+994';
@@ -86,8 +92,14 @@ const emptyProfileForm: ProfileForm = {
 };
 
 function App() {
-  const [page, setPage] = useState<Page>(() => getPageFromPathname(window.location.pathname));
-  const [hotelDetailId, setHotelDetailId] = useState<number | null>(() => getHotelIdFromPathname(window.location.pathname));
+  const initialRouteRef = useRef<ParsedRoute | null>(null);
+  initialRouteRef.current ??= parseAppRoute(window.location.pathname, window.location.search);
+  const initialRoute = initialRouteRef.current;
+  const [page, setPage] = useState<Page>(initialRoute.page);
+  const [hotelDetailId, setHotelDetailId] = useState<number | null>(initialRoute.hotelId);
+  const [hotelSearch, setHotelSearch] = useState<HotelRouteSearch>(initialRoute.hotels);
+  const [requestedHotelRoomId, setRequestedHotelRoomId] = useState<number | null>(initialRoute.hotels.roomId);
+  const [requestedTaxiSearch, setRequestedTaxiSearch] = useState<TaxiRouteSearch>(initialRoute.taxi);
   const [hotelDetailLoading, setHotelDetailLoading] = useState(false);
   const [hotelDetailNotFound, setHotelDetailNotFound] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -96,7 +108,7 @@ function App() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [taxiBookings, setTaxiBookings] = useState<TaxiBooking[]>([]);
   const [savedPaymentCards, setSavedPaymentCards] = useState<SavedPaymentCard[]>([]);
-  const [authMode, setAuthMode] = useState<AuthMode>('register');
+  const [authMode, setAuthMode] = useState<AuthMode>(initialRoute.authMode);
   const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
   const [editingProfile, setEditingProfile] = useState(false);
@@ -146,8 +158,8 @@ function App() {
   }, [hotelEditIsOpen]);
 
   useEffect(() => {
-    currentPathRef.current = hotelDetailId === null ? pageRoutes[page] : `/hotels/${hotelDetailId}`;
-  }, [hotelDetailId, page]);
+    currentPathRef.current = `${window.location.pathname}${window.location.search}`;
+  }, [authMode, hotelDetailId, hotelSearch, page, requestedTaxiSearch]);
 
   useEffect(() => {
     const currentPath = currentPathRef.current;
@@ -203,13 +215,16 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const currentPage = getPageFromPathname(window.location.pathname);
-    const currentHotelId = getHotelIdFromPathname(window.location.pathname);
+    const currentRoute = parseAppRoute(window.location.pathname, window.location.search);
+    const canonicalUrl = buildParsedRouteUrl(currentRoute);
+
+    applyParsedRoute(currentRoute);
     window.history.replaceState(
-      { page: currentPage, hotelId: currentHotelId },
+      { page: currentRoute.page, hotelId: currentRoute.hotelId },
       '',
-      currentHotelId === null ? pageRoutes[currentPage] : `/hotels/${currentHotelId}`,
+      canonicalUrl,
     );
+    currentPathRef.current = canonicalUrl;
 
     function handleBrowserBack() {
       if (hotelEditOpenRef.current && currentPathRef.current.startsWith('/hotels')) {
@@ -224,9 +239,13 @@ function App() {
         return;
       }
 
-      currentPathRef.current = window.location.pathname;
-      setPage(getPageFromPathname(window.location.pathname));
-      setHotelDetailId(getHotelIdFromPathname(window.location.pathname));
+      const nextRoute = parseAppRoute(window.location.pathname, window.location.search);
+      const canonicalUrl = buildParsedRouteUrl(nextRoute);
+      applyParsedRoute(nextRoute);
+      if (`${window.location.pathname}${window.location.search}` !== canonicalUrl) {
+        window.history.replaceState({ page: nextRoute.page, hotelId: nextRoute.hotelId }, '', canonicalUrl);
+      }
+      currentPathRef.current = canonicalUrl;
       setHotelDetailNotFound(false);
       window.scrollTo({ top: 0, left: 0 });
     }
@@ -318,6 +337,76 @@ function App() {
   }, [hotelDetailId, hotelsFeature.model.hotels, hotelsFeature.model.loading, hotelsFeature.model.selectedHotel?.id, page]);
 
   useEffect(() => {
+    if (page !== 'hotels' || hotelDetailId === null || requestedHotelRoomId === null || hotelsFeature.model.roomsLoading) {
+      return;
+    }
+
+    const requestedRoom = hotelsFeature.model.rooms.find((room) => room.id === requestedHotelRoomId);
+
+    if (requestedRoom) {
+      if (hotelsFeature.model.selectedRoom?.id !== requestedRoom.id) {
+        hotelsFeature.actions.roomList.select(requestedRoom);
+      }
+
+      return;
+    }
+
+    if (hotelsFeature.model.rooms.length > 0) {
+      const nextSearch = normalizeHotelRouteSearch({ ...hotelSearch, roomId: null });
+      setHotelSearch(nextSearch);
+      setRequestedHotelRoomId(null);
+      replaceRoute(buildHotelDetailUrl(hotelDetailId, nextSearch), { page: 'hotels', hotelId: hotelDetailId });
+    }
+  }, [
+    hotelDetailId,
+    hotelSearch,
+    hotelsFeature.model.rooms,
+    hotelsFeature.model.roomsLoading,
+    hotelsFeature.model.selectedRoom?.id,
+    page,
+    requestedHotelRoomId,
+  ]);
+
+  useEffect(() => {
+    if (page !== 'taxi' || requestedTaxiSearch.serviceId === null || taxiFeature.model.loading) {
+      return;
+    }
+
+    const requestedService = taxiFeature.model.taxiServices.find((taxiService) => taxiService.id === requestedTaxiSearch.serviceId);
+
+    if (!requestedService) {
+      setRequestedTaxiSearch(emptyTaxiRouteSearch);
+      replaceRoute(pageRoutes.taxi, { page: 'taxi' });
+      return;
+    }
+
+    if (
+      requestedTaxiSearch.carClassName &&
+      !requestedService.carClasses.some((carClass) => carClass.name === requestedTaxiSearch.carClassName)
+    ) {
+      const nextSearch = { serviceId: requestedService.id, carClassName: '' };
+      setRequestedTaxiSearch(nextSearch);
+      replaceRoute(buildTaxiUrl(nextSearch), { page: 'taxi' });
+      taxiFeature.actions.service.select(requestedService);
+      return;
+    }
+
+    if (
+      taxiFeature.model.selectedTaxiService?.id !== requestedService.id ||
+      (requestedTaxiSearch.carClassName && taxiFeature.model.selectedTaxiCarClass?.name !== requestedTaxiSearch.carClassName)
+    ) {
+      taxiFeature.actions.service.select(requestedService, requestedTaxiSearch.carClassName);
+    }
+  }, [
+    page,
+    requestedTaxiSearch,
+    taxiFeature.model.loading,
+    taxiFeature.model.selectedTaxiCarClass?.name,
+    taxiFeature.model.selectedTaxiService?.id,
+    taxiFeature.model.taxiServices,
+  ]);
+
+  useEffect(() => {
     if (!message) {
       return;
     }
@@ -327,24 +416,88 @@ function App() {
     return () => window.clearTimeout(timeoutId);
   }, [message]);
 
+  function applyParsedRoute(route: ParsedRoute) {
+    setPage(route.page);
+    setHotelDetailId(route.hotelId);
+    setHotelSearch(route.hotels);
+    setRequestedHotelRoomId(route.hotels.roomId);
+    setRequestedTaxiSearch(route.taxi);
+    setAuthMode(route.authMode);
+    setHotelDetailLoading(false);
+    setHotelDetailNotFound(false);
+    hotelsFeature.actions.hotelList.setSearch({
+      city: route.hotels.city,
+      checkInDate: route.hotels.checkIn,
+      checkOutDate: route.hotels.checkOut,
+    });
+  }
+
+  function pushRoute(url: string, state: Record<string, unknown>) {
+    if (`${window.location.pathname}${window.location.search}` !== url) {
+      window.history.pushState(state, '', url);
+    }
+
+    currentPathRef.current = url;
+  }
+
+  function replaceRoute(url: string, state: Record<string, unknown>) {
+    if (`${window.location.pathname}${window.location.search}` !== url) {
+      window.history.replaceState(state, '', url);
+    }
+
+    currentPathRef.current = url;
+  }
+
   function navigateTo(nextPage: Page) {
     setPage(nextPage);
     setHotelDetailId(null);
     setHotelDetailLoading(false);
     setHotelDetailNotFound(false);
+    setRequestedHotelRoomId(null);
     window.scrollTo({ top: 0, left: 0 });
-    const nextPath = pageRoutes[nextPage];
+    let nextPath = nextPage === 'auth' ? buildAuthUrl(authMode) : pageRoutes[nextPage];
 
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState({ page: nextPage }, '', nextPath);
+    if (nextPage === 'hotels') {
+      setHotelSearch(emptyHotelRouteSearch);
+      hotelsFeature.actions.hotelList.setSearch({ city: '' });
     }
 
-    currentPathRef.current = nextPath;
+    if (nextPage === 'taxi') {
+      const currentTaxiSearch = taxiFeature.model.selectedTaxiService
+        ? {
+            serviceId: taxiFeature.model.selectedTaxiService.id,
+            carClassName: taxiFeature.model.selectedTaxiCarClass?.name ?? '',
+          }
+        : emptyTaxiRouteSearch;
+
+      setRequestedTaxiSearch(currentTaxiSearch);
+      nextPath = buildTaxiUrl(currentTaxiSearch);
+    }
+
+    pushRoute(nextPath, { page: nextPage });
   }
 
-  function searchHotelsFromHome(city: string) {
-    hotelsFeature.actions.hotelList.setCityFilter(city);
-    navigateTo('hotels');
+  function searchHotels(search: Partial<HotelRouteSearch>) {
+    const nextSearch = normalizeHotelRouteSearch(search);
+    const nextPath = buildHotelsUrl(nextSearch);
+
+    setPage('hotels');
+    setHotelDetailId(null);
+    setHotelDetailLoading(false);
+    setHotelDetailNotFound(false);
+    setHotelSearch(nextSearch);
+    setRequestedHotelRoomId(null);
+    hotelsFeature.actions.hotelList.setSearch({
+      city: nextSearch.city,
+      checkInDate: nextSearch.checkIn,
+      checkOutDate: nextSearch.checkOut,
+    });
+    window.scrollTo({ top: 0, left: 0 });
+    pushRoute(nextPath, { page: 'hotels', hotelId: null });
+  }
+
+  function searchHotelsFromHome(city: string, checkIn = '', checkOut = '') {
+    searchHotels({ city, checkIn, checkOut });
   }
 
   function showDestinations() {
@@ -355,20 +508,63 @@ function App() {
   }
 
   function openHotelDetail(hotel: Hotel) {
+    const detailSearch = normalizeHotelRouteSearch({ ...hotelSearch, roomId: null });
+
     setPage('hotels');
     setHotelDetailId(hotel.id);
     setHotelDetailLoading(false);
     setHotelDetailNotFound(false);
+    setHotelSearch(detailSearch);
+    setRequestedHotelRoomId(null);
     hotelsFeature.actions.hotelList.select(hotel);
     window.scrollTo({ top: 0, left: 0 });
 
-    const nextPath = `/hotels/${hotel.id}`;
+    const nextPath = buildHotelDetailUrl(hotel.id, detailSearch);
 
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState({ page: 'hotels', hotelId: hotel.id }, '', nextPath);
+    pushRoute(nextPath, { page: 'hotels', hotelId: hotel.id });
+  }
+
+  function openHotelsList() {
+    const nextSearch = normalizeHotelRouteSearch({ ...hotelSearch, roomId: null });
+    const nextPath = buildHotelsUrl(nextSearch);
+
+    setPage('hotels');
+    setHotelDetailId(null);
+    setHotelDetailLoading(false);
+    setHotelDetailNotFound(false);
+    setRequestedHotelRoomId(null);
+    setHotelSearch(nextSearch);
+    window.scrollTo({ top: 0, left: 0 });
+    pushRoute(nextPath, { page: 'hotels', hotelId: null });
+  }
+
+  function selectHotelRoomFromPage(roomId: number) {
+    if (hotelDetailId === null) {
+      return;
     }
 
-    currentPathRef.current = nextPath;
+    const nextSearch = normalizeHotelRouteSearch({ ...hotelSearch, roomId });
+    const nextPath = buildHotelDetailUrl(hotelDetailId, nextSearch);
+
+    setHotelSearch(nextSearch);
+    setRequestedHotelRoomId(roomId);
+    pushRoute(nextPath, { page: 'hotels', hotelId: hotelDetailId });
+  }
+
+  function updateTaxiRouteSearch(search: Partial<TaxiRouteSearch>) {
+    const nextSearch = normalizeTaxiRouteSearch(search);
+    const nextPath = buildTaxiUrl(nextSearch);
+
+    setPage('taxi');
+    setRequestedTaxiSearch(nextSearch);
+    pushRoute(nextPath, { page: 'taxi' });
+  }
+
+  function setAuthModeFromUrl(nextMode: AuthMode) {
+    setAuthMode(nextMode);
+    setPage('auth');
+    setHotelDetailId(null);
+    pushRoute(buildAuthUrl(nextMode), { page: 'auth' });
   }
 
   async function loadBookings() {
@@ -751,14 +947,12 @@ function App() {
   }
 
   function openAuth() {
-    setAuthMode('register');
-    navigateTo('auth');
+    setAuthModeFromUrl('register');
     setMessage('');
   }
 
   function requireAuth(message: string) {
-    setAuthMode('login');
-    navigateTo('auth');
+    setAuthModeFromUrl('login');
     setMessage(message);
   }
 
@@ -974,6 +1168,7 @@ function App() {
           onNavigate={navigateTo}
           onOpenAuth={openAuth}
           onShowDestinations={showDestinations}
+          onTaxiRouteChange={updateTaxiRouteSearch}
           phoneNumberPattern={phoneNumberPattern}
           pricePattern={pricePattern}
           renderPaymentForm={renderPaymentForm}
@@ -990,13 +1185,17 @@ function App() {
           hotelDetailNotFound={hotelDetailNotFound}
           blockedBackSignal={blockedHotelBackSignal}
           loading={initialDataLoading}
-          onBackToHotels={() => navigateTo('hotels')}
+          onBackToHotels={openHotelsList}
           onNavigate={navigateTo}
           onOpenAuth={openAuth}
           onOpenHotel={openHotelDetail}
+          onRoomSelect={selectHotelRoomFromPage}
+          onSearchHotels={searchHotels}
           onShowDestinations={showDestinations}
           phoneNumberPattern={phoneNumberPattern}
+          requestedRoomId={requestedHotelRoomId}
           renderPaymentForm={renderPaymentForm}
+          search={hotelSearch}
           submitting={submitting}
         />
       )}
@@ -1019,7 +1218,7 @@ function App() {
           message={message}
           onAuthFormChange={setAuthForm}
           onSubmit={(event) => void submitAuth(event)}
-          onToggleMode={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
+          onToggleMode={() => setAuthModeFromUrl(authMode === 'register' ? 'login' : 'register')}
           submitting={submitting}
         />
       )}
@@ -1231,21 +1430,6 @@ function normalizeAzerbaijanPhoneNumber(phoneNumber: string) {
   }
 
   return localDigits.length === 9 ? `${accountPhonePrefix}${localDigits}` : null;
-}
-
-function getPageFromPathname(pathname: string): Page {
-  const cleanPath = pathname.replace(/\/+$/, '') || '/';
-
-  if (cleanPath.startsWith('/hotels/')) {
-    return 'hotels';
-  }
-
-  return appPages.find((currentPage) => pageRoutes[currentPage] === cleanPath) ?? 'home';
-}
-
-function getHotelIdFromPathname(pathname: string) {
-  const match = pathname.replace(/\/+$/, '').match(/^\/hotels\/(\d+)$/);
-  return match ? Number(match[1]) : null;
 }
 
 function delay(ms: number) {

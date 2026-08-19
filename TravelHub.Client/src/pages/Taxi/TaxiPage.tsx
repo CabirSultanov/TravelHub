@@ -18,6 +18,7 @@ type TaxiPageProps = {
   onNavigate: (page: Page) => void;
   onOpenAuth: () => void;
   onShowDestinations: () => void;
+  onTaxiRouteChange: (search: { serviceId: number; carClassName?: string }) => void;
 };
 
 export default function TaxiPage({
@@ -31,9 +32,27 @@ export default function TaxiPage({
   onNavigate,
   onOpenAuth,
   onShowDestinations,
+  onTaxiRouteChange,
 }: TaxiPageProps) {
   const { model, actions } = feature;
   const { selectedTaxiService, selectedTaxiCarClass } = model;
+  const serviceActions = {
+    ...actions.service,
+    select: (taxiService: Parameters<typeof actions.service.select>[0]) => {
+      actions.service.select(taxiService);
+      onTaxiRouteChange({ serviceId: taxiService.id, carClassName: taxiService.carClasses[0]?.name ?? '' });
+    },
+  };
+  const bookingFormActions = {
+    ...actions.bookingForm,
+    setForm: (form: Parameters<typeof actions.bookingForm.setForm>[0]) => {
+      actions.bookingForm.setForm(form);
+
+      if (selectedTaxiService && form.carClassName !== model.taxiBookingForm.carClassName) {
+        onTaxiRouteChange({ serviceId: selectedTaxiService.id, carClassName: form.carClassName });
+      }
+    },
+  };
 
   return (
     <div className="page-shell od-taxi-page">
@@ -53,7 +72,7 @@ export default function TaxiPage({
       <section className="container od-taxi-workspace hotel-page taxi-page" id="taxi-booking">
         <div className="taxi-sidebar-column">
           <TaxiServiceList
-            actions={actions.service}
+            actions={serviceActions}
             canManageTaxi={model.canManageTaxi}
             loading={loading}
             selectedTaxiService={selectedTaxiService}
@@ -90,7 +109,7 @@ export default function TaxiPage({
           />
         ) : selectedTaxiService ? (
           <TaxiBookingForm
-            actions={actions.bookingForm}
+            actions={bookingFormActions}
             currentUser={currentUser}
             phoneNumberPattern={phoneNumberPattern}
             selectedTaxiCarClass={selectedTaxiCarClass}

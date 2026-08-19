@@ -88,7 +88,7 @@ export type TaxiFeatureModel = {
 
 export type TaxiServiceActions = {
   startCreate: () => void;
-  select: (taxiService: TaxiService) => void;
+  select: (taxiService: TaxiService, carClassName?: string) => void;
   edit: (taxiService: TaxiService) => void;
   delete: (taxiServiceId: number) => void;
 };

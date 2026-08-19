@@ -291,11 +291,15 @@ export function useTaxiFeature({
     }
   }
 
-  function selectTaxiServiceForBooking(taxiService: TaxiService) {
+  function selectTaxiServiceForBooking(taxiService: TaxiService, carClassName?: string) {
+    const selectedCarClassName = taxiService.carClasses.some((carClass) => carClass.name === carClassName)
+      ? carClassName ?? ''
+      : taxiService.carClasses[0]?.name ?? '';
+
     setTaxiBookingForm({
       ...taxiBookingForm,
       taxiServiceId: String(taxiService.id),
-      carClassName: taxiService.carClasses[0]?.name ?? '',
+      carClassName: selectedCarClassName,
     });
     setTaxiBooking(null);
     onResetTaxiPayment();

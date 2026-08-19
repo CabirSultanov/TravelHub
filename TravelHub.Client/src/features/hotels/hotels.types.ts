@@ -91,6 +91,7 @@ export type HotelsFeatureActions = {
     startCreate: () => void;
     select: (hotel: Hotel) => void;
     setCityFilter: (city: string) => void;
+    setSearch: (search: { city: string; checkInDate?: string; checkOutDate?: string }) => void;
     requestDelete: (target: DeleteTarget) => void;
   };
   hotelForm: HotelFormActions;
