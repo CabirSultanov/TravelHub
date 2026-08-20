@@ -141,6 +141,17 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
         var pickupLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.PickupLatitude, bookingDto.PickupLongitude);
         var dropoffLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.DropoffLatitude, bookingDto.DropoffLongitude);
 
+        var previousPendingBookings = await db.TaxiBookings
+            .Where(booking => booking.UserId == userId.Value && booking.Status == BookingStatus.PendingPayment)
+            .ToListAsync();
+        var cancelledAt = DateTime.UtcNow;
+
+        foreach (var previousBooking in previousPendingBookings)
+        {
+            previousBooking.Status = BookingStatus.Cancelled;
+            previousBooking.CancelledAt = cancelledAt;
+        }
+
         var taxiBooking = new TaxiBooking
         {
             UserId = userId.Value,
@@ -273,6 +284,11 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
         if (!CanAccess(taxiBooking))
         {
             return Forbid();
+        }
+
+        if (taxiBooking.Status != BookingStatus.PendingPayment)
+        {
+            return Conflict("Only pending taxi bookings can be cancelled.");
         }
 
         taxiBooking.Status = BookingStatus.Cancelled;
