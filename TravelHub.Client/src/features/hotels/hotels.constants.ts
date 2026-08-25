@@ -1,5 +1,5 @@
 import type { Hotel, HotelRoom } from '../../types';
-import { roomImageUrls } from '../../utils/images';
+import { hotelImageUrls, roomImageUrls } from '../../utils/images';
 import type { BookingForm, HotelForm, HotelRoomForm } from './hotels.types';
 
 const today = new Date().toISOString().slice(0, 10);
@@ -30,7 +30,7 @@ export function createEmptyHotelForm(): HotelForm {
     name: '',
     city: '',
     description: '',
-    imageUrl: '',
+    imageUrls: [''],
     rooms: [
       { ...createEmptyRoomForm(), roomType: 'Standard Double', capacity: '2', totalRooms: '30' },
       { ...createEmptyRoomForm(), roomType: 'Family Suite', capacity: '4', totalRooms: '10' },
@@ -39,11 +39,13 @@ export function createEmptyHotelForm(): HotelForm {
 }
 
 export function hotelToForm(hotel: Hotel): HotelForm {
+  const imageUrls = hotelImageUrls(hotel);
+
   return {
     name: hotel.name,
     city: hotel.city,
     description: hotel.description,
-    imageUrl: hotel.imageUrl || '',
+    imageUrls: imageUrls.length > 0 ? imageUrls : [''],
     rooms: createEmptyHotelForm().rooms,
   };
 }

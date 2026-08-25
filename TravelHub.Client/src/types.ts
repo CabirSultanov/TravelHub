@@ -56,6 +56,14 @@ export type AuthUser = {
   isBlocked: boolean;
 };
 
+export type PagedResponse<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
 export type AuthResponse = {
   user: AuthUser;
   accessToken: string;
@@ -88,6 +96,7 @@ export type HotelUpdateInput = {
   city: string;
   description: string;
   imageUrl?: string | null;
+  imageUrls: string[];
 };
 
 export type Hotel = HotelUpdateInput & {

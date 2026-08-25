@@ -18,6 +18,8 @@ public class HotelCreateDto
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
 
+    public List<string> ImageUrls { get; set; } = new();
+
     public List<HotelCreateRoomDto> Rooms { get; set; } = new();
 }
 

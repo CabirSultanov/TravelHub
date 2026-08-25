@@ -34,12 +34,14 @@ public static class DatabaseStartup
                 var db = services.GetRequiredService<AppDbContext>();
                 await EnsureUserBlockingColumnAsync(db);
                 await EnsureUserPhoneNumberColumnAsync(db);
+                await EnsureHotelImageUrlsColumnAsync(db);
                 await EnsureHotelRoomImageUrlsColumnAsync(db);
                 await EnsureSavedPaymentCardsTableAsync(db);
                 await EnsureTaxiBookingsTableAsync(db);
                 await db.Database.MigrateAsync();
                 await EnsureUserBlockingColumnAsync(db);
                 await EnsureUserPhoneNumberColumnAsync(db);
+                await EnsureHotelImageUrlsColumnAsync(db);
                 await EnsureHotelRoomImageUrlsColumnAsync(db);
                 await EnsureSavedPaymentCardsTableAsync(db);
                 await EnsureTaxiBookingsTableAsync(db);
@@ -128,6 +130,31 @@ IF OBJECT_ID(N'[dbo].[HotelRooms]', N'U') IS NOT NULL
 BEGIN
     INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20260730120000_AddHotelRoomImageUrlsJson', N'8.0.3');
+END;
+""");
+    }
+
+    private static async Task EnsureHotelImageUrlsColumnAsync(AppDbContext db)
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+IF OBJECT_ID(N'[dbo].[Hotels]', N'U') IS NOT NULL
+    AND COL_LENGTH(N'[dbo].[Hotels]', N'ImageUrlsJson') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Hotels]
+    ADD [ImageUrlsJson] nvarchar(max) NOT NULL
+        CONSTRAINT [DF_Hotels_ImageUrlsJson] DEFAULT N'[]';
+END;
+
+IF OBJECT_ID(N'[dbo].[Hotels]', N'U') IS NOT NULL
+    AND COL_LENGTH(N'[dbo].[Hotels]', N'ImageUrlsJson') IS NOT NULL
+    AND NOT EXISTS (
+        SELECT 1
+        FROM [dbo].[__EFMigrationsHistory]
+        WHERE [MigrationId] = N'20260823120000_AddHotelImageUrlsJson'
+    )
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260823120000_AddHotelImageUrlsJson', N'8.0.3');
 END;
 """);
     }

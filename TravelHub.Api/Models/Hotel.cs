@@ -19,4 +19,6 @@ public class Hotel
 
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
+
+    public string ImageUrlsJson { get; set; } = "[]";
 }

@@ -5,6 +5,7 @@ import HotelForm from '../../features/hotels/components/HotelForm';
 import HotelList from '../../features/hotels/components/HotelList';
 import RoomForm from '../../features/hotels/components/RoomForm';
 import RoomList, { RoomPhotoStrip } from '../../features/hotels/components/RoomList';
+import ImageCarousel from '../../components/common/ImageCarousel';
 import SiteFooter from '../../components/common/SiteFooter';
 import type { AuthUser, Booking, Hotel, Page, TaxiBooking } from '../../types';
 import {
@@ -14,7 +15,7 @@ import {
   minHotelCheckOutDate,
   todayDateInputValue,
 } from '../../utils/dateRange';
-import { fallbackImage } from '../../utils/images';
+import { hotelImageUrls, hotelMainImage } from '../../utils/images';
 import type { HotelRouteSearch } from '../../utils/routing';
 import type { HotelsFeature } from '../../features/hotels/hotels.types';
 
@@ -131,6 +132,13 @@ export default function HotelsPage({
     onSearchHotels({ city: searchCity, checkIn: searchDates.checkIn, checkOut: searchDates.checkOut });
   }
 
+  function changeHotelPage(page: number) {
+    onSearchHotels({ ...search, page });
+    window.requestAnimationFrame(() => {
+      document.querySelector('.od-results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function handleBackToHotels() {
     if (!hasOpenEditForm) {
       onBackToHotels();
@@ -197,10 +205,11 @@ export default function HotelsPage({
             <>
               <div className="hotel-detail-overview">
                 <div className="hotel-image-frame">
-                  <img
+                  <ImageCarousel
                     className="selected-hotel-image"
-                    src={model.selectedHotel.imageUrl || fallbackImage(model.selectedHotel.name, 'hotel')}
-                    alt=""
+                    images={hotelImageUrls(model.selectedHotel)}
+                    fallbackSrc={hotelMainImage(model.selectedHotel)}
+                    alt={model.selectedHotel.name}
                   />
                 </div>
                 <div className="hotel-detail-copy">
@@ -408,14 +417,17 @@ export default function HotelsPage({
       <HotelList
         actions={actions.hotelList}
         canManageHotels={model.canManageHotels}
-        cities={model.cities}
         cityFilter={model.cityFilter}
+        hotelPage={model.hotelPage}
+        hotelTotalItems={model.hotelTotalItems}
+        hotelTotalPages={model.hotelTotalPages}
+        hotels={model.hotels}
         loading={loading}
         selectedHotel={model.selectedHotel}
         showHotelForm={model.showHotelForm}
         submitting={submitting}
-        visibleHotels={model.visibleHotels}
         onOpenHotel={onOpenHotel}
+        onPageChange={changeHotelPage}
       />
 
       {model.showHotelForm && renderHotelWorkspace()}

@@ -25,7 +25,7 @@ export type HotelForm = {
   name: string;
   city: string;
   description: string;
-  imageUrl: string;
+  imageUrls: string[];
   rooms: HotelRoomForm[];
 };
 
@@ -36,6 +36,9 @@ export type HotelFormActions = {
   addRoom: () => void;
   removeRoom: (index: number) => void;
   uploadImage: (file: File) => void;
+  updateImageUrl: (index: number, imageUrl: string) => void;
+  addImageUrl: () => void;
+  removeImageUrl: (index: number) => void;
   uploadRoomImage: (roomIndex: number, file: File) => void;
   updateRoomImageUrl: (roomIndex: number, imageIndex: number, imageUrl: string) => void;
   addRoomImageUrl: (roomIndex: number) => void;
@@ -65,8 +68,11 @@ export type HotelBookingFormActions = {
 
 export type HotelsFeatureModel = {
   hotels: Hotel[];
-  visibleHotels: Hotel[];
   cities: string[];
+  hotelPage: number;
+  hotelPageSize: number;
+  hotelTotalItems: number;
+  hotelTotalPages: number;
   rooms: HotelRoom[];
   selectedHotel: Hotel | null;
   selectedRoom: HotelRoom | null;
@@ -91,7 +97,8 @@ export type HotelsFeatureActions = {
     startCreate: () => void;
     select: (hotel: Hotel) => void;
     setCityFilter: (city: string) => void;
-    setSearch: (search: { city: string; checkInDate?: string; checkOutDate?: string }) => void;
+    setSearch: (search: { city: string; checkInDate?: string; checkOutDate?: string; page?: number }) => void;
+    setPage: (page: number) => void;
     requestDelete: (target: DeleteTarget) => void;
   };
   hotelForm: HotelFormActions;

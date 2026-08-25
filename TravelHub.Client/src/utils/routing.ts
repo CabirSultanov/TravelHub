@@ -6,6 +6,7 @@ export type HotelRouteSearch = {
   checkIn: string;
   checkOut: string;
   roomId: number | null;
+  page: number;
 };
 
 export type TaxiRouteSearch = {
@@ -38,6 +39,7 @@ export const emptyHotelRouteSearch: HotelRouteSearch = {
   checkIn: '',
   checkOut: '',
   roomId: null,
+  page: 1,
 };
 
 export const emptyTaxiRouteSearch: TaxiRouteSearch = {
@@ -73,6 +75,7 @@ export function normalizeHotelRouteSearch(search: Partial<HotelRouteSearch>): Ho
     checkIn,
     checkOut,
     roomId: typeof search.roomId === 'number' && search.roomId > 0 ? search.roomId : null,
+    page: typeof search.page === 'number' && search.page > 0 ? Math.floor(search.page) : 1,
   };
 }
 
@@ -115,6 +118,7 @@ export function parseAppRoute(pathname: string, search = ''): ParsedRoute {
             checkIn: params.get('checkIn') ?? '',
             checkOut: params.get('checkOut') ?? '',
             roomId: parsePositiveInt(params.get('roomId')),
+            page: parsePositiveInt(params.get('page')) ?? 1,
           })
         : emptyHotelRouteSearch,
     taxi:
@@ -145,6 +149,10 @@ function appendHotelParams(params: URLSearchParams, search: HotelRouteSearch, in
 
   if (includeRoom && normalized.roomId !== null) {
     params.set('roomId', String(normalized.roomId));
+  }
+
+  if (normalized.page > 1) {
+    params.set('page', String(normalized.page));
   }
 }
 

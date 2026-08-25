@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react';
+import PhotoFields from './PhotoFields';
 import RoomPhotoFields from './RoomPhotoFields';
 import type { HotelForm as HotelFormState, HotelFormActions } from '../hotels.types';
 
@@ -10,16 +10,6 @@ type HotelFormProps = {
 };
 
 export default function HotelForm({ hotelForm, editingHotelId, submitting, actions }: HotelFormProps) {
-  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-
-    if (file) {
-      actions.uploadImage(file);
-    }
-
-    event.target.value = '';
-  }
-
   return (
     <form id="hotel-edit-form" className="form-grid hotel-create-form" onSubmit={(event) => void actions.submit(event)}>
       <h3>{editingHotelId ? 'Edit hotel details' : 'Hotel details'}</h3>
@@ -49,17 +39,15 @@ export default function HotelForm({ hotelForm, editingHotelId, submitting, actio
           onChange={(event) => actions.setForm({ ...hotelForm, description: event.target.value })}
         />
       </label>
-      <div className="field-label hotel-image-field">
-        Hotel image
-        {hotelForm.imageUrl && <img className="hotel-image-preview" src={hotelForm.imageUrl} alt="" />}
-        <div className="hotel-image-upload-row">
-          <input placeholder="No image selected" readOnly value={hotelForm.imageUrl} />
-          <label className={`small-primary-button image-upload-button${submitting ? ' is-disabled' : ''}`}>
-            Choose photo
-            <input accept="image/jpeg,image/png,image/webp" disabled={submitting} onChange={handleImageChange} type="file" />
-          </label>
-        </div>
-      </div>
+      <PhotoFields
+        title="Hotel photos"
+        imageUrls={hotelForm.imageUrls}
+        onAdd={actions.addImageUrl}
+        onChange={actions.updateImageUrl}
+        onRemove={actions.removeImageUrl}
+        onUpload={actions.uploadImage}
+        submitting={submitting}
+      />
 
       {editingHotelId === null && (
         <>

@@ -393,6 +393,7 @@ function App() {
       city: route.hotels.city,
       checkInDate: route.hotels.checkIn,
       checkOutDate: route.hotels.checkOut,
+      page: route.hotels.page,
     });
   }
 
@@ -423,7 +424,12 @@ function App() {
 
     if (nextPage === 'hotels') {
       setHotelSearch(emptyHotelRouteSearch);
-      hotelsFeature.actions.hotelList.setSearch({ city: '' });
+      hotelsFeature.actions.hotelList.setSearch({ city: '', page: 1 });
+    }
+
+    if (nextPage === 'home') {
+      setHotelSearch(emptyHotelRouteSearch);
+      hotelsFeature.actions.hotelList.setSearch({ city: '', page: 1 });
     }
 
     if (nextPage === 'taxi') {
@@ -455,6 +461,7 @@ function App() {
       city: nextSearch.city,
       checkInDate: nextSearch.checkIn,
       checkOutDate: nextSearch.checkOut,
+      page: nextSearch.page,
     });
     window.scrollTo({ top: 0, left: 0 });
     pushRoute(nextPath, { page: 'hotels', hotelId: null });
@@ -1040,7 +1047,12 @@ function App() {
           onDelete={adminUsers.remove}
           onDemote={adminUsers.demote}
           onPromote={adminUsers.promote}
+          onRegularUsersPageChange={adminUsers.setRegularUsersPage}
           onUnblock={adminUsers.unblock}
+          regularUsersLoading={adminUsers.regularUsersLoading}
+          regularUsersPage={adminUsers.regularUsersPage}
+          regularUsersTotalItems={adminUsers.regularUsersTotalItems}
+          regularUsersTotalPages={adminUsers.regularUsersTotalPages}
           submitting={submitting}
         />
       )}

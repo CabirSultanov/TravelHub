@@ -1,30 +1,38 @@
 import type { Hotel } from '../../../types';
-import { fallbackImage } from '../../../utils/images';
+import Pagination from '../../../components/common/Pagination';
+import { hotelMainImage } from '../../../utils/images';
 import type { HotelsFeatureActions } from '../hotels.types';
 
 type HotelListProps = {
-  visibleHotels: Hotel[];
+  hotels: Hotel[];
   selectedHotel: Hotel | null;
-  cities: string[];
   cityFilter: string;
+  hotelPage: number;
+  hotelTotalItems: number;
+  hotelTotalPages: number;
   showHotelForm: boolean;
   loading: boolean;
   canManageHotels: boolean;
   submitting: boolean;
   actions: HotelsFeatureActions['hotelList'];
   onOpenHotel: (hotel: Hotel) => void;
+  onPageChange: (page: number) => void;
 };
 
 export default function HotelList({
-  visibleHotels,
+  hotels,
   selectedHotel,
   cityFilter,
+  hotelPage,
+  hotelTotalItems,
+  hotelTotalPages,
   showHotelForm,
   loading,
   canManageHotels,
   submitting,
   actions,
   onOpenHotel,
+  onPageChange,
 }: HotelListProps) {
   const heading = cityFilter ? `Hotels in ${cityFilter}` : 'Hotels in Azerbaijan';
 
@@ -33,7 +41,7 @@ export default function HotelList({
       <div className="results-head">
         <div>
           <h2>{heading}</h2>
-          <span className="count">{loading ? 'Loading stays...' : `${visibleHotels.length} stays available`}</span>
+          <span className="count">{loading ? 'Loading stays...' : `${hotelTotalItems} stays available`}</span>
         </div>
         {canManageHotels && !showHotelForm && (
           <button className="btn btn-primary" onClick={actions.startCreate} type="button">
@@ -43,10 +51,10 @@ export default function HotelList({
       </div>
 
       <div className="results">
-        {visibleHotels.map((hotel) => (
+        {hotels.map((hotel) => (
           <article className={`hresult ${selectedHotel?.id === hotel.id ? 'is-selected' : ''}`} key={hotel.id}>
             <button className="hresult-photo" onClick={() => onOpenHotel(hotel)} type="button">
-              <img src={hotel.imageUrl || fallbackImage(hotel.name, 'hotel')} alt="" />
+              <img src={hotelMainImage(hotel)} alt="" />
               <span className="hresult-badge badge badge-glass">
                 {selectedHotel?.id === hotel.id ? 'Selected stay' : 'Available stay'}
               </span>
@@ -83,8 +91,16 @@ export default function HotelList({
           </article>
         ))}
 
-        {!loading && visibleHotels.length === 0 && <p className="empty">No hotels yet.</p>}
+        {!loading && hotelTotalItems === 0 && <p className="empty">No hotels yet.</p>}
       </div>
+      <Pagination
+        ariaLabel="Hotel results pagination"
+        className="hotel-pagination user-pagination"
+        disabled={loading}
+        onPageChange={onPageChange}
+        page={hotelPage}
+        totalPages={hotelTotalPages}
+      />
     </section>
   );
 }

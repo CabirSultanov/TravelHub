@@ -17,4 +17,6 @@ public class HotelUpdateDto
 
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
+
+    public List<string> ImageUrls { get; set; } = new();
 }

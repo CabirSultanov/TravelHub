@@ -3,12 +3,12 @@ import { buildAuthUrl, buildHotelsUrl, buildTaxiUrl, parseAppRoute } from './rou
 
 describe('routing helpers', () => {
   it('builds and parses hotel search query params', () => {
-    const url = buildHotelsUrl({ city: 'Baku', checkIn: '2099-09-10', checkOut: '2099-09-12' });
-    const route = parseAppRoute('/hotels', '?city=Baku&checkIn=2099-09-10&checkOut=2099-09-12');
+    const url = buildHotelsUrl({ city: 'Baku', checkIn: '2099-09-10', checkOut: '2099-09-12', page: 2 });
+    const route = parseAppRoute('/hotels', '?city=Baku&checkIn=2099-09-10&checkOut=2099-09-12&page=2');
 
-    expect(url).toBe('/hotels?city=Baku&checkIn=2099-09-10&checkOut=2099-09-12');
+    expect(url).toBe('/hotels?city=Baku&checkIn=2099-09-10&checkOut=2099-09-12&page=2');
     expect(route.page).toBe('hotels');
-    expect(route.hotels).toMatchObject({ city: 'Baku', checkIn: '2099-09-10', checkOut: '2099-09-12' });
+    expect(route.hotels).toMatchObject({ city: 'Baku', checkIn: '2099-09-10', checkOut: '2099-09-12', page: 2 });
   });
 
   it('ignores invalid hotel params', () => {
@@ -18,6 +18,7 @@ describe('routing helpers', () => {
     expect(route.hotels.checkIn).toBe('');
     expect(route.hotels.checkOut).toBe('');
     expect(route.hotels.roomId).toBeNull();
+    expect(parseAppRoute('/hotels', '?page=0').hotels.page).toBe(1);
   });
 
   it('keeps a direct hotel detail link and its selected room', () => {
@@ -33,6 +34,7 @@ describe('routing helpers', () => {
 
   it('builds taxi and auth URLs without private data', () => {
     expect(buildTaxiUrl({ serviceId: 3, carClassName: 'Comfort' })).toBe('/taxi?serviceId=3&class=Comfort');
+    expect(buildHotelsUrl({ page: 1 })).toBe('/hotels');
     expect(buildAuthUrl('login')).toBe('/auth?mode=login');
   });
 

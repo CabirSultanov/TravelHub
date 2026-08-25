@@ -1,4 +1,4 @@
-import type { HotelRoom } from '../types';
+import type { Hotel, HotelRoom } from '../types';
 
 export function cleanImageUrls(imageUrls: string[]) {
   return Array.from(new Set(imageUrls.map((imageUrl) => imageUrl.trim()).filter(Boolean)));
@@ -15,4 +15,13 @@ export function roomImageUrls(room: HotelRoom) {
 
 export function roomMainImage(room: HotelRoom) {
   return roomImageUrls(room)[0] || fallbackImage(room.roomType, 'room');
+}
+
+export function hotelImageUrls(hotel: Hotel) {
+  const imageUrls = hotel.imageUrls ?? [];
+  return cleanImageUrls(imageUrls.length > 0 ? imageUrls : hotel.imageUrl ? [hotel.imageUrl] : []);
+}
+
+export function hotelMainImage(hotel: Hotel) {
+  return hotelImageUrls(hotel)[0] || fallbackImage(hotel.name, 'hotel');
 }

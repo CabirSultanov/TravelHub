@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../../../api';
 import { hotelDateRangeErrorMessage, isHotelDateRangeValid } from '../../../utils/dateRange';
@@ -15,6 +15,8 @@ import {
 } from '../hotels.constants';
 import type { BookingForm, HotelForm, HotelRoomForm, HotelsFeature, HotelsFeatureOptions } from '../hotels.types';
 
+const HOTEL_PAGE_SIZE = 3;
+
 export function useHotelsFeature({
   currentUser,
   setMessage,
@@ -25,6 +27,10 @@ export function useHotelsFeature({
   onResetBookingFlow,
 }: HotelsFeatureOptions): HotelsFeature {
   const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [hotelPage, setHotelPage] = useState(1);
+  const [hotelTotalItems, setHotelTotalItems] = useState(0);
+  const [hotelTotalPages, setHotelTotalPages] = useState(0);
   const [rooms, setRooms] = useState<HotelRoom[]>([]);
   const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<HotelRoom | null>(null);
@@ -44,18 +50,40 @@ export function useHotelsFeature({
   const selectedHotelIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    async function loadHotels() {
-      try {
-        setHotels(await api.getHotels());
-      } catch (error) {
-        setMessage(getErrorMessage(error));
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void loadHotels();
+    void loadHotelCities();
   }, [setMessage]);
+
+  useEffect(() => {
+    let ignore = false;
+    setLoading(true);
+
+    void api
+      .getHotels({ page: hotelPage, pageSize: HOTEL_PAGE_SIZE, city: cityFilter })
+      .then((response) => {
+        if (ignore) {
+          return;
+        }
+
+        setHotels(response.items);
+        setHotelPage(response.page);
+        setHotelTotalItems(response.totalItems);
+        setHotelTotalPages(response.totalPages);
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setMessage(getErrorMessage(error));
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [cityFilter, hotelPage, setMessage]);
 
   useEffect(() => {
     if (!currentUser || bookingGuestMode !== 'self') {
@@ -70,19 +98,23 @@ export function useHotelsFeature({
     }));
   }, [bookingGuestMode, currentUser?.email, currentUser?.name, currentUser?.phoneNumber]);
 
-  const cities = useMemo(() => {
-    return Array.from(new Set(hotels.map((hotel) => hotel.city))).sort((a, b) => a.localeCompare(b));
-  }, [hotels]);
-
-  const visibleHotels = useMemo(() => {
-    if (!cityFilter) {
-      return hotels;
-    }
-
-    return hotels.filter((hotel) => hotel.city === cityFilter);
-  }, [cityFilter, hotels]);
-
   const canManageHotels = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+
+  async function loadHotelCities() {
+    try {
+      setCities(await api.getHotelCities());
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    }
+  }
+
+  async function refreshHotelPage() {
+    const response = await api.getHotels({ page: hotelPage, pageSize: HOTEL_PAGE_SIZE, city: cityFilter });
+    setHotels(response.items);
+    setHotelPage(response.page);
+    setHotelTotalItems(response.totalItems);
+    setHotelTotalPages(response.totalPages);
+  }
 
   function startCreateHotel() {
     setHotelForm(createEmptyHotelForm());
@@ -173,7 +205,8 @@ export function useHotelsFeature({
       name: hotelForm.name.trim(),
       city: hotelForm.city.trim(),
       description: hotelForm.description.trim(),
-      imageUrl: hotelForm.imageUrl.trim() || null,
+      imageUrl: cleanImageUrls(hotelForm.imageUrls)[0] ?? null,
+      imageUrls: cleanImageUrls(hotelForm.imageUrls),
     };
 
     setSubmitting(true);
@@ -191,7 +224,8 @@ export function useHotelsFeature({
           totalGuestPlaces: previousHotel?.totalGuestPlaces ?? 0,
         };
 
-        setHotels(hotels.map((hotel) => (hotel.id === editingHotelId ? updatedHotel : hotel)));
+        await refreshHotelPage();
+        await loadHotelCities();
 
         if (selectedHotel?.id === editingHotelId) {
           setSelectedHotel(updatedHotel);
@@ -245,7 +279,8 @@ export function useHotelsFeature({
         }
       }
 
-      setHotels([...hotels, createdHotel]);
+      await refreshHotelPage();
+      await loadHotelCities();
       setHotelForm(createEmptyHotelForm());
       setEditingHotelId(null);
       setShowHotelForm(false);
@@ -348,7 +383,7 @@ export function useHotelsFeature({
 
     try {
       const { imageUrl } = await api.uploadHotelImage(file);
-      setHotelForm((form) => ({ ...form, imageUrl }));
+      setHotelForm((form) => ({ ...form, imageUrls: addImageUrlToList(form.imageUrls, imageUrl) }));
       setMessage('Hotel image uploaded.');
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -498,13 +533,44 @@ export function useHotelsFeature({
     }));
   }
 
-  function setHotelSearch(search: { city: string; checkInDate?: string; checkOutDate?: string }) {
+  function updateHotelImageUrl(index: number, imageUrl: string) {
+    setHotelForm({
+      ...hotelForm,
+      imageUrls: hotelForm.imageUrls.map((currentUrl, currentIndex) => (currentIndex === index ? imageUrl : currentUrl)),
+    });
+  }
+
+  function addHotelImageUrl() {
+    setHotelForm({
+      ...hotelForm,
+      imageUrls: [...hotelForm.imageUrls, ''],
+    });
+  }
+
+  function removeHotelImageUrl(index: number) {
+    if (hotelForm.imageUrls.length <= 1) {
+      return;
+    }
+
+    setHotelForm({
+      ...hotelForm,
+      imageUrls: hotelForm.imageUrls.filter((_, currentIndex) => currentIndex !== index),
+    });
+  }
+
+  function setHotelSearch(search: { city: string; checkInDate?: string; checkOutDate?: string; page?: number }) {
     setCityFilter(search.city);
+    setHotelPage(search.page ?? 1);
     setBookingForm((form) => ({
       ...form,
       checkInDate: search.checkInDate ?? form.checkInDate,
       checkOutDate: search.checkOutDate ?? form.checkOutDate,
     }));
+  }
+
+  function changeCityFilter(city: string) {
+    setCityFilter(city);
+    setHotelPage(1);
   }
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
@@ -567,7 +633,8 @@ export function useHotelsFeature({
     try {
       if (deleteTarget.kind === 'hotel') {
         await api.deleteHotel(deleteTarget.id);
-        setHotels(hotels.filter((hotel) => hotel.id !== deleteTarget.id));
+        await refreshHotelPage();
+        await loadHotelCities();
 
         if (selectedHotel?.id === deleteTarget.id) {
           setSelectedHotel(null);
@@ -617,8 +684,11 @@ export function useHotelsFeature({
   return {
     model: {
       hotels,
-      visibleHotels,
       cities,
+      hotelPage,
+      hotelPageSize: HOTEL_PAGE_SIZE,
+      hotelTotalItems,
+      hotelTotalPages,
       rooms,
       selectedHotel,
       selectedRoom,
@@ -641,8 +711,9 @@ export function useHotelsFeature({
       hotelList: {
         startCreate: startCreateHotel,
         select: (hotel) => void selectHotel(hotel),
-        setCityFilter,
+        setCityFilter: changeCityFilter,
         setSearch: setHotelSearch,
+        setPage: setHotelPage,
         requestDelete: setDeleteTarget,
       },
       hotelForm: {
@@ -652,6 +723,9 @@ export function useHotelsFeature({
         addRoom: addHotelFormRoom,
         removeRoom: removeHotelFormRoom,
         uploadImage: (file) => void uploadHotelImage(file),
+        updateImageUrl: updateHotelImageUrl,
+        addImageUrl: addHotelImageUrl,
+        removeImageUrl: removeHotelImageUrl,
         uploadRoomImage: (roomIndex, file) => void uploadHotelRoomImage(roomIndex, file),
         updateRoomImageUrl: updateHotelRoomImageUrl,
         addRoomImageUrl: addHotelRoomImageUrl,

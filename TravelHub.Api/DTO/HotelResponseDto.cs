@@ -12,6 +12,8 @@ public class HotelResponseDto
 
     public string? ImageUrl { get; set; }
 
+    public List<string> ImageUrls { get; set; } = new();
+
     public int RoomTypesCount { get; set; }
 
     public int TotalRoomsCount { get; set; }

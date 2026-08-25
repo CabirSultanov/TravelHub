@@ -2864,6 +2864,46 @@ input[type='number']::-webkit-outer-spin-button {
   font-weight: 800;
 }
 
+.user-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.pagination-button {
+  min-width: 40px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+  color: #31515f;
+  background: #f8fbfd;
+  font-weight: 850;
+}
+
+.pagination-button:hover:not(:disabled),
+.pagination-page.active {
+  border-color: #1f7a8c;
+  color: #ffffff;
+  background: #1f7a8c;
+}
+
+.pagination-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pagination-ellipsis {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  min-height: 38px;
+  color: #607080;
+  font-weight: 850;
+}
+
 .profile-info {
   display: grid;
   gap: 12px;
@@ -3071,6 +3111,7 @@ small {
 
 .taxi-cities,
 .taxi-classes,
+.photo-fields,
 .room-photo-fields,
 .room-types-header,
 .room-form-panel {
@@ -3100,6 +3141,7 @@ small {
 }
 
 .room-form-panel .section-title,
+.room-form-panel .photo-fields,
 .room-form-panel .room-photo-fields,
 .room-form-panel .checkbox,
 .room-form-panel .link-button {

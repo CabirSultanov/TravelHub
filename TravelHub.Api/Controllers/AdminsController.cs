@@ -13,6 +13,9 @@ namespace TravelHub.Api.Controllers;
 [Route("api/admins")]
 public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordHasher) : ControllerBase
 {
+    private const int DefaultRegularUsersPageSize = 10;
+    private const int MaxRegularUsersPageSize = 100;
+
     [HttpGet]
     public async Task<ActionResult<List<AuthUserDto>>> GetAdmins(string? role)
     {
@@ -32,6 +35,40 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
                 IsBlocked = user.IsBlocked
             })
             .ToListAsync();
+    }
+
+    [HttpGet("users")]
+    public async Task<ActionResult<PagedResponseDto<AuthUserDto>>> GetRegularUsers(int page = 1, int pageSize = DefaultRegularUsersPageSize)
+    {
+        var normalizedPage = Math.Max(1, page);
+        var normalizedPageSize = Math.Clamp(pageSize, 1, MaxRegularUsersPageSize);
+        var query = db.Users.AsNoTracking().Where(user => user.Role == UserRoles.User);
+        var totalItems = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalItems / (double)normalizedPageSize);
+        var effectivePage = totalPages == 0 ? 1 : Math.Min(normalizedPage, totalPages);
+        var items = await query
+            .OrderBy(user => user.Id)
+            .Skip((effectivePage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .Select(user => new AuthUserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber,
+                Role = user.Role,
+                IsBlocked = user.IsBlocked
+            })
+            .ToListAsync();
+
+        return new PagedResponseDto<AuthUserDto>
+        {
+            Items = items,
+            Page = effectivePage,
+            PageSize = normalizedPageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages
+        };
     }
 
     [HttpPost]

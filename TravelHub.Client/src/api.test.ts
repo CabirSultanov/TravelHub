@@ -16,6 +16,18 @@ const authResponse: AuthResponse = {
   accessTokenExpiresAt: '2026-08-08T12:15:00Z',
 };
 
+const hotel = {
+  id: 1,
+  name: 'Baku Stay',
+  city: 'Baku',
+  description: '',
+  imageUrl: null,
+  imageUrls: [],
+  roomTypesCount: 2,
+  totalRoomsCount: 10,
+  totalGuestPlaces: 20,
+};
+
 function jsonResponse(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
@@ -99,5 +111,60 @@ describe('api authentication', () => {
         password: 'Travel123!',
       }),
     ).rejects.toThrow('Please enter a valid email address.');
+  });
+});
+
+describe('api admin users', () => {
+  it('requests paginated regular users', async () => {
+    const pagedUsers = {
+      items: [user],
+      page: 2,
+      pageSize: 10,
+      totalItems: 11,
+      totalPages: 2,
+    };
+    const fetchMock = vi.fn(async () => jsonResponse(pagedUsers));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    const response = await api.getAdminCandidates(2, 10);
+
+    expect(response).toEqual(pagedUsers);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/admins/users?page=2&pageSize=10',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+});
+
+describe('api hotels', () => {
+  it('requests paginated hotels with city filter', async () => {
+    const pagedHotels = {
+      items: [hotel],
+      page: 2,
+      pageSize: 3,
+      totalItems: 4,
+      totalPages: 2,
+    };
+    const fetchMock = vi.fn(async () => jsonResponse(pagedHotels));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    const response = await api.getHotels({ page: 2, pageSize: 3, city: 'Baku' });
+
+    expect(response).toEqual(pagedHotels);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/hotels?page=2&pageSize=3&city=Baku',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('requests hotel cities', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(['Baku', 'Gabala']));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    await expect(api.getHotelCities()).resolves.toEqual(['Baku', 'Gabala']);
+    expect(fetchMock).toHaveBeenCalledWith('/api/hotels/cities', expect.objectContaining({ credentials: 'include' }));
   });
 });

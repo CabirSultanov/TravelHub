@@ -1,4 +1,5 @@
 import type { HotelRoom } from '../../../types';
+import ImageCarousel from '../../../components/common/ImageCarousel';
 import { formatMoney } from '../../../utils/formatting';
 import { roomImageUrls, roomMainImage } from '../../../utils/images';
 import type { HotelsFeatureActions } from '../hotels.types';
@@ -74,13 +75,7 @@ export function RoomPhotoStrip({ room }: { room: HotelRoom | null }) {
 
   return (
     <div className="room-photo-strip">
-      {imageUrls.length > 0 && (
-        <div className="room-photo-gallery">
-          {imageUrls.map((imageUrl) => (
-            <img src={imageUrl} alt="" key={imageUrl} />
-          ))}
-        </div>
-      )}
+      <ImageCarousel images={imageUrls} fallbackSrc={roomMainImage(room)} alt={room.roomType} />
       <div className="room-detail-copy">
         <h3>{room.roomType}</h3>
         {room.description && (

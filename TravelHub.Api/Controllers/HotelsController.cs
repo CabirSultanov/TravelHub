@@ -12,23 +12,64 @@ namespace TravelHub.Api.Controllers;
 [Route("api/hotels")]
 public class HotelsController(AppDbContext db) : ControllerBase
 {
+    private const int DefaultHotelPageSize = 3;
+    private const int MaxHotelPageSize = 100;
+
     [HttpGet]
-    public async Task<ActionResult<List<HotelResponseDto>>> GetHotels()
+    public async Task<ActionResult<PagedResponseDto<HotelResponseDto>>> GetHotels(int page = 1, int pageSize = DefaultHotelPageSize, string? city = null)
     {
-        return await HotelsWithStats().ToListAsync();
+        var normalizedPage = Math.Max(1, page);
+        var normalizedPageSize = Math.Clamp(pageSize, 1, MaxHotelPageSize);
+        var query = db.Hotels.AsNoTracking();
+        var cityFilter = city?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(cityFilter))
+        {
+            query = query.Where(hotel => hotel.City == cityFilter);
+        }
+
+        var totalItems = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalItems / (double)normalizedPageSize);
+        var effectivePage = totalPages == 0 ? 1 : Math.Min(normalizedPage, totalPages);
+        var rows = await HotelsWithStats(query)
+            .OrderBy(hotel => hotel.Id)
+            .Skip((effectivePage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .ToListAsync();
+
+        return new PagedResponseDto<HotelResponseDto>
+        {
+            Items = rows.Select(ToResponse).ToList(),
+            Page = effectivePage,
+            PageSize = normalizedPageSize,
+            TotalItems = totalItems,
+            TotalPages = totalPages
+        };
+    }
+
+    [HttpGet("cities")]
+    public async Task<ActionResult<List<string>>> GetHotelCities()
+    {
+        return await db.Hotels.AsNoTracking()
+            .Select(hotel => hotel.City.Trim())
+            .Where(city => city != string.Empty)
+            .Distinct()
+            .OrderBy(city => city)
+            .ToListAsync();
     }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<HotelResponseDto>> GetHotel(int id)
     {
-        var hotel = await HotelsWithStats().FirstOrDefaultAsync(hotel => hotel.Id == id);
+        var hotel = await HotelsWithStats(db.Hotels.AsNoTracking().Where(hotel => hotel.Id == id))
+            .FirstOrDefaultAsync();
 
         if (hotel is null)
         {
             return NotFound();
         }
 
-        return hotel;
+        return ToResponse(hotel);
     }
 
     [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
@@ -51,12 +92,20 @@ public class HotelsController(AppDbContext db) : ControllerBase
         var roomDrafts = new List<HotelRoomDraft>();
         var hotelRooms = new List<HotelRoom>();
 
+        var imageUrls = HotelRoomRules.NormalizeImageUrls(hotelDto.ImageUrls, hotelDto.ImageUrl, out var imageError);
+
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
         var hotel = new Hotel
         {
             Name = name,
             City = hotelDto.City.Trim(),
             Description = hotelDto.Description,
-            ImageUrl = hotelDto.ImageUrl
+            ImageUrl = imageUrls.FirstOrDefault(),
+            ImageUrlsJson = HotelRoomRules.ToJson(imageUrls)
         };
 
         foreach (var roomDto in hotelDto.Rooms ?? new List<HotelCreateRoomDto>())
@@ -79,11 +128,11 @@ public class HotelsController(AppDbContext db) : ControllerBase
                 return Conflict("Room type already exists for this hotel.");
             }
 
-            var imageUrls = HotelRoomRules.NormalizeImageUrls(roomDto.ImageUrls, null, out var imageError);
+            var roomImageUrls = HotelRoomRules.NormalizeImageUrls(roomDto.ImageUrls, null, out var roomImageError);
 
-            if (imageError is not null)
+            if (roomImageError is not null)
             {
-                return BadRequest(imageError);
+                return BadRequest(roomImageError);
             }
 
             roomDrafts.Add(new HotelRoomDraft(roomType, roomDto.Capacity, roomDto.TotalRooms));
@@ -94,8 +143,8 @@ public class HotelsController(AppDbContext db) : ControllerBase
                 TotalRooms = roomDto.TotalRooms,
                 PricePerNight = roomDto.PricePerNight,
                 Description = roomDto.Description,
-                ImageUrl = imageUrls.FirstOrDefault(),
-                ImageUrlsJson = HotelRoomRules.ToJson(imageUrls),
+                ImageUrl = roomImageUrls.FirstOrDefault(),
+                ImageUrlsJson = HotelRoomRules.ToJson(roomImageUrls),
                 IsAvailable = roomDto.IsAvailable
             });
         }
@@ -147,10 +196,18 @@ public class HotelsController(AppDbContext db) : ControllerBase
             return Conflict("Hotel with this name already exists.");
         }
 
+        var imageUrls = HotelRoomRules.NormalizeImageUrls(hotelDto.ImageUrls, hotelDto.ImageUrl, out var imageError);
+
+        if (imageError is not null)
+        {
+            return BadRequest(imageError);
+        }
+
         hotel.Name = name;
         hotel.City = hotelDto.City.Trim();
         hotel.Description = hotelDto.Description;
-        hotel.ImageUrl = hotelDto.ImageUrl;
+        hotel.ImageUrl = imageUrls.FirstOrDefault();
+        hotel.ImageUrlsJson = HotelRoomRules.ToJson(imageUrls);
 
         await db.SaveChangesAsync();
 
@@ -174,15 +231,16 @@ public class HotelsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
-    private IQueryable<HotelResponseDto> HotelsWithStats() =>
-        db.Hotels.AsNoTracking()
-            .Select(hotel => new HotelResponseDto
+    private IQueryable<HotelResponseRow> HotelsWithStats(IQueryable<Hotel> hotels) =>
+        hotels
+            .Select(hotel => new HotelResponseRow
             {
                 Id = hotel.Id,
                 Name = hotel.Name,
                 City = hotel.City,
                 Description = hotel.Description,
                 ImageUrl = hotel.ImageUrl,
+                ImageUrlsJson = hotel.ImageUrlsJson,
                 RoomTypesCount = db.HotelRooms.Count(room => room.HotelId == hotel.Id),
                 TotalRoomsCount = db.HotelRooms
                     .Where(room => room.HotelId == hotel.Id)
@@ -192,15 +250,55 @@ public class HotelsController(AppDbContext db) : ControllerBase
                     .Sum(room => (int?)(room.Capacity * room.TotalRooms)) ?? 0
             });
 
+    private static HotelResponseDto ToResponse(HotelResponseRow row)
+    {
+        var imageUrls = HotelRoomRules.FromJson(row.ImageUrlsJson, row.ImageUrl);
+
+        return new HotelResponseDto
+        {
+            Id = row.Id,
+            Name = row.Name,
+            City = row.City,
+            Description = row.Description,
+            ImageUrl = row.ImageUrl ?? imageUrls.FirstOrDefault(),
+            ImageUrls = imageUrls,
+            RoomTypesCount = row.RoomTypesCount,
+            TotalRoomsCount = row.TotalRoomsCount,
+            TotalGuestPlaces = row.TotalGuestPlaces
+        };
+    }
+
     private static HotelResponseDto ToResponse(Hotel hotel, IEnumerable<HotelRoom> rooms) => new()
     {
         Id = hotel.Id,
         Name = hotel.Name,
         City = hotel.City,
         Description = hotel.Description,
-        ImageUrl = hotel.ImageUrl,
+        ImageUrl = hotel.ImageUrl ?? HotelRoomRules.FromJson(hotel.ImageUrlsJson, hotel.ImageUrl).FirstOrDefault(),
+        ImageUrls = HotelRoomRules.FromJson(hotel.ImageUrlsJson, hotel.ImageUrl),
         RoomTypesCount = rooms.Count(),
         TotalRoomsCount = rooms.Sum(room => room.TotalRooms),
         TotalGuestPlaces = rooms.Sum(room => room.Capacity * room.TotalRooms)
     };
+
+    private sealed class HotelResponseRow
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string City { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public string? ImageUrl { get; set; }
+
+        public string ImageUrlsJson { get; set; } = "[]";
+
+        public int RoomTypesCount { get; set; }
+
+        public int TotalRoomsCount { get; set; }
+
+        public int TotalGuestPlaces { get; set; }
+    }
 }

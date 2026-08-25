@@ -11,6 +11,7 @@ import type {
   HotelUpdateInput,
   LoginRequest,
   PaymentCardCreate,
+  PagedResponse,
   RegisterRequest,
   SavedPaymentCard,
   TaxiBooking,
@@ -209,7 +210,14 @@ export const api = {
     accessToken = null;
   },
   getAdmins: () => request<AuthUser[]>('/api/admins'),
-  getAdminCandidates: () => request<AuthUser[]>('/api/admins?role=User'),
+  getAdminCandidates: (page = 1, pageSize = 10) => {
+    const search = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+
+    return request<PagedResponse<AuthUser>>(`/api/admins/users?${search}`);
+  },
   promoteUserToAdmin: (userId: number) =>
     request<AuthUser>(`/api/admins/${userId}`, {
       method: 'PUT',
@@ -230,8 +238,20 @@ export const api = {
     request<void>(`/api/admins/${userId}/account`, {
       method: 'DELETE',
     }),
-  getHotels: () => request<Hotel[]>('/api/hotels'),
+  getHotels: ({ page = 1, pageSize = 3, city = '' }: { page?: number; pageSize?: number; city?: string } = {}) => {
+    const search = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+
+    if (city) {
+      search.set('city', city);
+    }
+
+    return request<PagedResponse<Hotel>>(`/api/hotels?${search}`);
+  },
   getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
+  getHotelCities: () => request<string[]>('/api/hotels/cities'),
   uploadHotelImage: (file: File) => {
     const formData = new FormData();
     formData.set('file', file);

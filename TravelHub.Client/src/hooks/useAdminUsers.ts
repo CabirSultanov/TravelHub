@@ -9,20 +9,76 @@ type UseAdminUsersOptions = {
   setSubmitting: (submitting: boolean) => void;
 };
 
+const REGULAR_USERS_PAGE_SIZE = 10;
+
 export function useAdminUsers({ active, setMessage, setSubmitting }: UseAdminUsersOptions) {
   const [admins, setAdmins] = useState<AuthUser[]>([]);
   const [adminCandidates, setAdminCandidates] = useState<AuthUser[]>([]);
+  const [regularUsersPage, setRegularUsersPage] = useState(1);
+  const [regularUsersTotalItems, setRegularUsersTotalItems] = useState(0);
+  const [regularUsersTotalPages, setRegularUsersTotalPages] = useState(0);
+  const [regularUsersLoading, setRegularUsersLoading] = useState(false);
 
   useEffect(() => {
     if (!active) return;
 
-    void Promise.all([api.getAdmins(), api.getAdminCandidates()])
-      .then(([adminsData, candidatesData]) => {
-        setAdmins(adminsData);
-        setAdminCandidates(candidatesData);
+    void loadAdmins().catch((error) => setMessage(getErrorMessage(error)));
+  }, [active, setMessage]);
+
+  useEffect(() => {
+    if (!active) return;
+
+    let ignore = false;
+    setRegularUsersLoading(true);
+
+    void api
+      .getAdminCandidates(regularUsersPage, REGULAR_USERS_PAGE_SIZE)
+      .then((response) => {
+        if (ignore) {
+          return;
+        }
+
+        setAdminCandidates(response.items);
+        setRegularUsersPage(response.page);
+        setRegularUsersTotalItems(response.totalItems);
+        setRegularUsersTotalPages(response.totalPages);
       })
-      .catch((error) => setMessage(getErrorMessage(error)));
-  }, [active]);
+      .catch((error) => {
+        if (!ignore) {
+          setMessage(getErrorMessage(error));
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setRegularUsersLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [active, regularUsersPage, setMessage]);
+
+  async function loadAdmins() {
+    setAdmins(await api.getAdmins());
+  }
+
+  async function loadRegularUsers(page = regularUsersPage) {
+    setRegularUsersLoading(true);
+
+    try {
+      const response = await api.getAdminCandidates(page, REGULAR_USERS_PAGE_SIZE);
+      setAdminCandidates(response.items);
+      setRegularUsersPage(response.page);
+      setRegularUsersTotalItems(response.totalItems);
+      setRegularUsersTotalPages(response.totalPages);
+    } finally {
+      setRegularUsersLoading(false);
+    }
+  }
+
+  async function refreshAdminData() {
+    await Promise.all([loadAdmins(), loadRegularUsers()]);
+  }
 
   async function run(action: () => Promise<void>) {
     setSubmitting(true);
@@ -39,37 +95,34 @@ export function useAdminUsers({ active, setMessage, setSubmitting }: UseAdminUse
   return {
     admins,
     adminCandidates,
+    regularUsersPage,
+    regularUsersTotalItems,
+    regularUsersTotalPages,
+    regularUsersLoading,
+    setRegularUsersPage,
     promote: (userId: number) => run(async () => {
-      const admin = await api.promoteUserToAdmin(userId);
-      setAdminCandidates((users) => users.filter((user) => user.id !== userId));
-      setAdmins((users) => [...users, admin]);
+      await api.promoteUserToAdmin(userId);
+      await refreshAdminData();
       setMessage('User promoted to admin.');
     }),
     demote: (userId: number) => run(async () => {
       await api.demoteAdminToUser(userId);
-      setAdmins((users) => {
-        const admin = users.find((user) => user.id === userId);
-        if (admin) setAdminCandidates((candidates) => [...candidates, { ...admin, role: 'User' }]);
-        return users.filter((user) => user.id !== userId);
-      });
+      await refreshAdminData();
       setMessage('Admin demoted to user.');
     }),
     block: (userId: number) => run(async () => {
-      const user = await api.blockUser(userId);
-      setAdmins((users) => users.map((item) => (item.id === userId ? user : item)));
-      setAdminCandidates((users) => users.map((item) => (item.id === userId ? user : item)));
+      await api.blockUser(userId);
+      await refreshAdminData();
       setMessage('User blocked.');
     }),
     unblock: (userId: number) => run(async () => {
-      const user = await api.unblockUser(userId);
-      setAdmins((users) => users.map((item) => (item.id === userId ? user : item)));
-      setAdminCandidates((users) => users.map((item) => (item.id === userId ? user : item)));
+      await api.unblockUser(userId);
+      await refreshAdminData();
       setMessage('User unblocked.');
     }),
     remove: (userId: number) => run(async () => {
       await api.deleteAccount(userId);
-      setAdmins((users) => users.filter((user) => user.id !== userId));
-      setAdminCandidates((users) => users.filter((user) => user.id !== userId));
+      await refreshAdminData();
       setMessage('Account deleted.');
     }),
   };

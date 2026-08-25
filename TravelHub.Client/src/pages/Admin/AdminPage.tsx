@@ -1,11 +1,17 @@
 import type { AuthUser } from '../../types';
+import Pagination from '../../components/common/Pagination';
 
 type UserAction = (userId: number) => void | Promise<void>;
 
 type AdminPageProps = {
   admins: AuthUser[];
   adminCandidates: AuthUser[];
+  regularUsersPage: number;
+  regularUsersTotalItems: number;
+  regularUsersTotalPages: number;
+  regularUsersLoading: boolean;
   submitting: boolean;
+  onRegularUsersPageChange: (page: number) => void;
   onPromote: UserAction;
   onDemote: UserAction;
   onBlock: UserAction;
@@ -16,13 +22,20 @@ type AdminPageProps = {
 export default function AdminPage({
   admins,
   adminCandidates,
+  regularUsersPage,
+  regularUsersTotalItems,
+  regularUsersTotalPages,
+  regularUsersLoading,
   submitting,
+  onRegularUsersPageChange,
   onPromote,
   onDemote,
   onBlock,
   onUnblock,
   onDelete,
 }: AdminPageProps) {
+  const paginationDisabled = submitting || regularUsersLoading;
+
   return (
     <section className="page-section">
       <div className="section-title">
@@ -30,7 +43,7 @@ export default function AdminPage({
           <p className="eyebrow">Super Admin</p>
           <h2>User management</h2>
         </div>
-        <span>{admins.length} admins / {adminCandidates.length} users</span>
+        <span>{admins.length} admins / {regularUsersTotalItems} users</span>
       </div>
 
       <h3>Admins</h3>
@@ -73,6 +86,8 @@ export default function AdminPage({
 
       <h3>Regular users</h3>
       <div className="user-list">
+        {regularUsersLoading && <p className="empty">Loading users...</p>}
+
         {adminCandidates.map((user) => (
           <article className="user-row" key={user.id}>
             <span>
@@ -106,8 +121,16 @@ export default function AdminPage({
           </article>
         ))}
 
-        {adminCandidates.length === 0 && <p className="empty">No regular users yet.</p>}
+        {!regularUsersLoading && regularUsersTotalItems === 0 && <p className="empty">No regular users yet.</p>}
       </div>
+
+      <Pagination
+        ariaLabel="Regular users pagination"
+        disabled={paginationDisabled}
+        onPageChange={onRegularUsersPageChange}
+        page={regularUsersPage}
+        totalPages={regularUsersTotalPages}
+      />
     </section>
   );
 }

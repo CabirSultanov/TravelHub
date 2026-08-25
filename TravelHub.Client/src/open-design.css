@@ -2695,16 +2695,18 @@ body {
 }
 
 .selected-hotel-image {
-  display: block;
   width: 100%;
   height: 100%;
   border-radius: inherit;
+}
+
+.selected-hotel-image img {
   object-fit: cover;
   object-position: center;
   transition: transform 260ms var(--ease-standard);
 }
 
-.hotel-image-frame:hover .selected-hotel-image {
+.hotel-image-frame:hover .selected-hotel-image img {
   transform: scale(1.05);
 }
 
@@ -2747,6 +2749,7 @@ body {
 }
 
 .room-edit-form h3,
+.room-edit-form .photo-fields,
 .room-edit-form .room-photo-fields,
 .room-edit-form .checkbox,
 .room-edit-form .primary,
@@ -2775,6 +2778,7 @@ body {
   box-shadow: var(--focus-ring);
 }
 
+.room-edit-form .photo-fields,
 .room-edit-form .room-photo-fields {
   grid-template-columns: 1fr;
   align-items: center;
@@ -2915,9 +2919,83 @@ body {
   margin: 0;
 }
 
+.image-carousel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--surface-warm);
+}
+
+.image-carousel img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.image-carousel-button {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 999px;
+  background: rgba(5, 38, 39, 0.56);
+  color: #fff;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.image-carousel-button:hover {
+  background: rgba(5, 38, 39, 0.74);
+  transform: translateY(-50%) scale(1.04);
+}
+
+.image-carousel-button span {
+  display: block;
+  margin-top: -2px;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.image-carousel-button-prev {
+  left: 14px;
+}
+
+.image-carousel-button-next {
+  right: 14px;
+}
+
+.image-carousel-count {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 2;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(5, 38, 39, 0.64);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 850;
+}
+
 .od-hotel-workspace .room-photo-gallery {
   display: grid;
   gap: 14px;
+}
+
+.od-hotel-workspace .room-photo-strip .image-carousel {
+  aspect-ratio: 16 / 10;
+  border-radius: 22px;
 }
 
 .od-hotel-workspace .room-photo-strip img {
