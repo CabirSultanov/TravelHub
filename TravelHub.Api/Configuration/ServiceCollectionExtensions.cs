@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         });
         services.AddScoped<PasswordHasher<AppUser>>();
         services.AddScoped<ITokenService, TokenService>();
+        services.AddDataProtection();
         services.AddOptions<JwtOptions>()
             .Bind(configuration.GetSection(JwtOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "Jwt:Issuer is required.")
