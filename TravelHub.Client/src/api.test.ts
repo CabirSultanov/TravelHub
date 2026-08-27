@@ -179,6 +179,7 @@ describe('api hotels', () => {
       totalPages: 0,
       averageRating: null,
       reviewCount: 0,
+      currentUserReviewCount: null,
     };
     const fetchMock = vi.fn(async () => jsonResponse(reviews));
     vi.stubGlobal('fetch', fetchMock);

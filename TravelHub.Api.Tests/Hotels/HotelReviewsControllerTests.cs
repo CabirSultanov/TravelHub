@@ -75,6 +75,22 @@ public class HotelReviewsControllerTests
     }
 
     [Fact]
+    public async Task GetReviews_ReturnsTheCurrentUsersReviewCount()
+    {
+        await using var db = CreateDb();
+        SeedHotelAndUsers(db, 1);
+        db.HotelReviews.AddRange(
+            Review(1, 1, 3, DateTime.UtcNow.AddMinutes(-3)),
+            Review(1, 1, 4, DateTime.UtcNow.AddMinutes(-2)),
+            Review(1, 1, 5, DateTime.UtcNow.AddMinutes(-1)));
+        await db.SaveChangesAsync();
+
+        var response = (await CreateController(db, 1).GetReviews(1)).Value!;
+
+        Assert.Equal(3, response.CurrentUserReviewCount);
+    }
+
+    [Fact]
     public async Task CreateReview_RequiresAuthenticatedUser()
     {
         await using var db = CreateDb();
@@ -130,7 +146,7 @@ public class HotelReviewsControllerTests
     }
 
     [Fact]
-    public async Task CreateReview_EnforcesOneReviewPerUserAndHotel()
+    public async Task CreateReview_AllowsUpToThreeReviewsPerUserAndHotel()
     {
         await using var db = CreateDb();
         SeedHotelAndUsers(db, 2);
@@ -138,15 +154,20 @@ public class HotelReviewsControllerTests
         await db.SaveChangesAsync();
         var controller = CreateController(db, 1);
 
-        await controller.CreateReview(1, new HotelReviewCreateDto { Rating = 4 });
-        var duplicate = await controller.CreateReview(1, new HotelReviewCreateDto { Rating = 5 });
+        var first = await controller.CreateReview(1, new HotelReviewCreateDto { Rating = 3 });
+        var second = await controller.CreateReview(1, new HotelReviewCreateDto { Rating = 4 });
+        var third = await controller.CreateReview(1, new HotelReviewCreateDto { Rating = 5 });
+        var fourth = await controller.CreateReview(1, new HotelReviewCreateDto { Rating = 5 });
         var otherHotel = await controller.CreateReview(2, new HotelReviewCreateDto { Rating = 5 });
         var otherUser = await CreateController(db, 2).CreateReview(1, new HotelReviewCreateDto { Rating = 3 });
 
-        Assert.IsType<ConflictObjectResult>(duplicate.Result);
+        Assert.IsType<CreatedAtActionResult>(first.Result);
+        Assert.IsType<CreatedAtActionResult>(second.Result);
+        Assert.IsType<CreatedAtActionResult>(third.Result);
+        Assert.IsType<ConflictObjectResult>(fourth.Result);
         Assert.IsType<CreatedAtActionResult>(otherHotel.Result);
         Assert.IsType<CreatedAtActionResult>(otherUser.Result);
-        Assert.Equal(3, await db.HotelReviews.CountAsync());
+        Assert.Equal(5, await db.HotelReviews.CountAsync());
     }
 
     [Fact]

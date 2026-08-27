@@ -127,6 +127,7 @@ export type HotelReviewInput = {
 export type HotelReviewsResponse = PagedResponse<HotelReview> & {
   averageRating: number | null;
   reviewCount: number;
+  currentUserReviewCount: number | null;
 };
 
 export type HotelRoom = {

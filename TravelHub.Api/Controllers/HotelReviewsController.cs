@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
 using TravelHub.Api.DTO;
@@ -16,6 +15,7 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
 {
     private const int DefaultPageSize = 3;
     private const int MaxPageSize = 100;
+    private const int MaxReviewsPerUser = 3;
 
     [HttpGet]
     public async Task<ActionResult<HotelReviewsResponseDto>> GetReviews(int hotelId, int page = 1, int pageSize = DefaultPageSize)
@@ -31,6 +31,10 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
         var totalItems = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalItems / (double)normalizedPageSize);
         var effectivePage = totalPages == 0 ? 1 : Math.Min(normalizedPage, totalPages);
+        var currentUserId = GetCurrentUserId();
+        int? currentUserReviewCount = currentUserId.HasValue
+            ? await query.CountAsync(review => review.UserId == currentUserId.Value)
+            : null;
         var averageRating = totalItems == 0
             ? null
             : await query.AverageAsync(review => (double?)review.Rating);
@@ -60,7 +64,8 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
             TotalItems = totalItems,
             TotalPages = totalPages,
             AverageRating = averageRating,
-            ReviewCount = totalItems
+            ReviewCount = totalItems,
+            CurrentUserReviewCount = currentUserReviewCount
         };
     }
 
@@ -77,6 +82,8 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
 
         var review = await db.HotelReviews.AsNoTracking()
             .Where(review => review.HotelId == hotelId && review.UserId == userId.Value)
+            .OrderByDescending(review => review.CreatedAt)
+            .ThenByDescending(review => review.Id)
             .Select(review => new HotelReviewResponseDto
             {
                 Id = review.Id,
@@ -116,9 +123,9 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
             return BadRequest(validationError);
         }
 
-        if (await db.HotelReviews.AnyAsync(review => review.HotelId == hotelId && review.UserId == userId.Value))
+        if (await db.HotelReviews.CountAsync(review => review.HotelId == hotelId && review.UserId == userId.Value) >= MaxReviewsPerUser)
         {
-            return Conflict("You have already reviewed this hotel.");
+            return Conflict("You can submit up to 3 reviews for this hotel.");
         }
 
         var review = new HotelReview
@@ -131,15 +138,7 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
         };
 
         db.HotelReviews.Add(review);
-
-        try
-        {
-            await db.SaveChangesAsync();
-        }
-        catch (DbUpdateException exception) when (IsDuplicateReview(exception))
-        {
-            return Conflict("You have already reviewed this hotel.");
-        }
+        await db.SaveChangesAsync();
 
         await db.Entry(review).Reference(currentReview => currentReview.User).LoadAsync();
         return CreatedAtAction(nameof(GetReviews), new { hotelId }, ToResponse(review));
@@ -225,13 +224,6 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
         CreatedAt = review.CreatedAt,
         UpdatedAt = review.UpdatedAt
     };
-
-    private static bool IsDuplicateReview(DbUpdateException exception)
-    {
-        return exception.InnerException is SqlException sqlException
-            && sqlException.Errors.Cast<SqlError>().Any(error => error.Number is 2601 or 2627)
-            || exception.ToString().Contains("IX_HotelReviews_UserId_HotelId", StringComparison.OrdinalIgnoreCase);
-    }
 
     private bool IsAdmin() => User?.IsInRole(UserRoles.Admin) == true || User?.IsInRole(UserRoles.SuperAdmin) == true;
 

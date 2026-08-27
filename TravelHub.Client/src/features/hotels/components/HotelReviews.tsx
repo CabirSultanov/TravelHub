@@ -17,6 +17,7 @@ export default function HotelReviews({ currentUser, feature, submitting }: Hotel
   const { model, actions } = feature;
   const response = model.response;
   const averageRating = response?.averageRating ?? null;
+  const reviewLimitReached = currentUser !== null && response?.currentUserReviewCount === 3;
 
   function canDelete(review: HotelReview) {
     return review.userId === currentUser?.id || model.canModerate;
@@ -38,17 +39,15 @@ export default function HotelReviews({ currentUser, feature, submitting }: Hotel
             </div>
           )}
         </div>
-        {(!currentUser || !model.ownReview) && (
-          <button className="btn btn-primary" disabled={submitting || (Boolean(currentUser) && !model.ownReviewLoaded)} onClick={actions.openForm} type="button">
-            {currentUser && !model.ownReviewLoaded ? 'Loading review...' : 'Rate this hotel'}
-          </button>
-        )}
+        <button className="btn btn-primary" disabled={submitting || model.loading || (Boolean(currentUser) && !response) || reviewLimitReached} onClick={actions.openForm} type="button">
+          {currentUser && !response ? 'Loading reviews...' : reviewLimitReached ? 'Review limit reached' : 'Rate this hotel'}
+        </button>
       </div>
 
       {model.showForm && (
         <ReviewForm
           comment={model.comment}
-          editing={Boolean(model.ownReview)}
+          editing={false}
           onCancel={actions.cancelForm}
           onCommentChange={actions.setComment}
           onRatingChange={actions.setRating}
