@@ -58,6 +58,11 @@ export function useHotelReviews({ hotelId, currentUser, setMessage, setSubmittin
       return;
     }
 
+    if ((response?.currentUserReviewCount ?? 0) > 0) {
+      setMessage('You have already reviewed this hotel.');
+      return;
+    }
+
     setRating(0);
     setComment('');
     setShowForm(true);

@@ -55,7 +55,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<HotelReview>()
-            .HasIndex(review => new { review.UserId, review.HotelId });
+            .HasIndex(review => new { review.UserId, review.HotelId })
+            .IsUnique();
 
         modelBuilder.Entity<HotelReview>()
             .Property(review => review.CreatedAt)

@@ -15,7 +15,7 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
 {
     private const int DefaultPageSize = 3;
     private const int MaxPageSize = 100;
-    private const int MaxReviewsPerUser = 3;
+    private const int MaxReviewsPerUser = 1;
 
     [HttpGet]
     public async Task<ActionResult<HotelReviewsResponseDto>> GetReviews(int hotelId, int page = 1, int pageSize = DefaultPageSize)
@@ -125,7 +125,7 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
 
         if (await db.HotelReviews.CountAsync(review => review.HotelId == hotelId && review.UserId == userId.Value) >= MaxReviewsPerUser)
         {
-            return Conflict("You can submit up to 3 reviews for this hotel.");
+            return Conflict("You have already reviewed this hotel.");
         }
 
         var review = new HotelReview
