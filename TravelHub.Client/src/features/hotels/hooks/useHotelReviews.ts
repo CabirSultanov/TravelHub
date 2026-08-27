@@ -18,6 +18,8 @@ export function useHotelReviews({ hotelId, currentUser, setMessage, setSubmittin
   const [response, setResponse] = useState<HotelReviewsResponse | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [hasOwnReview, setHasOwnReview] = useState(false);
+  const [ownReviewLoaded, setOwnReviewLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -52,13 +54,44 @@ export function useHotelReviews({ hotelId, currentUser, setMessage, setSubmittin
     void loadReviews(page);
   }, [hotelId, page]);
 
+  useEffect(() => {
+    let ignore = false;
+
+    if (hotelId === null || !currentUser) {
+      setHasOwnReview(false);
+      setOwnReviewLoaded(true);
+      return;
+    }
+
+    setOwnReviewLoaded(false);
+
+    void api
+      .getMyHotelReview(hotelId)
+      .then((review) => {
+        if (!ignore) {
+          setHasOwnReview(review !== null);
+          setOwnReviewLoaded(true);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setMessage(getErrorMessage(error));
+          setOwnReviewLoaded(true);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentUser?.id, hotelId]);
+
   function openForm() {
     if (!currentUser) {
       onRequireAuth('Please sign in to rate this hotel.');
       return;
     }
 
-    if ((response?.currentUserReviewCount ?? 0) > 0) {
+    if (hasOwnReview || (response?.currentUserReviewCount ?? 0) > 0) {
       setMessage('You have already reviewed this hotel.');
       return;
     }
@@ -85,6 +118,7 @@ export function useHotelReviews({ hotelId, currentUser, setMessage, setSubmittin
 
     try {
       await api.createHotelReview(hotelId, review);
+      setHasOwnReview(true);
       cancelForm();
       await loadReviews(1);
       setMessage('Review submitted.');
@@ -106,6 +140,10 @@ export function useHotelReviews({ hotelId, currentUser, setMessage, setSubmittin
     try {
       await api.deleteHotelReview(hotelId, review.id);
 
+      if (review.userId === currentUser.id) {
+        setHasOwnReview(false);
+      }
+
       await loadReviews(page);
       setMessage('Review deleted.');
     } catch (error) {
@@ -120,6 +158,7 @@ export function useHotelReviews({ hotelId, currentUser, setMessage, setSubmittin
       response,
       page,
       loading,
+      ownReviewLoaded,
       showForm,
       rating,
       comment,

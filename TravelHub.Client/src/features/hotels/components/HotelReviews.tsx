@@ -38,8 +38,8 @@ export default function HotelReviews({ currentUser, feature, submitting }: Hotel
             </div>
           )}
         </div>
-        <button className="btn btn-primary" disabled={submitting || model.loading || (Boolean(currentUser) && !response)} onClick={actions.openForm} type="button">
-          {currentUser && !response ? 'Loading reviews...' : 'Rate this hotel'}
+        <button className="btn btn-primary" disabled={submitting || model.loading || (Boolean(currentUser) && (!response || !model.ownReviewLoaded))} onClick={actions.openForm} type="button">
+          {currentUser && (!response || !model.ownReviewLoaded) ? 'Loading review...' : 'Rate this hotel'}
         </button>
       </div>
 
