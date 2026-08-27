@@ -1,7 +1,9 @@
 using System.Data;
 using System.Net.Mail;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -21,12 +23,16 @@ public class AuthController(
     AppDbContext db,
     PasswordHasher<AppUser> passwordHasher,
     ITokenService tokenService,
-    IOptions<JwtOptions> jwtOptions) : ControllerBase
+    IOptions<JwtOptions> jwtOptions,
+    IDataProtectionProvider dataProtectionProvider) : ControllerBase
 {
     private const string AzerbaijanPhonePrefix = "+994";
     private const int AzerbaijanPhoneDigitCount = 9;
     private const string RefreshTokenCookieName = "TravelHub.RefreshToken";
     private const string RefreshTokenCookiePath = "/api/auth";
+    private const string RefreshTokenProtectorPurpose = "TravelHub.Auth.RefreshToken.Replacement.v1";
+    private static readonly TimeSpan RefreshReplayGracePeriod = TimeSpan.FromSeconds(10);
+    private readonly IDataProtector refreshTokenProtector = dataProtectionProvider.CreateProtector(RefreshTokenProtectorPurpose);
 
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterRequestDto request)
@@ -110,8 +116,27 @@ public class AuthController(
 
         if (refreshToken is null
             || refreshToken.User is null
-            || refreshToken.User.IsBlocked
-            || !RefreshTokenRules.IsUsable(refreshToken, now))
+            || refreshToken.User.IsBlocked)
+        {
+            return Unauthorized();
+        }
+
+        if (RefreshTokenRules.CanReplayWithinGracePeriod(refreshToken, now, RefreshReplayGracePeriod))
+        {
+            try
+            {
+                var replayedRawToken = refreshTokenProtector.Unprotect(refreshToken.ProtectedReplacementToken!);
+                await transaction.CommitAsync();
+                SetRefreshTokenCookie(replayedRawToken);
+                return CreateAuthResponse(refreshToken.User);
+            }
+            catch (CryptographicException)
+            {
+                return Unauthorized();
+            }
+        }
+
+        if (!RefreshTokenRules.IsUsable(refreshToken, now))
         {
             return Unauthorized();
         }
@@ -123,6 +148,8 @@ public class AuthController(
         {
             return Unauthorized();
         }
+
+        refreshToken.ProtectedReplacementToken = refreshTokenProtector.Protect(replacementRawToken);
 
         db.RefreshTokens.Add(new RefreshToken
         {

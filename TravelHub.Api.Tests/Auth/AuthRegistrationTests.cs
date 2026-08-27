@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using TravelHub.Api.Configuration;
 using TravelHub.Api.Controllers;
@@ -15,6 +17,8 @@ namespace TravelHub.Api.Tests.Auth;
 
 public class AuthRegistrationTests
 {
+    private static readonly IDataProtectionProvider TestDataProtection = new EphemeralDataProtectionProvider();
+
     [Fact]
     public async Task Register_WithValidInput_CreatesUserAndSession()
     {
@@ -30,6 +34,107 @@ public class AuthRegistrationTests
         Assert.Equal("+994501234567", storedUser.PhoneNumber);
         Assert.NotEqual("Travel123!", storedUser.PasswordHash);
         Assert.Single(await db.RefreshTokens.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Refresh_ReusesTheSameReplacementTokenDuringTheGracePeriod()
+    {
+        await using var db = CreateDbContext();
+        var user = await SeedUserAsync(db);
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            TokenHash = "hash-refresh-token-0",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-1),
+            ExpiresAt = DateTime.UtcNow.AddDays(1)
+        });
+        await db.SaveChangesAsync();
+
+        var firstController = CreateController(db);
+        SetRefreshTokenCookie(firstController, "refresh-token-0");
+        var firstResult = await firstController.Refresh();
+        var firstCookie = GetRefreshTokenCookie(firstController);
+
+        var secondController = CreateController(db);
+        SetRefreshTokenCookie(secondController, "refresh-token-0");
+        var secondResult = await secondController.Refresh();
+
+        Assert.IsType<AuthResponseDto>(firstResult.Value);
+        Assert.IsType<AuthResponseDto>(secondResult.Value);
+        Assert.Equal(firstCookie, GetRefreshTokenCookie(secondController));
+        Assert.Equal(2, await db.RefreshTokens.CountAsync());
+        var revokedToken = await db.RefreshTokens.SingleAsync(token => token.TokenHash == "hash-refresh-token-0");
+        Assert.NotNull(revokedToken.ProtectedReplacementToken);
+    }
+
+    [Fact]
+    public async Task Refresh_RejectsAReplacedTokenAfterTheGracePeriod()
+    {
+        await using var db = CreateDbContext();
+        var user = await SeedUserAsync(db);
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            TokenHash = "hash-refresh-token-0",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-1),
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+            RevokedAt = DateTime.UtcNow.AddSeconds(-11),
+            ReplacedByTokenHash = "hash-refresh-token-1",
+            ProtectedReplacementToken = "not-used-after-grace"
+        });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+        SetRefreshTokenCookie(controller, "refresh-token-0");
+
+        var result = await controller.Refresh();
+
+        Assert.IsType<UnauthorizedResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Refresh_RejectsAReplacedTokenWithCorruptedProtectedValue()
+    {
+        await using var db = CreateDbContext();
+        var user = await SeedUserAsync(db);
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            TokenHash = "hash-refresh-token-0",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-1),
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+            RevokedAt = DateTime.UtcNow,
+            ReplacedByTokenHash = "hash-refresh-token-1",
+            ProtectedReplacementToken = "corrupted"
+        });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+        SetRefreshTokenCookie(controller, "refresh-token-0");
+
+        var result = await controller.Refresh();
+
+        Assert.IsType<UnauthorizedResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Refresh_RejectsBlockedUsers()
+    {
+        await using var db = CreateDbContext();
+        var user = await SeedUserAsync(db);
+        user.IsBlocked = true;
+        db.RefreshTokens.Add(new RefreshToken
+        {
+            UserId = user.Id,
+            TokenHash = "hash-refresh-token-0",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-1),
+            ExpiresAt = DateTime.UtcNow.AddDays(1)
+        });
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+        SetRefreshTokenCookie(controller, "refresh-token-0");
+
+        var result = await controller.Refresh();
+
+        Assert.IsType<UnauthorizedResult>(result.Result);
     }
 
     [Fact]
@@ -316,7 +421,8 @@ public class AuthRegistrationTests
             db,
             new PasswordHasher<AppUser>(),
             new FakeTokenService(),
-            Options.Create(new JwtOptions { RefreshTokenDays = 7 }));
+            Options.Create(new JwtOptions { RefreshTokenDays = 7 }),
+            TestDataProtection);
 
         controller.ControllerContext = new ControllerContext
         {
@@ -340,9 +446,20 @@ public class AuthRegistrationTests
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
 
         return new AppDbContext(options);
+    }
+
+    private static void SetRefreshTokenCookie(AuthController controller, string token) =>
+        controller.HttpContext.Request.Headers.Cookie = $"TravelHub.RefreshToken={token}";
+
+    private static string GetRefreshTokenCookie(AuthController controller)
+    {
+        var setCookie = Assert.Single(controller.HttpContext.Response.Headers.SetCookie) ?? throw new InvalidOperationException("Refresh cookie was not set.");
+        var cookieParts = setCookie.Split(';', 2)[0].Split('=', 2);
+        return cookieParts.Length == 2 ? cookieParts[1] : throw new InvalidOperationException("Refresh cookie is invalid.");
     }
 
     private static RegisterRequestDto ValidRequest(
@@ -408,9 +525,11 @@ public class AuthRegistrationTests
 
     private sealed class FakeTokenService : ITokenService
     {
+        private int refreshTokenNumber;
+
         public AccessTokenResult CreateAccessToken(AppUser user) => new("access-token", DateTime.UtcNow.AddMinutes(15));
 
-        public string CreateRefreshToken() => "refresh-token";
+        public string CreateRefreshToken() => $"refresh-token-{++refreshTokenNumber}";
 
         public string HashRefreshToken(string token) => $"hash-{token}";
     }

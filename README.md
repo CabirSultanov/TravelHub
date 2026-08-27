@@ -129,6 +129,8 @@ Do not commit `.env` files or real credentials.
 ### Hotels
 
 - Search hotels by city and stay dates.
+- View public hotel ratings, average scores, and paginated guest reviews.
+- Registered users can rate hotels and add or edit an optional written review.
 - Validate date ranges so check-out must be after check-in.
 - Preserve search state with query-based URLs.
 - Open hotel detail pages.

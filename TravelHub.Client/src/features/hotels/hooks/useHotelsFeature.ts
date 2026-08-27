@@ -160,6 +160,13 @@ export function useHotelsFeature({
     setSelectedHotel((currentHotel) => (currentHotel?.id === updatedHotel.id ? updatedHotel : currentHotel));
   }
 
+  function updateHotelReviewStats(hotelId: number, stats: { averageRating: number | null; reviewCount: number }) {
+    const update = (hotel: Hotel) => (hotel.id === hotelId ? { ...hotel, ...stats } : hotel);
+
+    setHotels((currentHotels) => currentHotels.map(update));
+    setSelectedHotel((currentHotel) => (currentHotel ? update(currentHotel) : null));
+  }
+
   async function selectHotel(hotel: Hotel) {
     const hotelId = hotel.id;
 
@@ -222,6 +229,8 @@ export function useHotelsFeature({
           roomTypesCount: previousHotel?.roomTypesCount ?? 0,
           totalRoomsCount: previousHotel?.totalRoomsCount ?? 0,
           totalGuestPlaces: previousHotel?.totalGuestPlaces ?? 0,
+          averageRating: previousHotel?.averageRating ?? null,
+          reviewCount: previousHotel?.reviewCount ?? 0,
         };
 
         await refreshHotelPage();
@@ -714,6 +723,7 @@ export function useHotelsFeature({
         setCityFilter: changeCityFilter,
         setSearch: setHotelSearch,
         setPage: setHotelPage,
+        updateStats: updateHotelReviewStats,
         requestDelete: setDeleteTarget,
       },
       hotelForm: {

@@ -5,6 +5,9 @@ import type {
   BookingCreate,
   BookingPayment,
   Hotel,
+  HotelReview,
+  HotelReviewInput,
+  HotelReviewsResponse,
   HotelInput,
   HotelRoom,
   HotelRoomInput,
@@ -251,6 +254,33 @@ export const api = {
     return request<PagedResponse<Hotel>>(`/api/hotels?${search}`);
   },
   getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
+  getHotelReviews: (hotelId: number, page = 1, pageSize = 3) =>
+    request<HotelReviewsResponse>(`/api/hotels/${hotelId}/reviews?page=${page}&pageSize=${pageSize}`),
+  getMyHotelReview: async (hotelId: number) => {
+    try {
+      return await request<HotelReview>(`/api/hotels/${hotelId}/reviews/mine`);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
+
+      throw error;
+    }
+  },
+  createHotelReview: (hotelId: number, review: HotelReviewInput) =>
+    request<HotelReview>(`/api/hotels/${hotelId}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(review),
+    }),
+  updateHotelReview: (hotelId: number, reviewId: number, review: HotelReviewInput) =>
+    request<HotelReview>(`/api/hotels/${hotelId}/reviews/${reviewId}`, {
+      method: 'PUT',
+      body: JSON.stringify(review),
+    }),
+  deleteHotelReview: (hotelId: number, reviewId: number) =>
+    request<void>(`/api/hotels/${hotelId}/reviews/${reviewId}`, {
+      method: 'DELETE',
+    }),
   getHotelCities: () => request<string[]>('/api/hotels/cities'),
   uploadHotelImage: (file: File) => {
     const formData = new FormData();

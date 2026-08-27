@@ -30,4 +30,6 @@ public class AppUser
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    public ICollection<HotelReview> HotelReviews { get; set; } = new List<HotelReview>();
 }
