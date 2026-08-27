@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TaxiService> TaxiServices => Set<TaxiService>();
     public DbSet<TaxiCarClass> TaxiCarClasses => Set<TaxiCarClass>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<HotelReview> HotelReviews => Set<HotelReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +42,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasOne(card => card.User)
             .WithMany()
             .HasForeignKey(card => card.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<HotelReview>()
+            .HasIndex(review => new { review.UserId, review.HotelId })
+            .IsUnique();
+
+        modelBuilder.Entity<HotelReview>()
+            .HasOne(review => review.Hotel)
+            .WithMany(hotel => hotel.Reviews)
+            .HasForeignKey(review => review.HotelId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<HotelReview>()
+            .HasOne(review => review.User)
+            .WithMany(user => user.HotelReviews)
+            .HasForeignKey(review => review.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

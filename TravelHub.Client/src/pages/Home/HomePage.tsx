@@ -33,6 +33,7 @@ function createHotelCards(hotels: Hotel[]) {
   const cards = hotels.slice(0, 3).map((hotel) => {
     const imageUrl = hotel.imageUrl || fallbackImage(hotel.name, 'hotel');
     const description = hotel.description ? `<p>${escapeHtml(hotel.description)}</p>` : '';
+    const rating = hotel.averageRating === null ? 'No reviews yet' : `★ ${hotel.averageRating.toFixed(1)} (${hotel.reviewCount} reviews)`;
 
     return `<article class="hotel-card" data-od-id="hotel-card-${hotel.id}">
               <div class="hotel-photo">
@@ -44,6 +45,7 @@ function createHotelCards(hotels: Hotel[]) {
                   <h3>${escapeHtml(hotel.name)}</h3>
                 </div>
                 ${description}
+                <div class="hotel-rating">${escapeHtml(rating)}</div>
                 <div class="hotel-review">
                   <span>${escapeHtml(pluralize(hotel.roomTypesCount, 'room type', 'room types'))}</span>
                   <span>/</span>

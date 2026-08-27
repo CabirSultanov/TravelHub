@@ -943,6 +943,7 @@ function App() {
           onBackToHotels={openHotelsList}
           onNavigate={navigateTo}
           onOpenAuth={openAuth}
+          onRequireAuth={requireAuth}
           onOpenHotel={openHotelDetail}
           onRoomSelect={selectHotelRoomFromPage}
           onSearchHotels={searchHotels}
@@ -951,6 +952,8 @@ function App() {
           requestedRoomId={requestedHotelRoomId}
           renderPaymentForm={renderPaymentForm}
           search={hotelSearch}
+          setMessage={setMessage}
+          setSubmitting={setSubmitting}
           submitting={submitting}
         />
       )}

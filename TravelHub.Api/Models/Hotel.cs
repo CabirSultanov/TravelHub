@@ -21,4 +21,6 @@ public class Hotel
     public string? ImageUrl { get; set; }
 
     public string ImageUrlsJson { get; set; } = "[]";
+
+    public ICollection<HotelReview> Reviews { get; set; } = new List<HotelReview>();
 }
