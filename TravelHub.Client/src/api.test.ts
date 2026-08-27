@@ -174,7 +174,7 @@ describe('api hotels', () => {
     const reviews = {
       items: [],
       page: 1,
-      pageSize: 5,
+      pageSize: 3,
       totalItems: 0,
       totalPages: 0,
       averageRating: null,
@@ -191,7 +191,7 @@ describe('api hotels', () => {
     await api.deleteHotelReview(7, 9);
 
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
-    expect(calls[0][0]).toBe('/api/hotels/7/reviews?page=1&pageSize=5');
+    expect(calls[0][0]).toBe('/api/hotels/7/reviews?page=1&pageSize=3');
     expect(calls[1][0]).toBe('/api/hotels/7/reviews');
     expect(calls[1][1]).toMatchObject({ method: 'POST', body: JSON.stringify(review) });
     expect(calls[2][0]).toBe('/api/hotels/7/reviews/9');

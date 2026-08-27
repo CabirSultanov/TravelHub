@@ -14,7 +14,7 @@ namespace TravelHub.Api.Controllers;
 [Route("api/hotels/{hotelId:int}/reviews")]
 public class HotelReviewsController(AppDbContext db) : ControllerBase
 {
-    private const int DefaultPageSize = 5;
+    private const int DefaultPageSize = 3;
     private const int MaxPageSize = 100;
 
     [HttpGet]
@@ -31,10 +31,9 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
         var totalItems = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalItems / (double)normalizedPageSize);
         var effectivePage = totalPages == 0 ? 1 : Math.Min(normalizedPage, totalPages);
-        var stats = await query
-            .GroupBy(_ => 1)
-            .Select(group => new { AverageRating = group.Average(review => (double?)review.Rating), ReviewCount = group.Count() })
-            .FirstOrDefaultAsync();
+        var averageRating = totalItems == 0
+            ? null
+            : await query.AverageAsync(review => (double?)review.Rating);
         var items = await query
             .OrderByDescending(review => review.CreatedAt)
             .ThenByDescending(review => review.Id)
@@ -60,8 +59,8 @@ public class HotelReviewsController(AppDbContext db) : ControllerBase
             PageSize = normalizedPageSize,
             TotalItems = totalItems,
             TotalPages = totalPages,
-            AverageRating = stats?.AverageRating,
-            ReviewCount = stats?.ReviewCount ?? 0
+            AverageRating = averageRating,
+            ReviewCount = totalItems
         };
     }
 

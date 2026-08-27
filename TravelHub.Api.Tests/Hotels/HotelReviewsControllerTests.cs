@@ -32,6 +32,49 @@ public class HotelReviewsControllerTests
     }
 
     [Fact]
+    public async Task GetReviews_UsesThreeItemDefaultPageSizeAndKeepsAccurateStats()
+    {
+        await using var db = CreateDb();
+        SeedHotelAndUsers(db, 4);
+        db.HotelReviews.AddRange(
+            Review(1, 1, 2, DateTime.UtcNow.AddMinutes(-4)),
+            Review(1, 2, 3, DateTime.UtcNow.AddMinutes(-3)),
+            Review(1, 3, 4, DateTime.UtcNow.AddMinutes(-2)),
+            Review(1, 4, 5, DateTime.UtcNow.AddMinutes(-1)));
+        await db.SaveChangesAsync();
+        var controller = new HotelReviewsController(db);
+
+        var firstPage = (await controller.GetReviews(1)).Value!;
+        var secondPage = (await controller.GetReviews(1, page: 2)).Value!;
+
+        Assert.Equal(3, firstPage.PageSize);
+        Assert.Equal(2, firstPage.TotalPages);
+        Assert.Equal([4, 3, 2], firstPage.Items.Select(review => review.UserId));
+        Assert.Equal([1], secondPage.Items.Select(review => review.UserId));
+        Assert.Equal(3.5d, firstPage.AverageRating);
+        Assert.Equal(4, firstPage.ReviewCount);
+
+        db.HotelReviews.Remove(db.HotelReviews.Single(review => review.UserId == 1));
+        await db.SaveChangesAsync();
+
+        var pageAfterDeletingLastItem = (await controller.GetReviews(1, page: 2)).Value!;
+        Assert.Equal(1, pageAfterDeletingLastItem.Page);
+        Assert.Equal(3, pageAfterDeletingLastItem.Items.Count);
+    }
+
+    [Fact]
+    public async Task GetReviews_ReturnsEmptyStatisticsForAHotelWithoutReviews()
+    {
+        await using var db = CreateDb();
+        SeedHotelAndUsers(db, 1);
+
+        var response = (await new HotelReviewsController(db).GetReviews(1)).Value!;
+
+        Assert.Equal(0, response.ReviewCount);
+        Assert.Null(response.AverageRating);
+    }
+
+    [Fact]
     public async Task CreateReview_RequiresAuthenticatedUser()
     {
         await using var db = CreateDb();

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TravelHub.Api.Models;
 
 namespace TravelHub.Api.Data;
@@ -18,6 +19,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var utcDateTimeConverter = new ValueConverter<DateTime, DateTime>(
+            value => value.Kind == DateTimeKind.Local ? value.ToUniversalTime() : DateTime.SpecifyKind(value, DateTimeKind.Utc),
+            value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+        var nullableUtcDateTimeConverter = new ValueConverter<DateTime?, DateTime?>(
+            value => value.HasValue
+                ? value.Value.Kind == DateTimeKind.Local ? value.Value.ToUniversalTime() : DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                : null,
+            value => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null);
+
         modelBuilder.Entity<AppUser>()
             .HasIndex(user => user.Email)
             .IsUnique();
@@ -47,6 +57,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<HotelReview>()
             .HasIndex(review => new { review.UserId, review.HotelId })
             .IsUnique();
+
+        modelBuilder.Entity<HotelReview>()
+            .Property(review => review.CreatedAt)
+            .HasConversion(utcDateTimeConverter);
+
+        modelBuilder.Entity<HotelReview>()
+            .Property(review => review.UpdatedAt)
+            .HasConversion(nullableUtcDateTimeConverter);
 
         modelBuilder.Entity<HotelReview>()
             .HasOne(review => review.Hotel)

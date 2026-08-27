@@ -254,7 +254,7 @@ export const api = {
     return request<PagedResponse<Hotel>>(`/api/hotels?${search}`);
   },
   getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
-  getHotelReviews: (hotelId: number, page = 1, pageSize = 5) =>
+  getHotelReviews: (hotelId: number, page = 1, pageSize = 3) =>
     request<HotelReviewsResponse>(`/api/hotels/${hotelId}/reviews?page=${page}&pageSize=${pageSize}`),
   getMyHotelReview: async (hotelId: number) => {
     try {

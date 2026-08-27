@@ -3,7 +3,7 @@ import { api } from '../../../api';
 import type { AuthUser, HotelReview, HotelReviewInput, HotelReviewsResponse } from '../../../types';
 import { getErrorMessage } from '../../../utils/errors';
 
-const REVIEW_PAGE_SIZE = 5;
+const REVIEW_PAGE_SIZE = 3;
 
 type Options = {
   hotelId: number | null;

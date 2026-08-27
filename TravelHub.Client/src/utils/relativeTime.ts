@@ -1,7 +1,15 @@
 const relativeTime = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
+export function parseReviewTimestamp(value: string | Date) {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  return new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`);
+}
+
 export function formatRelativeTime(value: string | Date, now = new Date()) {
-  const date = new Date(value);
+  const date = parseReviewTimestamp(value);
   const seconds = Math.round((date.getTime() - now.getTime()) / 1000);
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
     ['year', 31_536_000],
@@ -21,5 +29,5 @@ export function formatRelativeTime(value: string | Date, now = new Date()) {
 }
 
 export function formatReviewTimestamp(value: string | Date) {
-  return new Intl.DateTimeFormat('en', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value));
+  return new Intl.DateTimeFormat('en', { dateStyle: 'long', timeStyle: 'short' }).format(parseReviewTimestamp(value));
 }

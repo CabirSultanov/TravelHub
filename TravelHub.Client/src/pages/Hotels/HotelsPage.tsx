@@ -236,8 +236,6 @@ export default function HotelsPage({
                 </div>
               </div>
 
-              <HotelReviews currentUser={currentUser} feature={reviewsFeature} submitting={submitting} />
-
               {model.canManageHotels && (
                 <>
                   {!model.showRoomForm && (
@@ -260,6 +258,8 @@ export default function HotelsPage({
 
                 </>
               )}
+
+              <HotelReviews currentUser={currentUser} feature={reviewsFeature} submitting={submitting} />
 
               {showRooms && (
                 <>
