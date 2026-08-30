@@ -7,8 +7,8 @@ namespace TravelHub.Api.Controllers;
 
 [ApiController]
 [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
-[Route("api/room-images")]
-public class RoomImagesController(IImageStorageService imageStorage) : ControllerBase
+[Route("api/taxi-images")]
+public class TaxiImagesController(IImageStorageService imageStorage) : ControllerBase
 {
     [HttpPost]
     [RequestSizeLimit(ImageUploadRules.MaxImageBytes)]
@@ -23,7 +23,7 @@ public class RoomImagesController(IImageStorageService imageStorage) : Controlle
 
         try
         {
-            var result = await imageStorage.UploadAsync(file, "travelhub/rooms", cancellationToken);
+            var result = await imageStorage.UploadAsync(file, "travelhub/taxis", cancellationToken);
             return Ok(new HotelImageUploadResponse(result.ImageUrl));
         }
         catch (ImageStorageException)

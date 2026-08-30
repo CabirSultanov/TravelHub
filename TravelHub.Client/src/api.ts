@@ -349,6 +349,15 @@ export const api = {
       body: formData,
     });
   },
+  uploadTaxiImage: (file: File) => {
+    const formData = new FormData();
+    formData.set('file', file);
+
+    return request<{ imageUrl: string }>('/api/taxi-images', {
+      method: 'POST',
+      body: formData,
+    });
+  },
   createHotel: (hotel: HotelInput) =>
     request<Hotel>('/api/hotels', {
       method: 'POST',

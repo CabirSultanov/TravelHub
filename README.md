@@ -112,6 +112,9 @@ dotnet user-secrets set "GoogleMaps:ApiKey" "your-backend-google-maps-key" --pro
 dotnet user-secrets set "Email:SenderEmail" "your-gmail-address@gmail.com" --project TravelHub.Api
 dotnet user-secrets set "Email:Username" "your-gmail-address@gmail.com" --project TravelHub.Api
 dotnet user-secrets set "Email:AppPassword" "your-gmail-app-password" --project TravelHub.Api
+dotnet user-secrets set "Cloudinary:CloudName" "YOUR_CLOUD_NAME" --project TravelHub.Api
+dotnet user-secrets set "Cloudinary:ApiKey" "YOUR_API_KEY" --project TravelHub.Api
+dotnet user-secrets set "Cloudinary:ApiSecret" "YOUR_API_SECRET" --project TravelHub.Api
 ```
 
 Optional SuperAdmin seed:
@@ -126,6 +129,8 @@ dotnet user-secrets set "SeedSuperAdmin:Password" "your-local-super-admin-passwo
 Do not commit `.env` files or real credentials.
 
 New registrations also require Gmail email confirmation. TravelHub sends a six-digit code through Gmail SMTP; the default SMTP host is `smtp.gmail.com` on port `587` with STARTTLS. Optionally override `Email:SenderName`, `Email:SmtpHost`, or `Email:SmtpPort` through User Secrets or environment variables. Use a Gmail App Password, never your normal Gmail password.
+
+New hotel, room, and taxi image uploads use Cloudinary. Configure the `Cloudinary:CloudName`, `Cloudinary:ApiKey`, and `Cloudinary:ApiSecret` User Secrets locally, or set `Cloudinary__CloudName`, `Cloudinary__ApiKey`, and `Cloudinary__ApiSecret` in production. Existing `/images/...` URLs remain served by TravelHub for backwards compatibility.
 
 ---
 

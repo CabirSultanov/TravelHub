@@ -260,7 +260,7 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
     {
         var trimmed = imageUrl.Trim();
 
-        if (trimmed.StartsWith("/images/hotel-covers/", StringComparison.OrdinalIgnoreCase))
+        if (trimmed.StartsWith("/images/", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

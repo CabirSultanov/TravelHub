@@ -259,7 +259,7 @@ export function useTaxiFeature({
     setMessage('');
 
     try {
-      const { imageUrl } = await api.uploadHotelImage(file);
+      const { imageUrl } = await api.uploadTaxiImage(file);
       setTaxiForm((form) => ({ ...form, imageUrl: toAbsoluteImageUrl(imageUrl) }));
       setMessage('Taxi image uploaded.');
     } catch (error) {

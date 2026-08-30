@@ -149,6 +149,18 @@ describe('api authentication', () => {
   });
 });
 
+describe('api image uploads', () => {
+  it('uploads taxi images through the dedicated taxi endpoint', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ imageUrl: 'https://res.cloudinary.com/demo/taxi.jpg' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    await expect(api.uploadTaxiImage(new File(['image'], 'taxi.jpg', { type: 'image/jpeg' }))).resolves.toEqual({ imageUrl: 'https://res.cloudinary.com/demo/taxi.jpg' });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/taxi-images', expect.objectContaining({ method: 'POST', credentials: 'include' }));
+  });
+});
+
 describe('api admin users', () => {
   it('requests paginated regular users', async () => {
     const pagedUsers = {

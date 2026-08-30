@@ -28,6 +28,9 @@ public static class ServiceCollectionExtensions
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName));
         services.AddScoped<IEmailService, EmailService>();
+        services.AddOptions<CloudinaryOptions>()
+            .Bind(configuration.GetSection(CloudinaryOptions.SectionName));
+        services.AddScoped<IImageStorageService, CloudinaryImageStorageService>();
         services.AddHttpClient<IRoutingService, GoogleRoutesService>(client =>
         {
             client.BaseAddress = new Uri("https://routes.googleapis.com/");
