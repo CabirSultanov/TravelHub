@@ -3,6 +3,7 @@ import HotelBookingForm from '../../features/hotels/components/HotelBookingForm'
 import HotelBookingResult from '../../features/hotels/components/HotelBookingResult';
 import HotelForm from '../../features/hotels/components/HotelForm';
 import HotelList from '../../features/hotels/components/HotelList';
+import HotelReviews from '../../features/hotels/components/HotelReviews';
 import RoomForm from '../../features/hotels/components/RoomForm';
 import RoomList, { RoomPhotoStrip } from '../../features/hotels/components/RoomList';
 import ImageCarousel from '../../components/common/ImageCarousel';
@@ -18,6 +19,7 @@ import {
 import { hotelImageUrls, hotelMainImage } from '../../utils/images';
 import type { HotelRouteSearch } from '../../utils/routing';
 import type { HotelsFeature } from '../../features/hotels/hotels.types';
+import { useHotelReviews } from '../../features/hotels/hooks/useHotelReviews';
 
 type HotelsPageProps = {
   feature: HotelsFeature;
@@ -27,6 +29,9 @@ type HotelsPageProps = {
   phoneNumberPattern: string;
   renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
   onOpenAuth: () => void;
+  onRequireAuth: (message: string) => void;
+  setMessage: (message: string) => void;
+  setSubmitting: (submitting: boolean) => void;
   hotelDetailId: number | null;
   hotelDetailLoading: boolean;
   hotelDetailNotFound: boolean;
@@ -49,6 +54,9 @@ export default function HotelsPage({
   phoneNumberPattern,
   renderPaymentForm,
   onOpenAuth,
+  onRequireAuth,
+  setMessage,
+  setSubmitting,
   hotelDetailId,
   hotelDetailLoading,
   hotelDetailNotFound,
@@ -73,6 +81,14 @@ export default function HotelsPage({
   const todayDate = todayDateInputValue();
   const minCheckOutDate = minHotelCheckOutDate(searchDates.checkIn || todayDate);
   const hasOpenEditForm = model.showHotelForm || model.showRoomForm;
+  const reviewsFeature = useHotelReviews({
+    hotelId: isHotelDetailPage ? hotelDetailId : null,
+    currentUser,
+    onRequireAuth,
+    onStatsChange: actions.hotelList.updateStats,
+    setMessage,
+    setSubmitting,
+  });
 
   useEffect(() => {
     setShowRooms(false);
@@ -242,6 +258,8 @@ export default function HotelsPage({
 
                 </>
               )}
+
+              <HotelReviews currentUser={currentUser} feature={reviewsFeature} submitting={submitting} />
 
               {showRooms && (
                 <>

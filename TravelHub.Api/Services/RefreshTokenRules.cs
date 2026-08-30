@@ -18,4 +18,12 @@ public static class RefreshTokenRules
         token.ReplacedByTokenHash = replacedByTokenHash;
         return true;
     }
+
+    public static bool CanReplayWithinGracePeriod(RefreshToken token, DateTime now, TimeSpan gracePeriod) =>
+        token.ExpiresAt > now
+        && token.RevokedAt is { } revokedAt
+        && now >= revokedAt
+        && now - revokedAt <= gracePeriod
+        && !string.IsNullOrWhiteSpace(token.ReplacedByTokenHash)
+        && !string.IsNullOrWhiteSpace(token.ProtectedReplacementToken);
 }

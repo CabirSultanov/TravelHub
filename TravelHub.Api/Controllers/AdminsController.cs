@@ -89,7 +89,8 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
             Name = name,
             Email = email,
             PhoneNumber = phoneNumber,
-            Role = UserRoles.Admin
+            Role = UserRoles.Admin,
+            EmailConfirmed = true
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 

@@ -25,6 +25,12 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<CancelledBookingCleanupService>();
         services.AddOptions<GoogleMapsOptions>()
             .Bind(configuration.GetSection(GoogleMapsOptions.SectionName));
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName));
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddOptions<CloudinaryOptions>()
+            .Bind(configuration.GetSection(CloudinaryOptions.SectionName));
+        services.AddScoped<IImageStorageService, CloudinaryImageStorageService>();
         services.AddHttpClient<IRoutingService, GoogleRoutesService>(client =>
         {
             client.BaseAddress = new Uri("https://routes.googleapis.com/");
@@ -32,6 +38,7 @@ public static class ServiceCollectionExtensions
         });
         services.AddScoped<PasswordHasher<AppUser>>();
         services.AddScoped<ITokenService, TokenService>();
+        services.AddDataProtection();
         services.AddOptions<JwtOptions>()
             .Bind(configuration.GetSection(JwtOptions.SectionName))
             .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "Jwt:Issuer is required.")

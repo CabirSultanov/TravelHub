@@ -70,6 +70,18 @@ export type AuthResponse = {
   accessTokenExpiresAt: string;
 };
 
+export type EmailConfirmationRequired = {
+  emailConfirmationRequired: true;
+  email: string;
+  expiresAt: string;
+  resendAvailableAt?: string | null;
+};
+
+export type VerifyEmailRequest = {
+  email: string;
+  code: string;
+};
+
 export type RegisterRequest = {
   name: string;
   email: string;
@@ -104,6 +116,30 @@ export type Hotel = HotelUpdateInput & {
   roomTypesCount: number;
   totalRoomsCount: number;
   totalGuestPlaces: number;
+  averageRating: number | null;
+  reviewCount: number;
+};
+
+export type HotelReview = {
+  id: number;
+  hotelId: number;
+  userId: number;
+  userName: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+export type HotelReviewInput = {
+  rating: number;
+  comment: string | null;
+};
+
+export type HotelReviewsResponse = PagedResponse<HotelReview> & {
+  averageRating: number | null;
+  reviewCount: number;
+  currentUserReviewCount: number | null;
 };
 
 export type HotelRoom = {

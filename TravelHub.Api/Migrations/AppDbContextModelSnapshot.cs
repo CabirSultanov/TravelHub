@@ -38,6 +38,23 @@ namespace TravelHub.Api.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("EmailVerificationAttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EmailVerificationCodeHash")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTime?>("EmailVerificationExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EmailVerificationSentAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsBlocked")
                         .HasColumnType("bit");
 
@@ -168,6 +185,43 @@ namespace TravelHub.Api.Migrations
                     b.ToTable("Hotels");
                 });
 
+            modelBuilder.Entity("TravelHub.Api.Models.HotelReview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("HotelId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HotelId");
+
+                    b.HasIndex("UserId", "HotelId")
+                        .IsUnique();
+
+                    b.ToTable("HotelReviews");
+                });
+
             modelBuilder.Entity("TravelHub.Api.Models.HotelRoom", b =>
                 {
                     b.Property<int>("Id")
@@ -230,6 +284,10 @@ namespace TravelHub.Api.Migrations
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("ProtectedReplacementToken")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<string>("ReplacedByTokenHash")
                         .HasMaxLength(64)
@@ -497,6 +555,25 @@ namespace TravelHub.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TravelHub.Api.Models.HotelReview", b =>
+                {
+                    b.HasOne("TravelHub.Api.Models.Hotel", "Hotel")
+                        .WithMany("Reviews")
+                        .HasForeignKey("HotelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TravelHub.Api.Models.AppUser", "User")
+                        .WithMany("HotelReviews")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Hotel");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TravelHub.Api.Models.HotelRoom", b =>
                 {
                     b.HasOne("TravelHub.Api.Models.Hotel", "Hotel")
@@ -552,7 +629,14 @@ namespace TravelHub.Api.Migrations
 
             modelBuilder.Entity("TravelHub.Api.Models.AppUser", b =>
                 {
+                    b.Navigation("HotelReviews");
+
                     b.Navigation("RefreshTokens");
+                });
+
+            modelBuilder.Entity("TravelHub.Api.Models.Hotel", b =>
+                {
+                    b.Navigation("Reviews");
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.TaxiService", b =>

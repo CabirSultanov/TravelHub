@@ -110,7 +110,7 @@ function App() {
     onAuthenticated: () => navigateTo('home'),
     onSignedOut: resetAccountData,
   });
-  const { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading } = account;
+  const { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading, emailConfirmation, verificationCode, setVerificationCode, resendSeconds } = account;
   const adminUsers = useAdminUsers({
     active: page === 'admin' && currentUser?.role === 'SuperAdmin',
     setMessage,
@@ -943,6 +943,7 @@ function App() {
           onBackToHotels={openHotelsList}
           onNavigate={navigateTo}
           onOpenAuth={openAuth}
+          onRequireAuth={requireAuth}
           onOpenHotel={openHotelDetail}
           onRoomSelect={selectHotelRoomFromPage}
           onSearchHotels={searchHotels}
@@ -951,6 +952,8 @@ function App() {
           requestedRoomId={requestedHotelRoomId}
           renderPaymentForm={renderPaymentForm}
           search={hotelSearch}
+          setMessage={setMessage}
+          setSubmitting={setSubmitting}
           submitting={submitting}
         />
       )}
@@ -970,11 +973,18 @@ function App() {
           accountPhonePrefix={accountPhonePrefix}
           authForm={authForm}
           authMode={authMode}
+          emailConfirmation={emailConfirmation}
           message={message}
           onAuthFormChange={setAuthForm}
+          onResendEmail={() => void account.resendEmailVerification()}
+          onReturnToLogin={account.returnToLogin}
           onSubmit={(event) => void account.submitAuth(event)}
           onToggleMode={() => setAuthModeFromUrl(authMode === 'register' ? 'login' : 'register')}
+          onVerificationCodeChange={setVerificationCode}
+          onVerifyEmail={(event) => void account.submitEmailVerification(event)}
+          resendSeconds={resendSeconds}
           submitting={submitting}
+          verificationCode={verificationCode}
         />
       )}
 

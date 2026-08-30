@@ -19,4 +19,8 @@ public class HotelResponseDto
     public int TotalRoomsCount { get; set; }
 
     public int TotalGuestPlaces { get; set; }
+
+    public double? AverageRating { get; set; }
+
+    public int ReviewCount { get; set; }
 }

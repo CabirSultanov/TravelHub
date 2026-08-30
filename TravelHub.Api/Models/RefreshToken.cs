@@ -22,4 +22,7 @@ public class RefreshToken
 
     [MaxLength(64)]
     public string? ReplacedByTokenHash { get; set; }
+
+    [MaxLength(512)]
+    public string? ProtectedReplacementToken { get; set; }
 }

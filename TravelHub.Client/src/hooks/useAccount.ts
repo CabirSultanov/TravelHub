@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
-import type { AuthForm, AuthMode, AuthUser, ProfileForm } from '../types';
+import type { AuthForm, AuthMode, AuthUser, EmailConfirmationRequired, ProfileForm } from '../types';
 import { getErrorMessage } from '../utils/errors';
 import { getProfileValidationMessage, getRegistrationValidationMessage, stripAzerbaijanPhonePrefix, toAzerbaijanPhoneNumber } from '../utils/account';
 
@@ -20,6 +20,9 @@ export function useAccount({ initialAuthMode, setMessage, setSubmitting, onAuthe
   const [authMode, setAuthMode] = useState<AuthMode>(initialAuthMode);
   const [authForm, setAuthForm] = useState<AuthForm>(emptyAuthForm);
   const [profileForm, setProfileForm] = useState<ProfileForm>(emptyProfileForm);
+  const [emailConfirmation, setEmailConfirmation] = useState<EmailConfirmationRequired | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [now, setNow] = useState(Date.now());
   const [editingProfile, setEditingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -27,16 +30,66 @@ export function useAccount({ initialAuthMode, setMessage, setSubmitting, onAuthe
     void api.refresh().then((session) => session && setCurrentUser(session.user)).catch((error) => setMessage(getErrorMessage(error))).finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!emailConfirmation?.resendAvailableAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [emailConfirmation?.resendAvailableAt]);
+
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setMessage('');
     const validationMessage = authMode === 'register' ? getRegistrationValidationMessage(authForm) : '';
     if (validationMessage) return setMessage(validationMessage);
     setSubmitting(true);
     try {
-      const response = authMode === 'register' ? await api.register({ ...authForm, phoneNumber: toAzerbaijanPhoneNumber(authForm.phoneNumber) }) : await api.login({ email: authForm.email, password: authForm.password });
-      setCurrentUser(response.user); setAuthForm(emptyAuthForm); setMessage(authMode === 'register' ? 'Registration completed.' : 'Logged in.'); onAuthenticated();
+      const response = authMode === 'register'
+        ? await api.register({ ...authForm, phoneNumber: toAzerbaijanPhoneNumber(authForm.phoneNumber) })
+        : await api.login({ email: authForm.email, password: authForm.password });
+
+      if ('emailConfirmationRequired' in response) {
+        openEmailConfirmation(response);
+        setMessage('Enter the verification code sent to your Gmail address.');
+        return;
+      }
+
+      setCurrentUser(response.user); setAuthForm(emptyAuthForm); setMessage('Logged in.'); onAuthenticated();
     } catch (error) { setMessage(getErrorMessage(error)); } finally { setSubmitting(false); }
   }
+
+  async function submitEmailVerification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!emailConfirmation || verificationCode.length !== 6) return;
+    setMessage(''); setSubmitting(true);
+    try {
+      const response = await api.verifyEmail({ email: emailConfirmation.email, code: verificationCode });
+      setCurrentUser(response.user); setAuthForm(emptyAuthForm); setEmailConfirmation(null); setVerificationCode(''); setMessage('Email verified. Welcome to TravelHub!'); onAuthenticated();
+    } catch (error) { setMessage(getErrorMessage(error)); } finally { setSubmitting(false); }
+  }
+
+  async function resendEmailVerification() {
+    if (!emailConfirmation || resendSeconds > 0) return;
+    setMessage(''); setSubmitting(true);
+    try {
+      const response = await api.resendEmailConfirmation(emailConfirmation.email);
+      openEmailConfirmation(response);
+      setMessage('A new verification code has been sent.');
+    } catch (error) { setMessage(getErrorMessage(error)); } finally { setSubmitting(false); }
+  }
+
+  function openEmailConfirmation(confirmation: EmailConfirmationRequired) {
+    setEmailConfirmation(confirmation);
+    setVerificationCode('');
+    setAuthForm({ ...emptyAuthForm, email: confirmation.email });
+  }
+
+  function returnToLogin() {
+    const email = emailConfirmation?.email ?? authForm.email;
+    setEmailConfirmation(null); setVerificationCode(''); setAuthMode('login'); setAuthForm({ ...emptyAuthForm, email }); setMessage('');
+  }
+
+  const resendSeconds = emailConfirmation?.resendAvailableAt
+    ? Math.max(0, Math.ceil((Date.parse(emailConfirmation.resendAvailableAt) - now) / 1000))
+    : 0;
 
   async function signOut(removeProfile: boolean) {
     if (removeProfile && !window.confirm('Delete your profile? This cannot be undone.')) return;
@@ -64,5 +117,5 @@ export function useAccount({ initialAuthMode, setMessage, setSubmitting, onAuthe
     } catch (error) { setMessage(getErrorMessage(error)); } finally { setSubmitting(false); }
   }
 
-  return { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading, submitAuth, logout: () => signOut(false), deleteProfile: () => signOut(true), openProfileEditor, submitProfile };
+  return { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading, emailConfirmation, verificationCode, setVerificationCode, resendSeconds, submitAuth, submitEmailVerification, resendEmailVerification, returnToLogin, logout: () => signOut(false), deleteProfile: () => signOut(true), openProfileEditor, submitProfile };
 }

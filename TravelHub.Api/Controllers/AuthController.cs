@@ -1,7 +1,9 @@
 using System.Data;
 using System.Net.Mail;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -21,15 +23,25 @@ public class AuthController(
     AppDbContext db,
     PasswordHasher<AppUser> passwordHasher,
     ITokenService tokenService,
-    IOptions<JwtOptions> jwtOptions) : ControllerBase
+    IOptions<JwtOptions> jwtOptions,
+    IDataProtectionProvider dataProtectionProvider,
+    IEmailService emailService,
+    ILogger<AuthController> logger) : ControllerBase
 {
     private const string AzerbaijanPhonePrefix = "+994";
     private const int AzerbaijanPhoneDigitCount = 9;
     private const string RefreshTokenCookieName = "TravelHub.RefreshToken";
     private const string RefreshTokenCookiePath = "/api/auth";
+    private const string RefreshTokenProtectorPurpose = "TravelHub.Auth.RefreshToken.Replacement.v1";
+    private static readonly TimeSpan RefreshReplayGracePeriod = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan EmailVerificationLifetime = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan EmailVerificationResendCooldown = TimeSpan.FromMinutes(1);
+    private const int EmailVerificationCodeLength = 6;
+    private const int MaximumEmailVerificationAttempts = 5;
+    private readonly IDataProtector refreshTokenProtector = dataProtectionProvider.CreateProtector(RefreshTokenProtectorPurpose);
 
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponseDto>> Register(RegisterRequestDto request)
+    public async Task<ActionResult<EmailConfirmationRequiredDto>> Register(RegisterRequestDto request)
     {
         if (!TryValidateRegistration(request, out var name, out var email, out var phoneNumber, out var error))
         {
@@ -46,7 +58,8 @@ public class AuthController(
             Name = name,
             Email = email,
             PhoneNumber = phoneNumber,
-            Role = UserRoles.User
+            Role = UserRoles.User,
+            EmailConfirmed = false
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 
@@ -61,7 +74,7 @@ public class AuthController(
             return Conflict("User with this email already exists.");
         }
 
-        return await CreateSessionAsync(user);
+        return await CreateAndSendEmailVerificationAsync(user);
     }
 
     [HttpPost("login")]
@@ -87,7 +100,104 @@ public class AuthController(
             return Unauthorized("Invalid email or password.");
         }
 
+        if (!user.EmailConfirmed)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ToEmailConfirmationRequired(user));
+        }
+
         return await CreateSessionAsync(user);
+    }
+
+    [HttpPost("verify-email")]
+    public async Task<ActionResult<AuthResponseDto>> VerifyEmail(VerifyEmailRequestDto request)
+    {
+        if (!IsValidEmail(request.Email, out var emailError))
+        {
+            return BadRequest(emailError);
+        }
+
+        if (!IsVerificationCode(request.Code))
+        {
+            return BadRequest("Verification code must contain exactly 6 digits.");
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(candidate => candidate.Email == NormalizeEmail(request.Email));
+
+        if (user is null)
+        {
+            return NotFound("No account was found for this email address.");
+        }
+
+        if (user.EmailConfirmed)
+        {
+            return Conflict("This email address is already confirmed.");
+        }
+
+        var now = DateTime.UtcNow;
+
+        if (user.EmailVerificationAttemptCount >= MaximumEmailVerificationAttempts)
+        {
+            return BadRequest("Too many incorrect verification attempts. Request a new code.");
+        }
+
+        if (user.EmailVerificationExpiresAt is null || user.EmailVerificationExpiresAt <= now || string.IsNullOrWhiteSpace(user.EmailVerificationCodeHash))
+        {
+            return BadRequest("Verification code has expired. Request a new code.");
+        }
+
+        var result = passwordHasher.VerifyHashedPassword(user, user.EmailVerificationCodeHash, request.Code);
+
+        if (result == PasswordVerificationResult.Failed)
+        {
+            user.EmailVerificationAttemptCount++;
+            await db.SaveChangesAsync();
+
+            return user.EmailVerificationAttemptCount >= MaximumEmailVerificationAttempts
+                ? BadRequest("Too many incorrect verification attempts. Request a new code.")
+                : BadRequest("Verification code is incorrect.");
+        }
+
+        user.EmailConfirmed = true;
+        ClearEmailVerification(user);
+        await db.SaveChangesAsync();
+
+        return await CreateSessionAsync(user);
+    }
+
+    [HttpPost("resend-email-confirmation")]
+    public async Task<ActionResult<EmailConfirmationRequiredDto>> ResendEmailConfirmation(ResendEmailConfirmationRequestDto request)
+    {
+        if (!IsValidEmail(request.Email, out var emailError))
+        {
+            return BadRequest(emailError);
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(candidate => candidate.Email == NormalizeEmail(request.Email));
+
+        if (user is null)
+        {
+            return NotFound("No account was found for this email address.");
+        }
+
+        if (user.EmailConfirmed)
+        {
+            return Conflict("This email address is already confirmed.");
+        }
+
+        var now = DateTime.UtcNow;
+        var resendAvailableAt = user.EmailVerificationSentAt?.Add(EmailVerificationResendCooldown);
+
+        if (resendAvailableAt is { } availableAt && availableAt > now)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new EmailConfirmationRequiredDto
+            {
+                Email = user.Email,
+                ExpiresAt = user.EmailVerificationExpiresAt ?? now,
+                ResendAvailableAt = availableAt
+            });
+        }
+
+        return await CreateAndSendEmailVerificationAsync(user);
     }
 
     [AllowAnonymous]
@@ -111,7 +221,27 @@ public class AuthController(
         if (refreshToken is null
             || refreshToken.User is null
             || refreshToken.User.IsBlocked
-            || !RefreshTokenRules.IsUsable(refreshToken, now))
+            || !refreshToken.User.EmailConfirmed)
+        {
+            return Unauthorized();
+        }
+
+        if (RefreshTokenRules.CanReplayWithinGracePeriod(refreshToken, now, RefreshReplayGracePeriod))
+        {
+            try
+            {
+                var replayedRawToken = refreshTokenProtector.Unprotect(refreshToken.ProtectedReplacementToken!);
+                await transaction.CommitAsync();
+                SetRefreshTokenCookie(replayedRawToken);
+                return CreateAuthResponse(refreshToken.User);
+            }
+            catch (CryptographicException)
+            {
+                return Unauthorized();
+            }
+        }
+
+        if (!RefreshTokenRules.IsUsable(refreshToken, now))
         {
             return Unauthorized();
         }
@@ -123,6 +253,8 @@ public class AuthController(
         {
             return Unauthorized();
         }
+
+        refreshToken.ProtectedReplacementToken = refreshTokenProtector.Protect(replacementRawToken);
 
         db.RefreshTokens.Add(new RefreshToken
         {
@@ -210,7 +342,7 @@ public class AuthController(
 
         var user = await db.Users.FirstOrDefaultAsync(user => user.Id == userId.Value);
 
-        if (user is null || user.IsBlocked)
+        if (user is null || user.IsBlocked || !user.EmailConfirmed)
         {
             return Unauthorized();
         }
@@ -384,6 +516,48 @@ public class AuthController(
         }
 
         return true;
+    }
+
+    private async Task<ActionResult<EmailConfirmationRequiredDto>> CreateAndSendEmailVerificationAsync(AppUser user)
+    {
+        var now = DateTime.UtcNow;
+        var code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString($"D{EmailVerificationCodeLength}");
+
+        user.EmailVerificationCodeHash = passwordHasher.HashPassword(user, code);
+        user.EmailVerificationExpiresAt = now.Add(EmailVerificationLifetime);
+        user.EmailVerificationSentAt = now;
+        user.EmailVerificationAttemptCount = 0;
+        await db.SaveChangesAsync();
+
+        try
+        {
+            await emailService.SendEmailConfirmationAsync(user.Email, user.Name, code, HttpContext.RequestAborted);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Unable to send email confirmation for user {UserId}.", user.Id);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "We could not send your verification code. Please sign in and request a new code shortly.");
+        }
+
+        return ToEmailConfirmationRequired(user);
+    }
+
+    private static EmailConfirmationRequiredDto ToEmailConfirmationRequired(AppUser user) => new()
+    {
+        Email = user.Email,
+        ExpiresAt = user.EmailVerificationExpiresAt ?? DateTime.UtcNow,
+        ResendAvailableAt = user.EmailVerificationSentAt?.Add(EmailVerificationResendCooldown)
+    };
+
+    private static bool IsVerificationCode(string code) =>
+        code.Length == EmailVerificationCodeLength && code.All(char.IsDigit);
+
+    private static void ClearEmailVerification(AppUser user)
+    {
+        user.EmailVerificationCodeHash = null;
+        user.EmailVerificationExpiresAt = null;
+        user.EmailVerificationSentAt = null;
+        user.EmailVerificationAttemptCount = 0;
     }
 
     private static bool IsPasswordChangeRequested(UpdateProfileRequestDto request)

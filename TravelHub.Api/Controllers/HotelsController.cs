@@ -247,7 +247,11 @@ public class HotelsController(AppDbContext db) : ControllerBase
                     .Sum(room => (int?)room.TotalRooms) ?? 0,
                 TotalGuestPlaces = db.HotelRooms
                     .Where(room => room.HotelId == hotel.Id)
-                    .Sum(room => (int?)(room.Capacity * room.TotalRooms)) ?? 0
+                    .Sum(room => (int?)(room.Capacity * room.TotalRooms)) ?? 0,
+                AverageRating = db.HotelReviews
+                    .Where(review => review.HotelId == hotel.Id)
+                    .Average(review => (double?)review.Rating),
+                ReviewCount = db.HotelReviews.Count(review => review.HotelId == hotel.Id)
             });
 
     private static HotelResponseDto ToResponse(HotelResponseRow row)
@@ -264,7 +268,9 @@ public class HotelsController(AppDbContext db) : ControllerBase
             ImageUrls = imageUrls,
             RoomTypesCount = row.RoomTypesCount,
             TotalRoomsCount = row.TotalRoomsCount,
-            TotalGuestPlaces = row.TotalGuestPlaces
+            TotalGuestPlaces = row.TotalGuestPlaces,
+            AverageRating = row.AverageRating,
+            ReviewCount = row.ReviewCount
         };
     }
 
@@ -278,7 +284,9 @@ public class HotelsController(AppDbContext db) : ControllerBase
         ImageUrls = HotelRoomRules.FromJson(hotel.ImageUrlsJson, hotel.ImageUrl),
         RoomTypesCount = rooms.Count(),
         TotalRoomsCount = rooms.Sum(room => room.TotalRooms),
-        TotalGuestPlaces = rooms.Sum(room => room.Capacity * room.TotalRooms)
+        TotalGuestPlaces = rooms.Sum(room => room.Capacity * room.TotalRooms),
+        AverageRating = null,
+        ReviewCount = 0
     };
 
     private sealed class HotelResponseRow
@@ -300,5 +308,9 @@ public class HotelsController(AppDbContext db) : ControllerBase
         public int TotalRoomsCount { get; set; }
 
         public int TotalGuestPlaces { get; set; }
+
+        public double? AverageRating { get; set; }
+
+        public int ReviewCount { get; set; }
     }
 }
