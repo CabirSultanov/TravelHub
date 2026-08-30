@@ -109,6 +109,9 @@ Set backend secrets with local placeholders replaced:
 dotnet user-secrets set "Jwt:Key" "your-jwt-key-at-least-32-characters" --project TravelHub.Api
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "your-sql-server-connection-string" --project TravelHub.Api
 dotnet user-secrets set "GoogleMaps:ApiKey" "your-backend-google-maps-key" --project TravelHub.Api
+dotnet user-secrets set "Email:SenderEmail" "your-gmail-address@gmail.com" --project TravelHub.Api
+dotnet user-secrets set "Email:Username" "your-gmail-address@gmail.com" --project TravelHub.Api
+dotnet user-secrets set "Email:AppPassword" "your-gmail-app-password" --project TravelHub.Api
 ```
 
 Optional SuperAdmin seed:
@@ -121,6 +124,8 @@ dotnet user-secrets set "SeedSuperAdmin:Password" "your-local-super-admin-passwo
 ```
 
 Do not commit `.env` files or real credentials.
+
+New registrations also require Gmail email confirmation. TravelHub sends a six-digit code through Gmail SMTP; the default SMTP host is `smtp.gmail.com` on port `587` with STARTTLS. Optionally override `Email:SenderName`, `Email:SmtpHost`, or `Email:SmtpPort` through User Secrets or environment variables. Use a Gmail App Password, never your normal Gmail password.
 
 ---
 

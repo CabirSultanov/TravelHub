@@ -25,6 +25,9 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<CancelledBookingCleanupService>();
         services.AddOptions<GoogleMapsOptions>()
             .Bind(configuration.GetSection(GoogleMapsOptions.SectionName));
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName));
+        services.AddScoped<IEmailService, EmailService>();
         services.AddHttpClient<IRoutingService, GoogleRoutesService>(client =>
         {
             client.BaseAddress = new Uri("https://routes.googleapis.com/");

@@ -70,6 +70,18 @@ export type AuthResponse = {
   accessTokenExpiresAt: string;
 };
 
+export type EmailConfirmationRequired = {
+  emailConfirmationRequired: true;
+  email: string;
+  expiresAt: string;
+  resendAvailableAt?: string | null;
+};
+
+export type VerifyEmailRequest = {
+  email: string;
+  code: string;
+};
+
 export type RegisterRequest = {
   name: string;
   email: string;

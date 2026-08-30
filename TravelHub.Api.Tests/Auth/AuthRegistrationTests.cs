@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 using TravelHub.Api.Configuration;
 using TravelHub.Api.Controllers;
 using TravelHub.Api.Data;
@@ -20,20 +21,122 @@ public class AuthRegistrationTests
     private static readonly IDataProtectionProvider TestDataProtection = new EphemeralDataProtectionProvider();
 
     [Fact]
-    public async Task Register_WithValidInput_CreatesUserAndSession()
+    public async Task Register_WithValidInput_CreatesUnconfirmedUserAndSendsVerificationCode()
     {
         await using var db = CreateDbContext();
-        var controller = CreateController(db);
+        var emailService = new FakeEmailService();
+        var controller = CreateController(db, emailService: emailService);
 
         var result = await controller.Register(ValidRequest());
 
-        var response = Assert.IsType<AuthResponseDto>(result.Value);
+        var response = Assert.IsType<EmailConfirmationRequiredDto>(result.Value);
         var storedUser = await db.Users.SingleAsync();
-        Assert.Equal("Jabir Sultanov", response.User.Name);
+        Assert.True(response.EmailConfirmationRequired);
+        Assert.Equal("Jabir Sultanov", storedUser.Name);
         Assert.Equal("jabir@gmail.com", storedUser.Email);
         Assert.Equal("+994501234567", storedUser.PhoneNumber);
         Assert.NotEqual("Travel123!", storedUser.PasswordHash);
+        Assert.False(storedUser.EmailConfirmed);
+        Assert.NotNull(storedUser.EmailVerificationCodeHash);
+        Assert.NotEqual(emailService.LastCode, storedUser.EmailVerificationCodeHash);
+        Assert.Empty(await db.RefreshTokens.ToListAsync());
+        Assert.Equal("jabir@gmail.com", emailService.LastEmail);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_WithCorrectCode_ConfirmsUserAndCreatesSession()
+    {
+        await using var db = CreateDbContext();
+        var emailService = new FakeEmailService();
+        var controller = CreateController(db, emailService: emailService);
+        await controller.Register(ValidRequest());
+
+        var verificationRequest = new VerifyEmailRequestDto { Email = "jabir@gmail.com", Code = emailService.LastCode! };
+        var result = await CreateController(db).VerifyEmail(verificationRequest);
+
+        Assert.IsType<AuthResponseDto>(result.Value);
+        var storedUser = await db.Users.SingleAsync();
+        Assert.True(storedUser.EmailConfirmed);
+        Assert.Null(storedUser.EmailVerificationCodeHash);
         Assert.Single(await db.RefreshTokens.ToListAsync());
+
+        var reuse = await CreateController(db).VerifyEmail(verificationRequest);
+        Assert.IsType<ConflictObjectResult>(reuse.Result);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_WrongCode_LocksAfterFiveAttempts()
+    {
+        await using var db = CreateDbContext();
+        var emailService = new FakeEmailService();
+        await CreateController(db, emailService: emailService).Register(ValidRequest());
+
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            var result = await CreateController(db).VerifyEmail(new VerifyEmailRequestDto { Email = "jabir@gmail.com", Code = "000000" });
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result.Result);
+            Assert.Contains(attempt == 5 ? "Too many" : "incorrect", badRequest.Value!.ToString());
+        }
+
+        var user = await db.Users.SingleAsync();
+        Assert.Equal(5, user.EmailVerificationAttemptCount);
+        Assert.False(user.EmailConfirmed);
+    }
+
+    [Fact]
+    public async Task VerifyEmail_RejectsExpiredCode()
+    {
+        await using var db = CreateDbContext();
+        var emailService = new FakeEmailService();
+        await CreateController(db, emailService: emailService).Register(ValidRequest());
+        var user = await db.Users.SingleAsync();
+        user.EmailVerificationExpiresAt = DateTime.UtcNow.AddSeconds(-1);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db).VerifyEmail(new VerifyEmailRequestDto { Email = user.Email, Code = emailService.LastCode! });
+
+        Assert.Contains("expired", Assert.IsType<BadRequestObjectResult>(result.Result).Value!.ToString());
+    }
+
+    [Fact]
+    public async Task ResendEmailConfirmation_ReplacesCodeAndEnforcesCooldown()
+    {
+        await using var db = CreateDbContext();
+        var emailService = new FakeEmailService();
+        await CreateController(db, emailService: emailService).Register(ValidRequest());
+        var firstCode = emailService.LastCode;
+
+        var cooldown = await CreateController(db).ResendEmailConfirmation(new ResendEmailConfirmationRequestDto { Email = "jabir@gmail.com" });
+        Assert.IsType<ObjectResult>(cooldown.Result);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, ((ObjectResult)cooldown.Result!).StatusCode);
+
+        var user = await db.Users.SingleAsync();
+        user.EmailVerificationSentAt = DateTime.UtcNow.AddMinutes(-2);
+        await db.SaveChangesAsync();
+        var resend = await CreateController(db, emailService: emailService).ResendEmailConfirmation(new ResendEmailConfirmationRequestDto { Email = user.Email });
+        Assert.IsType<EmailConfirmationRequiredDto>(resend.Value);
+        Assert.NotEqual(firstCode, emailService.LastCode);
+
+        var oldCode = await CreateController(db).VerifyEmail(new VerifyEmailRequestDto { Email = user.Email, Code = firstCode! });
+        Assert.IsType<BadRequestObjectResult>(oldCode.Result);
+    }
+
+    [Fact]
+    public async Task Login_UnconfirmedUserReturnsConfirmationRequired_ButConfirmedUserCanLogIn()
+    {
+        await using var db = CreateDbContext();
+        var emailService = new FakeEmailService();
+        await CreateController(db, emailService: emailService).Register(ValidRequest());
+
+        var unconfirmedLogin = await CreateController(db).Login(new LoginRequestDto { Email = "jabir@gmail.com", Password = "Travel123!" });
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(unconfirmedLogin.Result).StatusCode);
+        Assert.Empty(await db.RefreshTokens.ToListAsync());
+
+        var user = await db.Users.SingleAsync();
+        user.EmailConfirmed = true;
+        await db.SaveChangesAsync();
+        var confirmedLogin = await CreateController(db).Login(new LoginRequestDto { Email = user.Email, Password = "Travel123!" });
+        Assert.IsType<AuthResponseDto>(confirmedLogin.Value);
     }
 
     [Fact]
@@ -415,14 +518,16 @@ public class AuthRegistrationTests
         Assert.Equal("Passwords do not match.", badRequest.Value);
     }
 
-    private static AuthController CreateController(AppDbContext db, int? currentUserId = null)
+    private static AuthController CreateController(AppDbContext db, int? currentUserId = null, FakeEmailService? emailService = null)
     {
         var controller = new AuthController(
             db,
             new PasswordHasher<AppUser>(),
             new FakeTokenService(),
             Options.Create(new JwtOptions { RefreshTokenDays = 7 }),
-            TestDataProtection);
+            TestDataProtection,
+            emailService ?? new FakeEmailService(),
+            NullLogger<AuthController>.Instance);
 
         controller.ControllerContext = new ControllerContext
         {
@@ -532,5 +637,18 @@ public class AuthRegistrationTests
         public string CreateRefreshToken() => $"refresh-token-{++refreshTokenNumber}";
 
         public string HashRefreshToken(string token) => $"hash-{token}";
+    }
+
+    private sealed class FakeEmailService : IEmailService
+    {
+        public string? LastEmail { get; private set; }
+        public string? LastCode { get; private set; }
+
+        public Task SendEmailConfirmationAsync(string email, string name, string code, CancellationToken cancellationToken = default)
+        {
+            LastEmail = email;
+            LastCode = code;
+            return Task.CompletedTask;
+        }
     }
 }

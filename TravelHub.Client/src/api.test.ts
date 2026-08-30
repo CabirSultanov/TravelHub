@@ -43,6 +43,39 @@ afterEach(() => {
 });
 
 describe('api authentication', () => {
+  it('keeps registration unauthenticated until email verification succeeds', async () => {
+    const confirmation = {
+      emailConfirmationRequired: true,
+      email: 'jane@gmail.com',
+      expiresAt: '2026-08-30T12:05:00Z',
+      resendAvailableAt: '2026-08-30T12:01:00Z',
+    };
+    const fetchMock = vi.fn(async (url: string) => url === '/api/auth/verify-email' ? jsonResponse(authResponse) : jsonResponse(confirmation));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    await expect(api.register({ name: 'Jane Doe', email: 'jane@gmail.com', phoneNumber: '+994501234567', password: 'Travel123!' })).resolves.toEqual(confirmation);
+    await expect(api.verifyEmail({ email: 'jane@gmail.com', code: '482731' })).resolves.toEqual(authResponse);
+    await api.getMe();
+
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(new Headers(calls[0][1]?.headers).get('Authorization')).toBeNull();
+    expect(new Headers(calls[2][1]?.headers).get('Authorization')).toBe('Bearer access-token');
+  });
+
+  it('returns an email confirmation response for an unconfirmed login', async () => {
+    const confirmation = {
+      emailConfirmationRequired: true,
+      email: 'jane@gmail.com',
+      expiresAt: '2026-08-30T12:05:00Z',
+      resendAvailableAt: '2026-08-30T12:01:00Z',
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(confirmation, 403)));
+    const { api } = await import('./api');
+
+    await expect(api.login({ email: 'jane@gmail.com', password: 'Travel123!' })).resolves.toEqual(confirmation);
+  });
+
   it('shares one refresh request for concurrent 401 responses and retries with the new token', async () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       if (url === '/api/auth/refresh') {

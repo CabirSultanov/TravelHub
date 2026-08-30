@@ -3501,6 +3501,24 @@ small {
   width: min(430px, 100%);
 }
 
+.email-verification {
+  display: grid;
+  gap: 12px;
+}
+
+.email-verification p {
+  margin: 0;
+  color: var(--muted, #657586);
+}
+
+.email-verification > strong {
+  overflow-wrap: anywhere;
+}
+
+.email-verification-resend {
+  margin-top: 6px !important;
+}
+
 .empty {
   margin: 0;
   color: #657586;

@@ -4,6 +4,7 @@ import type {
   Booking,
   BookingCreate,
   BookingPayment,
+  EmailConfirmationRequired,
   Hotel,
   HotelReview,
   HotelReviewInput,
@@ -24,6 +25,7 @@ import type {
   TaxiService,
   TaxiServiceInput,
   UpdateProfileRequest,
+  VerifyEmailRequest,
 } from './types';
 
 const refreshUrl = '/api/auth/refresh';
@@ -32,6 +34,8 @@ const authEndpoints = new Set([
   '/api/auth/login',
   '/api/auth/refresh',
   '/api/auth/logout',
+  '/api/auth/verify-email',
+  '/api/auth/resend-email-confirmation',
 ]);
 
 let accessToken: string | null = null;
@@ -42,6 +46,7 @@ class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly body: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -74,8 +79,9 @@ async function fetchResponse(url: string, init: RequestInit | undefined, skipAcc
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const message = getApiErrorMessage(await response.text());
-    throw new ApiError(message || 'Request failed with status ' + response.status, response.status);
+    const body = await response.text();
+    const message = getApiErrorMessage(body);
+    throw new ApiError(message || 'Request failed with status ' + response.status, response.status, body);
   }
 
   if (response.status === 204) {
@@ -83,6 +89,21 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+function getEmailConfirmationRequired(error: unknown): EmailConfirmationRequired | null {
+  if (!(error instanceof ApiError) || error.status !== 403) {
+    return null;
+  }
+
+  try {
+    const response = JSON.parse(error.body) as Partial<EmailConfirmationRequired>;
+    return response.emailConfirmationRequired === true && typeof response.email === 'string' && typeof response.expiresAt === 'string'
+      ? response as EmailConfirmationRequired
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function getApiErrorMessage(body: string) {
@@ -165,7 +186,7 @@ export const api = {
     sessionExpiredHandler = handler;
   },
   register: async (account: RegisterRequest) => {
-    const response = await request<AuthResponse>(
+    return request<EmailConfirmationRequired>(
       '/api/auth/register',
       {
         method: 'POST',
@@ -173,21 +194,49 @@ export const api = {
       },
       { skipAuthRefresh: true },
     );
-    accessToken = response.accessToken;
-    return response;
   },
   login: async (account: LoginRequest) => {
+    try {
+      const response = await request<AuthResponse>(
+        '/api/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify(account),
+        },
+        { skipAuthRefresh: true },
+      );
+      accessToken = response.accessToken;
+      return response;
+    } catch (error) {
+      const confirmation = getEmailConfirmationRequired(error);
+      if (confirmation) {
+        return confirmation;
+      }
+
+      throw error;
+    }
+  },
+  verifyEmail: async (requestBody: VerifyEmailRequest) => {
     const response = await request<AuthResponse>(
-      '/api/auth/login',
+      '/api/auth/verify-email',
       {
         method: 'POST',
-        body: JSON.stringify(account),
+        body: JSON.stringify(requestBody),
       },
-      { skipAuthRefresh: true },
+      { skipAuthRefresh: true, skipAccessToken: true },
     );
     accessToken = response.accessToken;
     return response;
   },
+  resendEmailConfirmation: (email: string) =>
+    request<EmailConfirmationRequired>(
+      '/api/auth/resend-email-confirmation',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      },
+      { skipAuthRefresh: true, skipAccessToken: true },
+    ),
   refresh: refreshAccessToken,
   logout: async () => {
     try {

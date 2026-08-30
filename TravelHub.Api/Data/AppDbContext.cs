@@ -32,6 +32,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasIndex(user => user.Email)
             .IsUnique();
 
+        modelBuilder.Entity<AppUser>()
+            .Property(user => user.EmailConfirmed)
+            .HasDefaultValue(true)
+            .ValueGeneratedNever();
+
         modelBuilder.Entity<RefreshToken>()
             .HasIndex(refreshToken => refreshToken.TokenHash)
             .IsUnique();
