@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react';
-import type { AuthForm, AuthMode } from '../../types';
+import type { AuthForm, AuthMode, EmailConfirmationRequired } from '../../types';
 import { getPasswordRequirements } from '../../utils/authValidation';
 
 type AuthPageProps = {
   authMode: AuthMode;
   authForm: AuthForm;
+  emailConfirmation: EmailConfirmationRequired | null;
+  verificationCode: string;
+  resendSeconds: number;
   submitting: boolean;
   message: string;
   accountPhonePrefix: string;
@@ -12,11 +15,18 @@ type AuthPageProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onAuthFormChange: (form: AuthForm) => void;
   onToggleMode: () => void;
+  onVerificationCodeChange: (code: string) => void;
+  onVerifyEmail: (event: FormEvent<HTMLFormElement>) => void;
+  onResendEmail: () => void;
+  onReturnToLogin: () => void;
 };
 
 export default function AuthPage({
   authMode,
   authForm,
+  emailConfirmation,
+  verificationCode,
+  resendSeconds,
   submitting,
   message,
   accountPhonePrefix,
@@ -24,6 +34,10 @@ export default function AuthPage({
   onSubmit,
   onAuthFormChange,
   onToggleMode,
+  onVerificationCodeChange,
+  onVerifyEmail,
+  onResendEmail,
+  onReturnToLogin,
 }: AuthPageProps) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const passwordRequirements = getPasswordRequirements(authForm.password);
@@ -40,6 +54,36 @@ export default function AuthPage({
 
           <div className="auth-panel">
             <p className="eyebrow">Account</p>
+            {emailConfirmation ? (
+              <section className="email-verification" aria-labelledby="email-verification-title">
+                <h2 id="email-verification-title">Verify your email</h2>
+                <p>We sent a 6-digit verification code to:</p>
+                <strong>{maskEmail(emailConfirmation.email)}</strong>
+                <form className="auth-form" onSubmit={onVerifyEmail}>
+                  <label className="field-box">
+                    <span>Verification code</span>
+                    <input
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                      maxLength={6}
+                      pattern="[0-9]{6}"
+                      placeholder="6-digit code"
+                      value={verificationCode}
+                      onChange={(event) => onVerificationCodeChange(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      required
+                    />
+                  </label>
+                  {message && <p className="auth-message">{message}</p>}
+                  <button className="btn btn-primary btn-wide" disabled={submitting || verificationCode.length !== 6} type="submit">Verify</button>
+                </form>
+                <p className="email-verification-resend">Didn't receive the code?</p>
+                <button className="btn btn-secondary btn-wide" disabled={submitting || resendSeconds > 0} onClick={onResendEmail} type="button">
+                  {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
+                </button>
+                <button className="link-button" disabled={submitting} onClick={onReturnToLogin} type="button">Return to Sign in</button>
+              </section>
+            ) : (
+              <>
             <h2>{authMode === 'register' ? 'Create account' : 'Sign in to TravelHub'}</h2>
             <div className="auth-tabs" role="tablist">
               <button className={authMode === 'login' ? 'is-active' : ''} onClick={authMode === 'register' ? onToggleMode : undefined} type="button">
@@ -130,9 +174,16 @@ export default function AuthPage({
                 {authMode === 'register' ? 'Create account' : 'Sign in'}
               </button>
             </form>
+              </>
+            )}
           </div>
         </section>
       </main>
     </section>
   );
+}
+
+function maskEmail(email: string) {
+  const [localPart, domain] = email.split('@');
+  return `${localPart?.slice(0, 1) ?? ''}***@${domain ?? ''}`;
 }

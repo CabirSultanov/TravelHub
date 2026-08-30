@@ -272,7 +272,8 @@ END;
                 Name = string.IsNullOrWhiteSpace(section["Name"]) ? "Super Admin" : section["Name"]!.Trim(),
                 Email = email,
                 PhoneNumber = section["PhoneNumber"]?.Trim() ?? string.Empty,
-                Role = UserRoles.SuperAdmin
+                Role = UserRoles.SuperAdmin,
+                EmailConfirmed = true
             };
             user.PasswordHash = passwordHasher.HashPassword(user, password);
             db.Users.Add(user);
@@ -280,6 +281,7 @@ END;
         else
         {
             user.Role = UserRoles.SuperAdmin;
+            user.EmailConfirmed = true;
         }
 
         await db.SaveChangesAsync();

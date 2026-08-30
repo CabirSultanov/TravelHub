@@ -2725,6 +2725,71 @@ input[type='number']::-webkit-outer-spin-button {
   margin-top: 8px;
 }
 
+/* Hotel reviews */
+.hotel-rating {
+  color: #a56d00;
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.hotel-reviews {
+  display: grid;
+  gap: 16px;
+  margin-top: 32px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.hotel-reviews-header,
+.review-card-header,
+.review-card-meta,
+.review-summary,
+.review-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hotel-reviews-header { justify-content: space-between; }
+.hotel-reviews-header h3 { margin: 4px 0 0; }
+.review-summary-empty { color: var(--muted); margin: 8px 0 0; }
+.review-summary strong { font-size: var(--text-lg); }
+.review-summary span, .review-card-meta, .review-character-count { color: var(--muted); font-size: var(--text-sm); }
+
+.star-rating { display: inline-flex; gap: 2px; color: #aab2bd; line-height: 1; }
+.star, .star-button { color: #aab2bd; font-size: 20px; }
+.star.is-filled, .star-button.is-filled { color: #e5a40a; }
+.star-rating-interactive { gap: 4px; }
+.star-button { padding: 2px; border: 0; background: transparent; cursor: pointer; }
+.star-button:focus-visible { outline: 2px solid var(--th-primary); outline-offset: 2px; border-radius: 4px; }
+
+.hotel-review-form, .review-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--surface-warm);
+}
+
+.review-form-label { font-weight: 700; }
+.review-form-label span { color: var(--muted); font-weight: 500; }
+.hotel-review-form textarea { width: 100%; resize: vertical; }
+.review-character-count { justify-self: end; }
+.review-card { background: var(--surface); }
+.review-card-header { justify-content: space-between; align-items: flex-start; }
+.review-card-header > div:first-child { display: grid; gap: 6px; }
+.review-card-meta { flex-wrap: wrap; justify-content: flex-end; }
+.review-delete-button { border: 0; background: transparent; color: #a02727; cursor: pointer; font: inherit; font-weight: 700; }
+.review-delete-button:disabled { cursor: default; opacity: .6; }
+.review-card p { margin: 0; line-height: 1.55; white-space: pre-wrap; }
+
+@media (max-width: 620px) {
+  .hotel-reviews-header, .review-card-header { align-items: flex-start; flex-direction: column; }
+  .review-card-meta { justify-content: flex-start; }
+  .review-form-actions { flex-wrap: wrap; }
+}
+
 .taxi-card-actions,
 .card-actions {
   display: flex;
@@ -3434,6 +3499,24 @@ small {
 
 .auth-panel {
   width: min(430px, 100%);
+}
+
+.email-verification {
+  display: grid;
+  gap: 12px;
+}
+
+.email-verification p {
+  margin: 0;
+  color: var(--muted, #657586);
+}
+
+.email-verification > strong {
+  overflow-wrap: anywhere;
+}
+
+.email-verification-resend {
+  margin-top: 6px !important;
 }
 
 .empty {

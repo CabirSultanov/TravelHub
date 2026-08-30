@@ -99,6 +99,7 @@ export type HotelsFeatureActions = {
     setCityFilter: (city: string) => void;
     setSearch: (search: { city: string; checkInDate?: string; checkOutDate?: string; page?: number }) => void;
     setPage: (page: number) => void;
+    updateStats: (hotelId: number, stats: { averageRating: number | null; reviewCount: number }) => void;
     requestDelete: (target: DeleteTarget) => void;
   };
   hotelForm: HotelFormActions;

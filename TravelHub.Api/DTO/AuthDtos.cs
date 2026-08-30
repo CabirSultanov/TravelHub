@@ -85,3 +85,34 @@ public class AuthResponseDto
 
     public DateTime AccessTokenExpiresAt { get; set; }
 }
+
+public class EmailConfirmationRequiredDto
+{
+    public bool EmailConfirmationRequired { get; set; } = true;
+
+    public string Email { get; set; } = string.Empty;
+
+    public DateTime ExpiresAt { get; set; }
+
+    public DateTime? ResendAvailableAt { get; set; }
+}
+
+public class VerifyEmailRequestDto
+{
+    [Required]
+    [EmailAddress]
+    [MaxLength(150)]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    [RegularExpression("^[0-9]{6}$")]
+    public string Code { get; set; } = string.Empty;
+}
+
+public class ResendEmailConfirmationRequestDto
+{
+    [Required]
+    [EmailAddress]
+    [MaxLength(150)]
+    public string Email { get; set; } = string.Empty;
+}
