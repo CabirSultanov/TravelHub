@@ -127,7 +127,6 @@ export default function TaxiPage({
               taxiRouteState={model.taxiRouteState}
               onOpenAuth={onOpenAuth}
             />
-            {model.canManageSelectedTaxi && <TaxiDriversPanel management={model.taxiDrivers} submitting={submitting} />}
           </>
         ) : (
           <p className="empty">Choose a taxi service to create an order.</p>
@@ -135,6 +134,14 @@ export default function TaxiPage({
         </section>
 
       </section>
+
+      {!model.showTaxiForm && selectedTaxiService && model.canManageSelectedTaxi && (
+        <section className="container taxi-drivers-workspace" aria-label="Driver management">
+          <div className="panel wide taxi-drivers-card">
+            <TaxiDriversPanel management={model.taxiDrivers} submitting={submitting} />
+          </div>
+        </section>
+      )}
 
       <SiteFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
     </div>

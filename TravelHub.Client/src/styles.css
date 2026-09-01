@@ -2712,9 +2712,16 @@ input[type='number']::-webkit-outer-spin-button {
 .taxi-drivers-panel {
   display: grid;
   gap: 12px;
-  margin-top: 22px;
-  padding-top: 22px;
-  border-top: 1px solid #dbe4eb;
+}
+
+.taxi-drivers-workspace {
+  padding: 0 0 46px;
+}
+
+.taxi-drivers-card {
+  width: min(100%, 640px);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .taxi-drivers-panel h4 {
