@@ -5,6 +5,7 @@ import PaymentFormComponent from './components/booking/PaymentForm';
 import { useHotelsFeature } from './features/hotels/hooks/useHotelsFeature';
 import { useTaxiFeature } from './features/taxi/hooks/useTaxiFeature';
 import { useAdminUsers } from './hooks/useAdminUsers';
+import { useOwnerAssignments } from './hooks/useOwnerAssignments';
 import { useAccount } from './hooks/useAccount';
 import SiteHeader from './components/common/SiteHeader';
 import AdminPage from './pages/Admin/AdminPage';
@@ -113,6 +114,11 @@ function App() {
   const { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading, emailConfirmation, verificationCode, setVerificationCode, resendSeconds } = account;
   const adminUsers = useAdminUsers({
     active: page === 'admin' && currentUser?.role === 'SuperAdmin',
+    setMessage,
+    setSubmitting,
+  });
+  const ownerAssignments = useOwnerAssignments({
+    active: page === 'admin' && (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin'),
     setMessage,
     setSubmitting,
   });
@@ -1049,11 +1055,16 @@ function App() {
         />
       )}
 
-      {page === 'admin' && currentUser?.role === 'SuperAdmin' && (
+      {page === 'admin' && (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
         <AdminPage
           adminCandidates={adminUsers.adminCandidates}
           admins={adminUsers.admins}
+          canManageUsers={currentUser.role === 'SuperAdmin'}
+          hotelCandidates={ownerAssignments.hotelCandidates}
+          hotels={ownerAssignments.hotels}
           onBlock={adminUsers.block}
+          onAssignHotel={ownerAssignments.assignHotel}
+          onAssignTaxi={ownerAssignments.assignTaxi}
           onDelete={adminUsers.remove}
           onDemote={adminUsers.demote}
           onPromote={adminUsers.promote}
@@ -1064,6 +1075,8 @@ function App() {
           regularUsersTotalItems={adminUsers.regularUsersTotalItems}
           regularUsersTotalPages={adminUsers.regularUsersTotalPages}
           submitting={submitting}
+          taxiCandidates={ownerAssignments.taxiCandidates}
+          taxiServices={ownerAssignments.taxiServices}
         />
       )}
     </main>

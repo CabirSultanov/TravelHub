@@ -1,9 +1,10 @@
-import type { AuthUser } from '../../types';
+import type { AuthUser, Hotel, TaxiService } from '../../types';
 import Pagination from '../../components/common/Pagination';
 
 type UserAction = (userId: number) => void | Promise<void>;
 
 type AdminPageProps = {
+  canManageUsers: boolean;
   admins: AuthUser[];
   adminCandidates: AuthUser[];
   regularUsersPage: number;
@@ -17,9 +18,16 @@ type AdminPageProps = {
   onBlock: UserAction;
   onUnblock: UserAction;
   onDelete: UserAction;
+  hotels: Hotel[];
+  taxiServices: TaxiService[];
+  hotelCandidates: AuthUser[];
+  taxiCandidates: AuthUser[];
+  onAssignHotel: (hotelId: number, ownerId: number | null) => void | Promise<void>;
+  onAssignTaxi: (taxiServiceId: number, ownerId: number | null) => void | Promise<void>;
 };
 
 export default function AdminPage({
+  canManageUsers,
   admins,
   adminCandidates,
   regularUsersPage,
@@ -33,6 +41,12 @@ export default function AdminPage({
   onBlock,
   onUnblock,
   onDelete,
+  hotels,
+  taxiServices,
+  hotelCandidates,
+  taxiCandidates,
+  onAssignHotel,
+  onAssignTaxi,
 }: AdminPageProps) {
   const paginationDisabled = submitting || regularUsersLoading;
 
@@ -40,12 +54,14 @@ export default function AdminPage({
     <section className="page-section">
       <div className="section-title">
         <div>
-          <p className="eyebrow">Super Admin</p>
-          <h2>User management</h2>
+          <p className="eyebrow">Management</p>
+          <h2>{canManageUsers ? 'User and ownership management' : 'Ownership management'}</h2>
         </div>
-        <span>{admins.length} admins / {regularUsersTotalItems} users</span>
+        {canManageUsers && <span>{admins.length} admins / {regularUsersTotalItems} users</span>}
       </div>
 
+      {canManageUsers && (
+        <>
       <h3>Admins</h3>
       <div className="user-list">
         {admins.map((user) => (
@@ -131,6 +147,71 @@ export default function AdminPage({
         page={regularUsersPage}
         totalPages={regularUsersTotalPages}
       />
+        </>
+      )}
+
+      <h3>Hotel owners</h3>
+      <OwnerRows
+        candidates={hotelCandidates}
+        label={(hotel) => `${hotel.name} — ${hotel.city}`}
+        onAssign={onAssignHotel}
+        resources={hotels}
+        submitting={submitting}
+      />
+
+      <h3>Taxi owners</h3>
+      <OwnerRows
+        candidates={taxiCandidates}
+        label={(taxi) => `${taxi.companyName} — ${taxi.city}`}
+        onAssign={onAssignTaxi}
+        resources={taxiServices}
+        submitting={submitting}
+      />
     </section>
+  );
+}
+
+function OwnerRows<T extends { id: number; ownerId?: number | null }>({
+  candidates,
+  label,
+  onAssign,
+  resources,
+  submitting,
+}: {
+  candidates: AuthUser[];
+  label: (resource: T) => string;
+  onAssign: (resourceId: number, ownerId: number | null) => void | Promise<void>;
+  resources: T[];
+  submitting: boolean;
+}) {
+  return (
+    <div className="user-list">
+      {resources.map((resource) => {
+        const owner = candidates.find((candidate) => candidate.id === resource.ownerId);
+
+        return (
+          <article className="user-row" key={resource.id}>
+            <span>
+              <strong>{label(resource)}</strong>
+              <small>{owner ? `${owner.name} — ${owner.email} (${owner.role})` : 'No owner assigned'}</small>
+            </span>
+            <select
+              aria-label={`Owner for ${label(resource)}`}
+              disabled={submitting}
+              onChange={(event) => void onAssign(resource.id, event.target.value ? Number(event.target.value) : null)}
+              value={resource.ownerId ?? ''}
+            >
+              <option value="">No owner</option>
+              {candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name} — {candidate.email} ({candidate.role})
+                </option>
+              ))}
+            </select>
+          </article>
+        );
+      })}
+      {resources.length === 0 && <p className="empty">No services to assign.</p>}
+    </div>
   );
 }

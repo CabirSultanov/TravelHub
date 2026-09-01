@@ -44,7 +44,7 @@ export type DeleteTarget = {
 
 export type BookingGuestMode = 'self' | 'other';
 
-export type UserRole = 'User' | 'Admin' | 'SuperAdmin';
+export type UserRole = 'User' | 'Admin' | 'SuperAdmin' | 'HotelOwner' | 'TaxiOwner';
 export type BookingStatus = 'PendingPayment' | 'Paid' | 'Cancelled';
 
 export type AuthUser = {
@@ -113,6 +113,7 @@ export type HotelUpdateInput = {
 
 export type Hotel = HotelUpdateInput & {
   id: number;
+  ownerId?: number | null;
   roomTypesCount: number;
   totalRoomsCount: number;
   totalGuestPlaces: number;
@@ -173,6 +174,7 @@ export type TaxiCarClassInput = Omit<TaxiCarClass, 'id'>;
 
 export type TaxiService = {
   id: number;
+  ownerId?: number | null;
   companyName: string;
   city: string;
   phoneNumber: string;

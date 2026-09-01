@@ -290,6 +290,7 @@ export const api = {
     request<void>(`/api/admins/${userId}/account`, {
       method: 'DELETE',
     }),
+  getOwnerCandidates: (role: 'hotel' | 'taxi') => request<AuthUser[]>(`/api/ownership/users?role=${role}`),
   getHotels: ({ page = 1, pageSize = 3, city = '' }: { page?: number; pageSize?: number; city?: string } = {}) => {
     const search = new URLSearchParams({
       page: String(page),
@@ -372,6 +373,11 @@ export const api = {
     request<void>(`/api/hotels/${hotelId}`, {
       method: 'DELETE',
     }),
+  updateHotelOwner: (hotelId: number, ownerId: number | null) =>
+    request<void>(`/api/hotels/${hotelId}/owner`, {
+      method: 'PUT',
+      body: JSON.stringify({ ownerId }),
+    }),
   getHotelRooms: (hotelId: number) => request<HotelRoom[]>(`/api/hotel-rooms?hotelId=${hotelId}`),
   createHotelRoom: (room: HotelRoomInput) =>
     request<HotelRoom>('/api/hotel-rooms', {
@@ -411,6 +417,11 @@ export const api = {
   deleteTaxiService: (taxiServiceId: number) =>
     request<void>(`/api/taxi-services/${taxiServiceId}`, {
       method: 'DELETE',
+    }),
+  updateTaxiServiceOwner: (taxiServiceId: number, ownerId: number | null) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}/owner`, {
+      method: 'PUT',
+      body: JSON.stringify({ ownerId }),
     }),
   getTaxiBookings: (mine = false) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`),
   createTaxiBooking: (booking: TaxiBookingCreate) =>

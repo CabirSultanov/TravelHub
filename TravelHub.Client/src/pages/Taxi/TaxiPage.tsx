@@ -73,6 +73,7 @@ export default function TaxiPage({
         <div className="taxi-sidebar-column">
           <TaxiServiceList
             actions={serviceActions}
+            canEditTaxiService={model.canEditTaxiService}
             canManageTaxi={model.canManageTaxi}
             loading={loading}
             selectedTaxiService={selectedTaxiService}
@@ -98,7 +99,7 @@ export default function TaxiPage({
           {!model.showTaxiForm && selectedTaxiService && <span>{selectedTaxiService.city}</span>}
         </div>
 
-        {model.showTaxiForm && model.canManageTaxi ? (
+        {model.showTaxiForm && (model.editingTaxiId === null ? model.canManageTaxi : model.canManageSelectedTaxi) ? (
           <TaxiServiceForm
             actions={actions.serviceForm}
             editingTaxiId={model.editingTaxiId}

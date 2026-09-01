@@ -8,6 +8,7 @@ type TaxiServiceListProps = {
   showTaxiForm: boolean;
   loading: boolean;
   canManageTaxi: boolean;
+  canEditTaxiService: (taxiService: TaxiService) => boolean;
   submitting: boolean;
   actions: TaxiServiceActions;
 };
@@ -18,6 +19,7 @@ export default function TaxiServiceList({
   showTaxiForm,
   loading,
   canManageTaxi,
+  canEditTaxiService,
   submitting,
   actions,
 }: TaxiServiceListProps) {
@@ -51,14 +53,18 @@ export default function TaxiServiceList({
                 </span>
               </span>
             </button>
-            {canManageTaxi && (
+            {(canEditTaxiService(taxi) || canManageTaxi) && (
               <div className="card-actions">
-                <button disabled={submitting} onClick={() => actions.edit(taxi)} type="button">
-                  Edit
-                </button>
-                <button disabled={submitting} onClick={() => actions.delete(taxi.id)} type="button">
-                  Delete
-                </button>
+                {canEditTaxiService(taxi) && (
+                  <button disabled={submitting} onClick={() => actions.edit(taxi)} type="button">
+                    Edit
+                  </button>
+                )}
+                {canManageTaxi && (
+                  <button disabled={submitting} onClick={() => actions.delete(taxi.id)} type="button">
+                    Delete
+                  </button>
+                )}
               </div>
             )}
           </article>

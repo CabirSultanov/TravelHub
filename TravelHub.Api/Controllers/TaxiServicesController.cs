@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
 using TravelHub.Api.DTO;
 using TravelHub.Api.Models;
+using TravelHub.Api.Services;
 
 namespace TravelHub.Api.Controllers;
 
@@ -79,7 +80,7 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetTaxiService), new { id = taxiService.Id }, taxiService);
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrTaxiOwner)]
     [HttpPut("{id:int}")]
     public async Task<ActionResult<TaxiService>> UpdateTaxiService(int id, TaxiServiceUpdateDto taxiServiceDto)
     {
@@ -103,6 +104,11 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
         if (taxiService is null)
         {
             return NotFound();
+        }
+
+        if (!OwnershipRules.CanManageTaxiService(User, taxiService))
+        {
+            return Forbid();
         }
 
         var companyName = taxiServiceDto.CompanyName.Trim();
@@ -131,9 +137,45 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
     }
 
     [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [HttpPut("{id:int}/owner")]
+    public async Task<IActionResult> UpdateTaxiServiceOwner(int id, OwnerAssignmentDto request, CancellationToken cancellationToken)
+    {
+        if (!OwnershipRules.IsAdministrator(User))
+        {
+            return Forbid();
+        }
+
+        var taxiService = await db.TaxiServices.FindAsync([id], cancellationToken);
+
+        if (taxiService is null)
+        {
+            return NotFound();
+        }
+
+        var previousOwnerId = taxiService.OwnerId;
+        var (_, error) = await OwnershipRules.ResolveOwnerAsync(db, request.OwnerId, UserRoles.TaxiOwner, cancellationToken);
+
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
+        taxiService.OwnerId = request.OwnerId;
+        await db.SaveChangesAsync(cancellationToken);
+        await OwnershipRules.ClearUnusedOwnerRoleAsync(db, previousOwnerId == request.OwnerId ? null : previousOwnerId, UserRoles.TaxiOwner, cancellationToken);
+
+        return NoContent();
+    }
+
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteTaxiService(int id)
     {
+        if (!OwnershipRules.IsAdministrator(User))
+        {
+            return Forbid();
+        }
+
         var taxiService = await db.TaxiServices.FindAsync(id);
 
         if (taxiService is null)

@@ -59,7 +59,7 @@ export default function SiteHeader({
             </svg>
             <span>Taxi</span>
           </button>
-        {currentUser?.role === 'SuperAdmin' && (
+        {(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
           <button className={`nav-link${page === 'admin' ? ' is-active' : ''}`} onClick={() => onNavigate('admin')} type="button">
             Admin
           </button>

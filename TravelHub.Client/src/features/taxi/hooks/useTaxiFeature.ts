@@ -120,8 +120,18 @@ export function useTaxiFeature({
   const taxiDistanceKm = taxiRouteState.status === 'success' ? taxiRouteState.distanceKm : 0;
   const taxiEstimatedTotal = selectedTaxiCarClass ? Math.round(taxiDistanceKm * selectedTaxiCarClass.pricePerKm * 100) / 100 : 0;
   const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+  const canEditTaxiService = (taxiService: TaxiService) =>
+    canManageTaxi || (currentUser?.role === 'TaxiOwner' && taxiService.ownerId === currentUser.id);
+  const managedTaxiService = editingTaxiId === null
+    ? selectedTaxiService
+    : taxiServices.find((taxiService) => taxiService.id === editingTaxiId) ?? null;
+  const canManageSelectedTaxi = Boolean(managedTaxiService && canEditTaxiService(managedTaxiService));
 
   function startCreateTaxiService() {
+    if (!canManageTaxi) {
+      return;
+    }
+
     setTaxiForm(emptyTaxiForm);
     setEditingTaxiId(null);
     setShowTaxiForm(true);
@@ -136,7 +146,7 @@ export function useTaxiFeature({
   async function submitTaxiService(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canManageTaxi) {
+    if (editingTaxiId === null ? !canManageTaxi : !canManageSelectedTaxi) {
       return;
     }
 
@@ -175,6 +185,10 @@ export function useTaxiFeature({
   }
 
   function editTaxiService(taxiService: TaxiService) {
+    if (!canEditTaxiService(taxiService)) {
+      return;
+    }
+
     setEditingTaxiId(taxiService.id);
     setTaxiForm({
       companyName: taxiService.companyName,
@@ -251,7 +265,7 @@ export function useTaxiFeature({
   }
 
   async function uploadTaxiImage(file: File) {
-    if (!canManageTaxi) {
+    if (editingTaxiId === null ? !canManageTaxi : !canManageSelectedTaxi) {
       return;
     }
 
@@ -423,6 +437,8 @@ export function useTaxiFeature({
       taxiDistanceKm,
       taxiEstimatedTotal,
       canManageTaxi,
+      canManageSelectedTaxi,
+      canEditTaxiService,
       editingTaxiId,
       showTaxiForm,
       loading,

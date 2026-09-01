@@ -182,6 +182,21 @@ describe('api admin users', () => {
       expect.objectContaining({ credentials: 'include' }),
     );
   });
+
+  it('loads candidates and sends owner assignments through protected endpoints', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse([user]));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    await api.getOwnerCandidates('hotel');
+    await api.updateHotelOwner(7, 1);
+    await api.updateTaxiServiceOwner(9, null);
+
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls[0][0]).toBe('/api/ownership/users?role=hotel');
+    expect(calls[1]).toEqual(['/api/hotels/7/owner', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ ownerId: 1 }) })]);
+    expect(calls[2]).toEqual(['/api/taxi-services/9/owner', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ ownerId: null }) })]);
+  });
 });
 
 describe('api hotels', () => {

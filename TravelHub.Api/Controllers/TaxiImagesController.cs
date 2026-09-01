@@ -6,7 +6,7 @@ using TravelHub.Api.Services;
 namespace TravelHub.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+[Authorize(Roles = UserRoles.AdminOrSuperAdminOrTaxiOwner)]
 [Route("api/taxi-images")]
 public class TaxiImagesController(IImageStorageService imageStorage) : ControllerBase
 {
