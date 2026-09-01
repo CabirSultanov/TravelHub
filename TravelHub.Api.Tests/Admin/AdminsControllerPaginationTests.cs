@@ -60,14 +60,18 @@ public class AdminsControllerPaginationTests
     }
 
     [Fact]
-    public async Task GetRegularUsers_UsesStableIdOrdering()
+    public async Task GetRegularUsers_OrdersByNameThenEmail()
     {
         await using var db = CreateDb();
-        SeedUsers(db, regularUsers: 5);
+        db.Users.AddRange(
+            CreateUser("Zoe", "zoe@gmail.com"),
+            CreateUser("alice", "second@gmail.com"),
+            CreateUser("Alice", "first@gmail.com"));
         await db.SaveChangesAsync();
         var expectedIds = await db.Users
             .Where(user => user.Role == UserRoles.User)
-            .OrderBy(user => user.Id)
+            .OrderBy(user => user.Name)
+            .ThenBy(user => user.Email)
             .Select(user => user.Id)
             .ToListAsync();
         var controller = CreateController(db);
@@ -77,6 +81,43 @@ public class AdminsControllerPaginationTests
         var response = result.Value!;
 
         Assert.Equal(expectedIds, response.Items.Select(user => user.Id));
+    }
+
+    [Fact]
+    public async Task GetRegularUsers_FiltersByNameBeforePagination()
+    {
+        await using var db = CreateDb();
+        db.Users.AddRange(
+            CreateUser("John Zebra", "zebra@gmail.com"),
+            CreateUser("john Alpha", "alpha@gmail.com"),
+            CreateUser("Mariam", "mariam@gmail.com"));
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var result = await controller.GetRegularUsers(search: "  JOHN  ", page: 1, pageSize: 1);
+        Assert.NotNull(result.Value);
+        var response = result.Value!;
+
+        Assert.Equal(2, response.TotalItems);
+        Assert.Single(response.Items);
+        Assert.Equal("john Alpha", response.Items[0].Name);
+    }
+
+    [Fact]
+    public async Task GetRegularUsers_FiltersByEmailAndPhoneNumber()
+    {
+        await using var db = CreateDb();
+        db.Users.AddRange(
+            CreateUser("Ayla", "ayla@example.com", "+994501234567"),
+            CreateUser("Nigar", "nigar@example.com", "+994559876543"));
+        await db.SaveChangesAsync();
+        var controller = CreateController(db);
+
+        var emailResult = await controller.GetRegularUsers(search: "AYLA@EXAMPLE", pageSize: 10);
+        var phoneResult = await controller.GetRegularUsers(search: "9876543", pageSize: 10);
+
+        Assert.Equal("Ayla", Assert.Single(emailResult.Value!.Items).Name);
+        Assert.Equal("Nigar", Assert.Single(phoneResult.Value!.Items).Name);
     }
 
     [Fact]
@@ -161,4 +202,13 @@ public class AdminsControllerPaginationTests
             });
         }
     }
+
+    private static AppUser CreateUser(string name, string email, string? phoneNumber = null) => new()
+    {
+        Name = name,
+        Email = email,
+        PhoneNumber = phoneNumber ?? "+994501234567",
+        PasswordHash = "hash",
+        Role = UserRoles.User
+    };
 }

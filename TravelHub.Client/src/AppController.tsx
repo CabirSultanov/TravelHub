@@ -1068,12 +1068,11 @@ function App() {
           onDelete={adminUsers.remove}
           onDemote={adminUsers.demote}
           onPromote={adminUsers.promote}
-          onRegularUsersPageChange={adminUsers.setRegularUsersPage}
+          onRegularUsersSearchChange={adminUsers.setRegularUsersSearch}
           onUnblock={adminUsers.unblock}
           regularUsersLoading={adminUsers.regularUsersLoading}
-          regularUsersPage={adminUsers.regularUsersPage}
+          regularUsersSearch={adminUsers.regularUsersSearch}
           regularUsersTotalItems={adminUsers.regularUsersTotalItems}
-          regularUsersTotalPages={adminUsers.regularUsersTotalPages}
           submitting={submitting}
           taxiCandidates={ownerAssignments.taxiCandidates}
           taxiServices={ownerAssignments.taxiServices}
