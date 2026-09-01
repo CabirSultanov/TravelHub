@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { AuthUser, Hotel, TaxiService } from '../../types';
-import Pagination from '../../components/common/Pagination';
+import { filterAndSortAdminResources } from './adminListUtils';
 
 type UserAction = (userId: number) => void | Promise<void>;
 
@@ -7,12 +8,11 @@ type AdminPageProps = {
   canManageUsers: boolean;
   admins: AuthUser[];
   adminCandidates: AuthUser[];
-  regularUsersPage: number;
   regularUsersTotalItems: number;
-  regularUsersTotalPages: number;
   regularUsersLoading: boolean;
   submitting: boolean;
-  onRegularUsersPageChange: (page: number) => void;
+  regularUsersSearch: string;
+  onRegularUsersSearchChange: (search: string) => void;
   onPromote: UserAction;
   onDemote: UserAction;
   onBlock: UserAction;
@@ -30,12 +30,11 @@ export default function AdminPage({
   canManageUsers,
   admins,
   adminCandidates,
-  regularUsersPage,
   regularUsersTotalItems,
-  regularUsersTotalPages,
   regularUsersLoading,
   submitting,
-  onRegularUsersPageChange,
+  regularUsersSearch,
+  onRegularUsersSearchChange,
   onPromote,
   onDemote,
   onBlock,
@@ -48,7 +47,20 @@ export default function AdminPage({
   onAssignHotel,
   onAssignTaxi,
 }: AdminPageProps) {
-  const paginationDisabled = submitting || regularUsersLoading;
+  const [hotelSearch, setHotelSearch] = useState('');
+  const [taxiSearch, setTaxiSearch] = useState('');
+  const filteredHotels = filterAndSortAdminResources(
+    hotels,
+    hotelSearch,
+    (hotel) => [hotel.name, hotel.city],
+    (hotel) => hotel.name,
+  );
+  const filteredTaxiServices = filterAndSortAdminResources(
+    taxiServices,
+    taxiSearch,
+    (taxi) => [taxi.companyName, taxi.city],
+    (taxi) => taxi.companyName,
+  );
 
   return (
     <section className="page-section">
@@ -101,7 +113,15 @@ export default function AdminPage({
       </div>
 
       <h3>Regular users</h3>
-      <div className="user-list">
+      <div className="admin-search">
+        <input
+          aria-label="Search users"
+          onChange={(event) => onRegularUsersSearchChange(event.target.value)}
+          placeholder="Search users..."
+          value={regularUsersSearch}
+        />
+      </div>
+      <div className="admin-scroll-list user-list">
         {regularUsersLoading && <p className="empty">Loading users...</p>}
 
         {adminCandidates.map((user) => (
@@ -137,34 +157,44 @@ export default function AdminPage({
           </article>
         ))}
 
-        {!regularUsersLoading && regularUsersTotalItems === 0 && <p className="empty">No regular users yet.</p>}
+        {!regularUsersLoading && regularUsersTotalItems === 0 && <p className="empty">No regular users found.</p>}
       </div>
-
-      <Pagination
-        ariaLabel="Regular users pagination"
-        disabled={paginationDisabled}
-        onPageChange={onRegularUsersPageChange}
-        page={regularUsersPage}
-        totalPages={regularUsersTotalPages}
-      />
         </>
       )}
 
       <h3>Hotel owners</h3>
+      <div className="admin-search">
+        <input
+          aria-label="Search hotels"
+          onChange={(event) => setHotelSearch(event.target.value)}
+          placeholder="Search hotels..."
+          value={hotelSearch}
+        />
+      </div>
       <OwnerRows
         candidates={hotelCandidates}
+        emptyMessage="No hotels found."
         label={(hotel) => `${hotel.name} — ${hotel.city}`}
         onAssign={onAssignHotel}
-        resources={hotels}
+        resources={filteredHotels}
         submitting={submitting}
       />
 
       <h3>Taxi owners</h3>
+      <div className="admin-search">
+        <input
+          aria-label="Search taxi services"
+          onChange={(event) => setTaxiSearch(event.target.value)}
+          placeholder="Search taxi services..."
+          value={taxiSearch}
+        />
+      </div>
       <OwnerRows
         candidates={taxiCandidates}
+        emptyMessage="No taxi services found."
         label={(taxi) => `${taxi.companyName} — ${taxi.city}`}
         onAssign={onAssignTaxi}
-        resources={taxiServices}
+        resources={filteredTaxiServices}
         submitting={submitting}
       />
     </section>
@@ -173,19 +203,21 @@ export default function AdminPage({
 
 function OwnerRows<T extends { id: number; ownerId?: number | null }>({
   candidates,
+  emptyMessage,
   label,
   onAssign,
   resources,
   submitting,
 }: {
   candidates: AuthUser[];
+  emptyMessage: string;
   label: (resource: T) => string;
   onAssign: (resourceId: number, ownerId: number | null) => void | Promise<void>;
   resources: T[];
   submitting: boolean;
 }) {
   return (
-    <div className="user-list">
+    <div className="admin-scroll-list user-list">
       {resources.map((resource) => {
         const owner = candidates.find((candidate) => candidate.id === resource.ownerId);
 
@@ -211,7 +243,7 @@ function OwnerRows<T extends { id: number; ownerId?: number | null }>({
           </article>
         );
       })}
-      {resources.length === 0 && <p className="empty">No services to assign.</p>}
+      {resources.length === 0 && <p className="empty">{emptyMessage}</p>}
     </div>
   );
 }

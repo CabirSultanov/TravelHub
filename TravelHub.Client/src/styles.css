@@ -2556,6 +2556,21 @@ input[type='number']::-webkit-outer-spin-button {
   gap: 14px;
 }
 
+.admin-search {
+  margin: -4px 0 2px;
+}
+
+.admin-search input {
+  width: min(100%, 420px);
+}
+
+.admin-scroll-list {
+  max-height: min(16rem, 55vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .card-grid {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
@@ -3578,6 +3593,10 @@ small {
   .user-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-scroll-list {
+    max-height: min(26rem, 65vh);
   }
 
   .user-actions {

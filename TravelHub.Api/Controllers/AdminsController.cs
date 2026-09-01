@@ -38,16 +38,27 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
     }
 
     [HttpGet("users")]
-    public async Task<ActionResult<PagedResponseDto<AuthUserDto>>> GetRegularUsers(int page = 1, int pageSize = DefaultRegularUsersPageSize)
+    public async Task<ActionResult<PagedResponseDto<AuthUserDto>>> GetRegularUsers(string? search = null, int page = 1, int pageSize = DefaultRegularUsersPageSize)
     {
         var normalizedPage = Math.Max(1, page);
         var normalizedPageSize = Math.Clamp(pageSize, 1, MaxRegularUsersPageSize);
         var query = db.Users.AsNoTracking().Where(user => user.Role == UserRoles.User);
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrEmpty(normalizedSearch))
+        {
+            var searchTerm = normalizedSearch.ToUpper();
+            query = query.Where(user =>
+                user.Name.ToUpper().Contains(searchTerm) ||
+                user.Email.ToUpper().Contains(searchTerm) ||
+                user.PhoneNumber.ToUpper().Contains(searchTerm));
+        }
+
         var totalItems = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalItems / (double)normalizedPageSize);
         var effectivePage = totalPages == 0 ? 1 : Math.Min(normalizedPage, totalPages);
         var items = await query
-            .OrderBy(user => user.Id)
+            .OrderBy(user => user.Name)
+            .ThenBy(user => user.Email)
             .Skip((effectivePage - 1) * normalizedPageSize)
             .Take(normalizedPageSize)
             .Select(user => new AuthUserDto

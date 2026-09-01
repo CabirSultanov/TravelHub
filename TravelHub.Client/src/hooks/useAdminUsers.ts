@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { AuthUser } from '../types';
 import { getErrorMessage } from '../utils/errors';
@@ -9,15 +9,17 @@ type UseAdminUsersOptions = {
   setSubmitting: (submitting: boolean) => void;
 };
 
-const REGULAR_USERS_PAGE_SIZE = 10;
+const REGULAR_USERS_PAGE_SIZE = 100;
+const SEARCH_DEBOUNCE_MS = 300;
 
 export function useAdminUsers({ active, setMessage, setSubmitting }: UseAdminUsersOptions) {
   const [admins, setAdmins] = useState<AuthUser[]>([]);
   const [adminCandidates, setAdminCandidates] = useState<AuthUser[]>([]);
-  const [regularUsersPage, setRegularUsersPage] = useState(1);
   const [regularUsersTotalItems, setRegularUsersTotalItems] = useState(0);
-  const [regularUsersTotalPages, setRegularUsersTotalPages] = useState(0);
   const [regularUsersLoading, setRegularUsersLoading] = useState(false);
+  const [regularUsersSearch, setRegularUsersSearch] = useState('');
+  const [debouncedRegularUsersSearch, setDebouncedRegularUsersSearch] = useState('');
+  const regularUsersRequestId = useRef(0);
 
   useEffect(() => {
     if (!active) return;
@@ -26,55 +28,50 @@ export function useAdminUsers({ active, setMessage, setSubmitting }: UseAdminUse
   }, [active, setMessage]);
 
   useEffect(() => {
-    if (!active) return;
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedRegularUsersSearch(regularUsersSearch.trim());
+    }, SEARCH_DEBOUNCE_MS);
 
-    let ignore = false;
-    setRegularUsersLoading(true);
-
-    void api
-      .getAdminCandidates(regularUsersPage, REGULAR_USERS_PAGE_SIZE)
-      .then((response) => {
-        if (ignore) {
-          return;
-        }
-
-        setAdminCandidates(response.items);
-        setRegularUsersPage(response.page);
-        setRegularUsersTotalItems(response.totalItems);
-        setRegularUsersTotalPages(response.totalPages);
-      })
-      .catch((error) => {
-        if (!ignore) {
-          setMessage(getErrorMessage(error));
-        }
-      })
-      .finally(() => {
-        if (!ignore) {
-          setRegularUsersLoading(false);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [active, regularUsersPage, setMessage]);
+    return () => window.clearTimeout(timeoutId);
+  }, [regularUsersSearch]);
 
   async function loadAdmins() {
     setAdmins(await api.getAdmins());
   }
 
-  async function loadRegularUsers(page = regularUsersPage) {
+  async function loadRegularUsers(search = debouncedRegularUsersSearch) {
+    const requestId = ++regularUsersRequestId.current;
     setRegularUsersLoading(true);
 
     try {
-      const response = await api.getAdminCandidates(page, REGULAR_USERS_PAGE_SIZE);
+      const response = await api.getAdminCandidates(search, 1, REGULAR_USERS_PAGE_SIZE);
+
+      if (requestId !== regularUsersRequestId.current) {
+        return;
+      }
+
       setAdminCandidates(response.items);
-      setRegularUsersPage(response.page);
       setRegularUsersTotalItems(response.totalItems);
-      setRegularUsersTotalPages(response.totalPages);
+    } catch (error) {
+      if (requestId === regularUsersRequestId.current) {
+        setMessage(getErrorMessage(error));
+      }
     } finally {
-      setRegularUsersLoading(false);
+      if (requestId === regularUsersRequestId.current) {
+        setRegularUsersLoading(false);
+      }
     }
   }
+
+  useEffect(() => {
+    if (!active) return;
+
+    void loadRegularUsers(debouncedRegularUsersSearch);
+
+    return () => {
+      regularUsersRequestId.current += 1;
+    };
+  }, [active, debouncedRegularUsersSearch]);
 
   async function refreshAdminData() {
     await Promise.all([loadAdmins(), loadRegularUsers()]);
@@ -95,11 +92,10 @@ export function useAdminUsers({ active, setMessage, setSubmitting }: UseAdminUse
   return {
     admins,
     adminCandidates,
-    regularUsersPage,
     regularUsersTotalItems,
-    regularUsersTotalPages,
     regularUsersLoading,
-    setRegularUsersPage,
+    regularUsersSearch,
+    setRegularUsersSearch,
     promote: (userId: number) => run(async () => {
       await api.promoteUserToAdmin(userId);
       await refreshAdminData();

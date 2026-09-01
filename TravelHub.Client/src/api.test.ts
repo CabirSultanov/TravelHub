@@ -174,11 +174,11 @@ describe('api admin users', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { api } = await import('./api');
 
-    const response = await api.getAdminCandidates(2, 10);
+    const response = await api.getAdminCandidates(' cabir ', 2, 10);
 
     expect(response).toEqual(pagedUsers);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/admins/users?page=2&pageSize=10',
+      '/api/admins/users?page=2&pageSize=10&search=cabir',
       expect.objectContaining({ credentials: 'include' }),
     );
   });
