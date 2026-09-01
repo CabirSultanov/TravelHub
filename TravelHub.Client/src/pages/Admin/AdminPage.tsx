@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { AuthUser, Hotel, TaxiService } from '../../types';
 import { filterAndSortAdminResources } from './adminListUtils';
 
@@ -219,31 +219,84 @@ function OwnerRows<T extends { id: number; ownerId?: number | null }>({
   return (
     <div className="admin-scroll-list user-list">
       {resources.map((resource) => {
-        const owner = candidates.find((candidate) => candidate.id === resource.ownerId);
-
         return (
           <article className="user-row" key={resource.id}>
             <span>
               <strong>{label(resource)}</strong>
-              <small>{owner ? `${owner.name} — ${owner.email} (${owner.role})` : 'No owner assigned'}</small>
+              <small>{resource.ownerId ? 'Owner assigned' : 'No owner assigned'}</small>
             </span>
-            <select
-              aria-label={`Owner for ${label(resource)}`}
-              disabled={submitting}
-              onChange={(event) => void onAssign(resource.id, event.target.value ? Number(event.target.value) : null)}
-              value={resource.ownerId ?? ''}
-            >
-              <option value="">No owner</option>
-              {candidates.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name} — {candidate.email} ({candidate.role})
-                </option>
-              ))}
-            </select>
+            <OwnerPicker
+              ariaLabel={`Owner for ${label(resource)}`}
+              candidates={candidates}
+              onAssign={onAssign}
+              ownerId={resource.ownerId ?? null}
+              resourceId={resource.id}
+              submitting={submitting}
+            />
           </article>
         );
       })}
       {resources.length === 0 && <p className="empty">{emptyMessage}</p>}
     </div>
+  );
+}
+
+function OwnerPicker({
+  ariaLabel,
+  candidates,
+  onAssign,
+  ownerId,
+  resourceId,
+  submitting,
+}: {
+  ariaLabel: string;
+  candidates: AuthUser[];
+  onAssign: (resourceId: number, ownerId: number | null) => void | Promise<void>;
+  ownerId: number | null;
+  resourceId: number;
+  submitting: boolean;
+}) {
+  const pickerRef = useRef<HTMLDetailsElement>(null);
+  const owner = candidates.find((candidate) => candidate.id === ownerId);
+
+  function chooseOwner(nextOwnerId: number | null) {
+    pickerRef.current?.removeAttribute('open');
+    void onAssign(resourceId, nextOwnerId);
+  }
+
+  return (
+    <details className={`owner-picker${submitting ? ' is-disabled' : ''}`} ref={pickerRef}>
+      <summary aria-label={ariaLabel}>
+        <span>{owner ? owner.name : 'No owner'}</span>
+        {owner && <small>{owner.email}</small>}
+      </summary>
+      <div aria-label={ariaLabel} className="owner-picker-menu" role="listbox">
+        <button
+          aria-selected={ownerId === null}
+          className={`owner-picker-option${ownerId === null ? ' is-selected' : ''}`}
+          disabled={submitting}
+          onClick={() => chooseOwner(null)}
+          role="option"
+          type="button"
+        >
+          <strong>No owner</strong>
+          <small>Remove assignment</small>
+        </button>
+        {candidates.map((candidate) => (
+          <button
+            aria-selected={candidate.id === ownerId}
+            className={`owner-picker-option${candidate.id === ownerId ? ' is-selected' : ''}`}
+            disabled={submitting}
+            key={candidate.id}
+            onClick={() => chooseOwner(candidate.id)}
+            role="option"
+            type="button"
+          >
+            <strong>{candidate.name}</strong>
+            <small>{candidate.email} · {candidate.role}</small>
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
