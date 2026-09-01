@@ -75,6 +75,8 @@ public class AuthUserDto
     public string Role { get; set; } = string.Empty;
 
     public bool IsBlocked { get; set; }
+
+    public int? TaxiServiceId { get; set; }
 }
 
 public class AuthResponseDto

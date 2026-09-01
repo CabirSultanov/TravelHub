@@ -71,6 +71,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(taxiService => taxiService.OwnerId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        modelBuilder.Entity<AppUser>()
+            .HasOne(user => user.TaxiService)
+            .WithMany(taxiService => taxiService.Drivers)
+            .HasForeignKey(user => user.TaxiServiceId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<HotelReview>()
             .HasIndex(review => new { review.UserId, review.HotelId })
             .IsUnique();

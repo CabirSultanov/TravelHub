@@ -199,6 +199,25 @@ describe('api admin users', () => {
   });
 });
 
+describe('api taxi drivers', () => {
+  it('loads, searches, assigns, and removes taxi drivers through protected endpoints', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse([user]));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+
+    await api.getTaxiDrivers(9);
+    await api.getTaxiDriverCandidates(9, ' cabir ');
+    await api.assignTaxiDriver(9, 3);
+    await api.removeTaxiDriver(9, 3);
+
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls[0][0]).toBe('/api/taxi-services/9/drivers');
+    expect(calls[1][0]).toBe('/api/taxi-services/9/drivers/candidates?search=cabir');
+    expect(calls[2]).toEqual(['/api/taxi-services/9/drivers/3', expect.objectContaining({ method: 'PUT' })]);
+    expect(calls[3]).toEqual(['/api/taxi-services/9/drivers/3', expect.objectContaining({ method: 'DELETE' })]);
+  });
+});
+
 describe('api hotels', () => {
   it('requests paginated hotels with city filter', async () => {
     const pagedHotels = {

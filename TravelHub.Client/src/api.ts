@@ -427,6 +427,19 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ ownerId }),
     }),
+  getTaxiDrivers: (taxiServiceId: number) => request<AuthUser[]>(`/api/taxi-services/${taxiServiceId}/drivers`),
+  getTaxiDriverCandidates: (taxiServiceId: number, searchTerm = '') => {
+    const search = new URLSearchParams();
+    if (searchTerm.trim()) {
+      search.set('search', searchTerm.trim());
+    }
+
+    return request<AuthUser[]>(`/api/taxi-services/${taxiServiceId}/drivers/candidates${search.size ? `?${search}` : ''}`);
+  },
+  assignTaxiDriver: (taxiServiceId: number, userId: number) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'PUT' }),
+  removeTaxiDriver: (taxiServiceId: number, userId: number) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'DELETE' }),
   getTaxiBookings: (mine = false) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`),
   createTaxiBooking: (booking: TaxiBookingCreate) =>
     request<TaxiBooking>('/api/taxi-bookings', {

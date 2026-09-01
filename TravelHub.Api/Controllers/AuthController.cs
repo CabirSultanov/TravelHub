@@ -790,6 +790,7 @@ public class AuthController(
         Email = user.Email,
         PhoneNumber = user.PhoneNumber,
         Role = user.Role,
-        IsBlocked = user.IsBlocked
+        IsBlocked = user.IsBlocked,
+        TaxiServiceId = user.TaxiServiceId
     };
 }

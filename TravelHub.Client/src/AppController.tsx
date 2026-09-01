@@ -1065,6 +1065,10 @@ function App() {
           onBlock={adminUsers.block}
           onAssignHotel={ownerAssignments.assignHotel}
           onAssignTaxi={ownerAssignments.assignTaxi}
+          onManageTaxiDrivers={(taxiService) => {
+            taxiFeature.actions.service.select(taxiService);
+            navigateTo('taxi');
+          }}
           onDelete={adminUsers.remove}
           onDemote={adminUsers.demote}
           onPromote={adminUsers.promote}

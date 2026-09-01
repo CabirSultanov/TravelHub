@@ -2692,6 +2692,59 @@ input[type='number']::-webkit-outer-spin-button {
   opacity: 0.65;
 }
 
+.owner-resource-actions,
+.driver-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.owner-resource-actions > button,
+.driver-row > button {
+  min-height: 40px;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #ffffff;
+  background: #1f7a8c;
+  font-weight: 800;
+}
+
+.taxi-drivers-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid #dbe4eb;
+}
+
+.taxi-drivers-panel h4 {
+  margin: 8px 0 0;
+}
+
+.driver-list {
+  display: grid;
+  gap: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.driver-row {
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+  background: #f8fbfd;
+}
+
+.driver-row span {
+  display: grid;
+  gap: 3px;
+}
+
+.driver-row .danger-card-button {
+  background: #b43d3d;
+}
+
 .card-grid {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }

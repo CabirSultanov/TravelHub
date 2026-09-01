@@ -57,6 +57,15 @@ export type TaxiServiceFormActions = {
   cancel: () => void;
 };
 
+export type TaxiDriverManagement = {
+  drivers: AuthUser[];
+  candidates: AuthUser[];
+  search: string;
+  setSearch: (search: string) => void;
+  assign: (userId: number) => void | Promise<void>;
+  remove: (userId: number) => void | Promise<void>;
+};
+
 export type TaxiBookingFormActions = {
   setForm: (form: TaxiBookingForm) => void;
   selectGuestMode: (mode: BookingGuestMode) => void;
@@ -85,6 +94,7 @@ export type TaxiFeatureModel = {
   canEditTaxiService: (taxiService: TaxiService) => boolean;
   editingTaxiId: number | null;
   showTaxiForm: boolean;
+  taxiDrivers: TaxiDriverManagement;
   loading: boolean;
 };
 

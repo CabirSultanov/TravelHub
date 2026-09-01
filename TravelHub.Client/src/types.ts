@@ -44,7 +44,7 @@ export type DeleteTarget = {
 
 export type BookingGuestMode = 'self' | 'other';
 
-export type UserRole = 'User' | 'Admin' | 'SuperAdmin' | 'HotelOwner' | 'TaxiOwner';
+export type UserRole = 'User' | 'Admin' | 'SuperAdmin' | 'HotelOwner' | 'TaxiOwner' | 'TaxiDriver';
 export type BookingStatus = 'PendingPayment' | 'Paid' | 'Cancelled';
 
 export type AuthUser = {
@@ -54,6 +54,7 @@ export type AuthUser = {
   phoneNumber: string;
   role: UserRole;
   isBlocked: boolean;
+  taxiServiceId?: number | null;
 };
 
 export type PagedResponse<T> = {

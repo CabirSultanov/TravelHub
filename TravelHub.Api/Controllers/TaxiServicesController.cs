@@ -183,6 +183,12 @@ public class TaxiServicesController(AppDbContext db) : ControllerBase
             return NotFound();
         }
 
+        await db.Users
+            .Where(user => user.TaxiServiceId == id && user.Role == UserRoles.TaxiDriver)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(user => user.Role, UserRoles.User)
+                .SetProperty(user => user.TaxiServiceId, (int?)null));
+
         db.TaxiServices.Remove(taxiService);
         await db.SaveChangesAsync();
 
