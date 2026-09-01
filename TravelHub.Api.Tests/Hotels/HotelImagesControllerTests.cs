@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using TravelHub.Api.Controllers;
@@ -15,7 +17,7 @@ public class HotelImagesControllerTests
     public async Task CreateHotel_WithMultipleImages_SavesFirstAsLegacyImageAndReturnsAllImages()
     {
         await using var db = CreateDb();
-        var controller = new HotelsController(db);
+        var controller = CreateAdminController(db);
 
         var result = await controller.CreateHotel(new HotelCreateDto
         {
@@ -65,7 +67,7 @@ public class HotelImagesControllerTests
         await using var db = CreateDb();
         db.Hotels.Add(new Hotel { Name = "Old", City = "Baku", ImageUrl = "https://example.com/old.jpg" });
         await db.SaveChangesAsync();
-        var controller = new HotelsController(db);
+        var controller = CreateAdminController(db);
 
         var result = await controller.UpdateHotel(1, new HotelUpdateDto
         {
@@ -95,6 +97,21 @@ public class HotelImagesControllerTests
             .Options;
 
         return new AppDbContext(options);
+    }
+
+    private static HotelsController CreateAdminController(AppDbContext db)
+    {
+        var controller = new HotelsController(db);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(ClaimTypes.Role, UserRoles.Admin)],
+                    "TestAuth"))
+            }
+        };
+        return controller;
     }
 
     private static List<HotelCreateRoomDto> ValidRooms() =>

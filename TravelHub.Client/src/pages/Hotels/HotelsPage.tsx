@@ -210,7 +210,7 @@ export default function HotelsPage({
             {!model.showHotelForm && model.selectedHotel && <span>{model.selectedHotel.city}</span>}
           </div>
 
-          {model.showHotelForm && model.canManageHotels ? (
+          {model.showHotelForm && (model.editingHotelId === null ? model.canManageHotels : model.canManageSelectedHotel) ? (
             <HotelForm
               actions={actions.hotelForm}
               editingHotelId={model.editingHotelId}
@@ -236,7 +236,7 @@ export default function HotelsPage({
                 </div>
               </div>
 
-              {model.canManageHotels && (
+              {model.canManageSelectedHotel && (
                 <>
                   {!model.showRoomForm && (
                     <div className="hotel-actions">
@@ -267,7 +267,7 @@ export default function HotelsPage({
                     <div className="hotel-rooms-band-inner">
                       <RoomList
                         actions={roomListActions}
-                        canManageHotels={model.canManageHotels}
+                        canManageHotels={model.canManageSelectedHotel}
                         rooms={model.rooms}
                         roomsLoading={model.roomsLoading}
                         selectedRoom={model.selectedRoom}

@@ -59,6 +59,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(card => card.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Hotel>()
+            .HasOne(hotel => hotel.Owner)
+            .WithMany(user => user.OwnedHotels)
+            .HasForeignKey(hotel => hotel.OwnerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<TaxiService>()
+            .HasOne(taxiService => taxiService.Owner)
+            .WithMany(user => user.OwnedTaxiServices)
+            .HasForeignKey(taxiService => taxiService.OwnerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<HotelReview>()
             .HasIndex(review => new { review.UserId, review.HotelId })
             .IsUnique();

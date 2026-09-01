@@ -66,10 +66,14 @@ public class ImageUploadControllerTests
     [InlineData(typeof(HotelImagesController))]
     [InlineData(typeof(RoomImagesController))]
     [InlineData(typeof(TaxiImagesController))]
-    public void UploadControllers_RequireAdminOrSuperAdmin(Type controllerType)
+    public void UploadControllers_RequireTheMatchingManagementRole(Type controllerType)
     {
         var authorization = Assert.Single(controllerType.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>());
-        Assert.Equal(UserRoles.AdminOrSuperAdmin, authorization.Roles);
+        var expectedRoles = controllerType == typeof(TaxiImagesController)
+            ? UserRoles.AdminOrSuperAdminOrTaxiOwner
+            : UserRoles.AdminOrSuperAdminOrHotelOwner;
+
+        Assert.Equal(expectedRoles, authorization.Roles);
     }
 
     private static IFormFile CreateImageFile(string fileName = "image.jpg", string contentType = "image/jpeg", int size = 1)

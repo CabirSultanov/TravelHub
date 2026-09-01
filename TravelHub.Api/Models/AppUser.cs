@@ -43,4 +43,8 @@ public class AppUser
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
     public ICollection<HotelReview> HotelReviews { get; set; } = new List<HotelReview>();
+
+    public ICollection<Hotel> OwnedHotels { get; set; } = new List<Hotel>();
+
+    public ICollection<TaxiService> OwnedTaxiServices { get; set; } = new List<TaxiService>();
 }

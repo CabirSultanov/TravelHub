@@ -87,6 +87,7 @@ export type HotelsFeatureModel = {
   showRoomForm: boolean;
   roomsLoading: boolean;
   canManageHotels: boolean;
+  canManageSelectedHotel: boolean;
   bookingGuestMode: BookingGuestMode;
   deleteTarget: DeleteTarget | null;
   loading: boolean;

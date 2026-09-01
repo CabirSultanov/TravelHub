@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace TravelHub.Api.Models;
 
@@ -21,6 +22,11 @@ public class Hotel
     public string? ImageUrl { get; set; }
 
     public string ImageUrlsJson { get; set; } = "[]";
+
+    public int? OwnerId { get; set; }
+
+    [JsonIgnore]
+    public AppUser? Owner { get; set; }
 
     public ICollection<HotelReview> Reviews { get; set; } = new List<HotelReview>();
 }

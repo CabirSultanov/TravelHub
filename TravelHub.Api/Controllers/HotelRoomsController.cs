@@ -39,7 +39,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return ToResponse(room);
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrHotelOwner)]
     [HttpPost]
     public async Task<ActionResult<HotelRoomResponseDto>> CreateHotelRoom(HotelRoomCreateDto roomDto)
     {
@@ -54,9 +54,16 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             return BadRequest(validationError);
         }
 
-        if (!await db.Hotels.AnyAsync(hotel => hotel.Id == roomDto.HotelId))
+        var hotel = await db.Hotels.AsNoTracking().FirstOrDefaultAsync(hotel => hotel.Id == roomDto.HotelId);
+
+        if (hotel is null)
         {
             return BadRequest("Hotel does not exist.");
+        }
+
+        if (!OwnershipRules.CanManageHotel(User, hotel))
+        {
+            return Forbid();
         }
 
         var roomType = roomDto.RoomType.Trim();
@@ -92,7 +99,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetHotelRoom), new { id = room.Id }, ToResponse(room));
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrHotelOwner)]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateHotelRoom(int id, HotelRoomUpdateDto roomDto)
     {
@@ -112,6 +119,23 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         if (room is null)
         {
             return NotFound();
+        }
+
+        var sourceHotel = await db.Hotels.AsNoTracking().FirstOrDefaultAsync(hotel => hotel.Id == room.HotelId);
+
+        if (sourceHotel is null)
+        {
+            return BadRequest("Hotel does not exist.");
+        }
+
+        if (!OwnershipRules.CanManageHotel(User, sourceHotel))
+        {
+            return Forbid();
+        }
+
+        if (!OwnershipRules.IsAdministrator(User) && room.HotelId != roomDto.HotelId)
+        {
+            return Forbid();
         }
 
         if (!await db.Hotels.AnyAsync(hotel => hotel.Id == roomDto.HotelId))
@@ -166,7 +190,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrHotelOwner)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteHotelRoom(int id)
     {
@@ -175,6 +199,18 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         if (room is null)
         {
             return NotFound();
+        }
+
+        var hotel = await db.Hotels.AsNoTracking().FirstOrDefaultAsync(hotel => hotel.Id == room.HotelId);
+
+        if (hotel is null)
+        {
+            return BadRequest("Hotel does not exist.");
+        }
+
+        if (!OwnershipRules.CanManageHotel(User, hotel))
+        {
+            return Forbid();
         }
 
         var roomSetError = await ValidateHotelRoomsAsync(room.HotelId, null, room.Id);

@@ -99,6 +99,12 @@ export function useHotelsFeature({
   }, [bookingGuestMode, currentUser?.email, currentUser?.name, currentUser?.phoneNumber]);
 
   const canManageHotels = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+  const canManageSelectedHotel = Boolean(
+    selectedHotel && (
+      canManageHotels ||
+      (currentUser?.role === 'HotelOwner' && selectedHotel.ownerId === currentUser.id)
+    ),
+  );
 
   async function loadHotelCities() {
     try {
@@ -132,6 +138,10 @@ export function useHotelsFeature({
   }
 
   function startCreateRoom() {
+    if (!canManageSelectedHotel) {
+      return;
+    }
+
     setEditingRoomId(null);
     setRoomForm(createEmptyRoomForm());
     setShowRoomForm(true);
@@ -204,7 +214,7 @@ export function useHotelsFeature({
   async function submitHotel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canManageHotels) {
+    if (editingHotelId === null ? !canManageHotels : !canManageSelectedHotel) {
       return;
     }
 
@@ -312,7 +322,7 @@ export function useHotelsFeature({
   async function submitHotelRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canManageHotels || !selectedHotel) {
+    if (!canManageSelectedHotel || !selectedHotel) {
       return;
     }
 
@@ -383,7 +393,7 @@ export function useHotelsFeature({
   }
 
   async function uploadHotelImage(file: File) {
-    if (!canManageHotels) {
+    if (editingHotelId === null ? !canManageHotels : !canManageSelectedHotel) {
       return;
     }
 
@@ -470,6 +480,12 @@ export function useHotelsFeature({
   }
 
   function editHotel(hotel: Hotel) {
+    const canEdit = canManageHotels || (currentUser?.role === 'HotelOwner' && hotel.ownerId === currentUser.id);
+
+    if (!canEdit) {
+      return;
+    }
+
     setEditingHotelId(hotel.id);
     setHotelForm(hotelToForm(hotel));
     setShowHotelForm(true);
@@ -480,6 +496,10 @@ export function useHotelsFeature({
   }
 
   function editHotelRoom(room: HotelRoom) {
+    if (!canManageSelectedHotel) {
+      return;
+    }
+
     setEditingRoomId(room.id);
     setRoomForm(roomToForm(room));
     setSelectedRoom(null);
@@ -514,7 +534,7 @@ export function useHotelsFeature({
   }
 
   async function uploadRoomImage(file: File) {
-    if (!canManageHotels) {
+    if (!canManageSelectedHotel) {
       return;
     }
 
@@ -632,7 +652,7 @@ export function useHotelsFeature({
   }
 
   async function confirmDelete() {
-    if (!canManageHotels || !deleteTarget) {
+    if (!deleteTarget || (deleteTarget.kind === 'hotel' ? !canManageHotels : !canManageSelectedHotel)) {
       return;
     }
 
@@ -712,6 +732,7 @@ export function useHotelsFeature({
       showRoomForm,
       roomsLoading,
       canManageHotels,
+      canManageSelectedHotel,
       bookingGuestMode,
       deleteTarget,
       loading,

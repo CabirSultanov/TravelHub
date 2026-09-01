@@ -173,7 +173,7 @@ public class HotelsController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetHotel), new { id = hotel.Id }, ToResponse(hotel, hotelRooms));
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrHotelOwner)]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateHotel(int id, HotelUpdateDto hotelDto)
     {
@@ -187,6 +187,11 @@ public class HotelsController(AppDbContext db) : ControllerBase
         if (hotel is null)
         {
             return NotFound();
+        }
+
+        if (!OwnershipRules.CanManageHotel(User, hotel))
+        {
+            return Forbid();
         }
 
         var name = hotelDto.Name.Trim();
@@ -218,6 +223,11 @@ public class HotelsController(AppDbContext db) : ControllerBase
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteHotel(int id)
     {
+        if (!OwnershipRules.IsAdministrator(User))
+        {
+            return Forbid();
+        }
+
         var hotel = await db.Hotels.FindAsync(id);
 
         if (hotel is null)
@@ -227,6 +237,37 @@ public class HotelsController(AppDbContext db) : ControllerBase
 
         db.Hotels.Remove(hotel);
         await db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [HttpPut("{id:int}/owner")]
+    public async Task<IActionResult> UpdateHotelOwner(int id, OwnerAssignmentDto request, CancellationToken cancellationToken)
+    {
+        if (!OwnershipRules.IsAdministrator(User))
+        {
+            return Forbid();
+        }
+
+        var hotel = await db.Hotels.FindAsync([id], cancellationToken);
+
+        if (hotel is null)
+        {
+            return NotFound();
+        }
+
+        var previousOwnerId = hotel.OwnerId;
+        var (_, error) = await OwnershipRules.ResolveOwnerAsync(db, request.OwnerId, UserRoles.HotelOwner, cancellationToken);
+
+        if (error is not null)
+        {
+            return BadRequest(error);
+        }
+
+        hotel.OwnerId = request.OwnerId;
+        await db.SaveChangesAsync(cancellationToken);
+        await OwnershipRules.ClearUnusedOwnerRoleAsync(db, previousOwnerId == request.OwnerId ? null : previousOwnerId, UserRoles.HotelOwner, cancellationToken);
 
         return NoContent();
     }
@@ -241,6 +282,7 @@ public class HotelsController(AppDbContext db) : ControllerBase
                 Description = hotel.Description,
                 ImageUrl = hotel.ImageUrl,
                 ImageUrlsJson = hotel.ImageUrlsJson,
+                OwnerId = hotel.OwnerId,
                 RoomTypesCount = db.HotelRooms.Count(room => room.HotelId == hotel.Id),
                 TotalRoomsCount = db.HotelRooms
                     .Where(room => room.HotelId == hotel.Id)
@@ -266,6 +308,7 @@ public class HotelsController(AppDbContext db) : ControllerBase
             Description = row.Description,
             ImageUrl = row.ImageUrl ?? imageUrls.FirstOrDefault(),
             ImageUrls = imageUrls,
+            OwnerId = row.OwnerId,
             RoomTypesCount = row.RoomTypesCount,
             TotalRoomsCount = row.TotalRoomsCount,
             TotalGuestPlaces = row.TotalGuestPlaces,
@@ -282,6 +325,7 @@ public class HotelsController(AppDbContext db) : ControllerBase
         Description = hotel.Description,
         ImageUrl = hotel.ImageUrl ?? HotelRoomRules.FromJson(hotel.ImageUrlsJson, hotel.ImageUrl).FirstOrDefault(),
         ImageUrls = HotelRoomRules.FromJson(hotel.ImageUrlsJson, hotel.ImageUrl),
+        OwnerId = hotel.OwnerId,
         RoomTypesCount = rooms.Count(),
         TotalRoomsCount = rooms.Sum(room => room.TotalRooms),
         TotalGuestPlaces = rooms.Sum(room => room.Capacity * room.TotalRooms),
@@ -302,6 +346,8 @@ public class HotelsController(AppDbContext db) : ControllerBase
         public string? ImageUrl { get; set; }
 
         public string ImageUrlsJson { get; set; } = "[]";
+
+        public int? OwnerId { get; set; }
 
         public int RoomTypesCount { get; set; }
 

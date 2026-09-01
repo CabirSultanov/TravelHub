@@ -81,6 +81,8 @@ export type TaxiFeatureModel = {
   taxiDistanceKm: number;
   taxiEstimatedTotal: number;
   canManageTaxi: boolean;
+  canManageSelectedTaxi: boolean;
+  canEditTaxiService: (taxiService: TaxiService) => boolean;
   editingTaxiId: number | null;
   showTaxiForm: boolean;
   loading: boolean;
