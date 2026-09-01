@@ -2557,18 +2557,47 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 .admin-search {
-  margin: -4px 0 2px;
+  margin: -4px 0 6px;
 }
 
 .admin-search input {
   width: min(100%, 420px);
+  border-color: #dbe4eb;
+  background: #f8fbfd;
+  box-shadow: inset 0 1px 2px rgba(31, 122, 140, 0.04);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.admin-search input::placeholder {
+  color: #718096;
+}
+
+.admin-search input:focus {
+  border-color: #1f7a8c;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(31, 122, 140, 0.14);
 }
 
 .admin-scroll-list {
   max-height: min(16rem, 55vh);
   overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 4px;
+  padding: 8px;
+  border: 1px solid #dbe4eb;
+  border-radius: 10px;
+  background: #eef5f8;
+  scrollbar-color: #9bb9c3 transparent;
+  scrollbar-width: thin;
+}
+
+.admin-scroll-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-scroll-list::-webkit-scrollbar-thumb {
+  border: 2px solid #eef5f8;
+  border-radius: 999px;
+  background: #9bb9c3;
 }
 
 .card-grid {
