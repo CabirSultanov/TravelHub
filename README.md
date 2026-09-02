@@ -29,6 +29,7 @@ TravelHub/
 ├── TravelHub.Client/           # React + TypeScript frontend
 │   ├── public/                 # Static assets and favicon
 │   └── src/                    # Pages, features, API client, utilities
+├── MobileApp/                   # Expo React Native app for taxi drivers
 ├── .github/workflows/          # GitHub Actions CI
 ├── images/                     # Uploaded/static images served by API
 ├── docs/                       # Additional project documentation
@@ -95,7 +96,37 @@ http://localhost:5173
 
 The Vite dev server proxies `/api`, `/health`, and `/images` to the backend.
 
-### 4) Environment Configuration
+### 4) Mobile Driver App
+
+`MobileApp` is an Expo React Native application for users with the `TaxiDriver` role. It is login-only in the current phase; ride management is not implemented yet.
+
+1. Install Node.js LTS and Expo Go on your Android or iOS phone.
+2. Install the mobile dependencies:
+
+```bash
+cd MobileApp
+npm install
+```
+
+3. Create `MobileApp/.env` from `MobileApp/.env.example` and set the API address to your computer's LAN IPv4 address:
+
+```env
+EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:5207
+```
+
+4. Start the TravelHub backend, then start Expo:
+
+```bash
+npx expo start
+```
+
+5. Scan the QR code with Expo Go.
+
+`localhost` does **not** point to your computer when the app is running on a physical phone. The phone must be able to reach the computer using its LAN IPv4 address; normally both are on the same local network.
+
+The app stores only its access token in the device's secure storage. Native refresh-token support is intentionally deferred until a later phase with dedicated backend support.
+
+### 5) Environment Configuration
 
 Create `TravelHub.Client/.env`:
 
