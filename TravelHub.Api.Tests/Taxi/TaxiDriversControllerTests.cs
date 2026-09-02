@@ -50,6 +50,41 @@ public class TaxiDriversControllerTests
     }
 
     [Fact]
+    public async Task Candidates_IncludeUnblockedUsersAndExcludeBlockedUsers()
+    {
+        await using var db = CreateDb();
+        db.TaxiServices.Add(Taxi(1));
+        db.Users.AddRange(User(2), User(3, isBlocked: true));
+        await db.SaveChangesAsync();
+
+        var candidates = (await Controller(db, 9, UserRoles.Admin).GetCandidates(1, null, default)).Value;
+
+        Assert.NotNull(candidates);
+        Assert.Contains(candidates!, user => user.Id == 2);
+        Assert.DoesNotContain(candidates!, user => user.Id == 3);
+    }
+
+    [Theory]
+    [InlineData(UserRoles.TaxiOwner)]
+    [InlineData(UserRoles.Admin)]
+    [InlineData(UserRoles.SuperAdmin)]
+    public async Task Manager_CannotAssignBlockedUserAsDriver(string role)
+    {
+        await using var db = CreateDb();
+        db.TaxiServices.Add(Taxi(1, ownerId: role == UserRoles.TaxiOwner ? 1 : null));
+        db.Users.Add(User(2, isBlocked: true));
+        await db.SaveChangesAsync();
+
+        var result = await Controller(db, role == UserRoles.TaxiOwner ? 1 : 9, role).AssignDriver(1, 2, default);
+
+        var error = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal("Blocked users cannot be assigned as taxi drivers.", error.Value);
+        var user = await db.Users.FindAsync(2);
+        Assert.Equal(UserRoles.User, user!.Role);
+        Assert.Null(user.TaxiServiceId);
+    }
+
+    [Fact]
     public async Task TaxiOwner_CannotManageAnotherTaxiServicesDrivers()
     {
         await using var db = CreateDb();
@@ -144,7 +179,7 @@ public class TaxiDriversControllerTests
         ImageUrl = "https://example.com/taxi.jpg"
     };
 
-    private static AppUser User(int id, string role = UserRoles.User, int? taxiServiceId = null) => new()
+    private static AppUser User(int id, string role = UserRoles.User, int? taxiServiceId = null, bool isBlocked = false) => new()
     {
         Id = id,
         Name = $"User {id}",
@@ -152,6 +187,7 @@ public class TaxiDriversControllerTests
         PhoneNumber = "+994501234567",
         PasswordHash = "hash",
         Role = role,
-        TaxiServiceId = taxiServiceId
+        TaxiServiceId = taxiServiceId,
+        IsBlocked = isBlocked
     };
 }

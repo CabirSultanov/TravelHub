@@ -41,7 +41,7 @@ public class TaxiDriversController(AppDbContext db) : ControllerBase
             return taxiService.Result;
         }
 
-        var query = db.Users.AsNoTracking().Where(user => user.Role == UserRoles.User);
+        var query = db.Users.AsNoTracking().Where(user => user.Role == UserRoles.User && !user.IsBlocked);
         var normalizedSearch = search?.Trim();
         if (!string.IsNullOrEmpty(normalizedSearch))
         {
@@ -82,6 +82,11 @@ public class TaxiDriversController(AppDbContext db) : ControllerBase
         if (user.Role != UserRoles.User)
         {
             return BadRequest("Only regular users can be assigned as drivers.");
+        }
+
+        if (user.IsBlocked)
+        {
+            return BadRequest("Blocked users cannot be assigned as taxi drivers.");
         }
 
         user.Role = UserRoles.TaxiDriver;
