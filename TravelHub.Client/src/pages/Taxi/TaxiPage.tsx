@@ -3,6 +3,7 @@ import TaxiBookingForm from '../../features/taxi/components/TaxiBookingForm';
 import TaxiBookingResult from '../../features/taxi/components/TaxiBookingResult';
 import TaxiServiceForm from '../../features/taxi/components/TaxiServiceForm';
 import TaxiServiceList from '../../features/taxi/components/TaxiServiceList';
+import TaxiDriversPanel from '../../features/taxi/components/TaxiDriversPanel';
 import SiteFooter from '../../components/common/SiteFooter';
 import type { AuthUser, Booking, Page, TaxiBooking } from '../../types';
 import type { TaxiFeature } from '../../features/taxi/taxi.types';
@@ -109,28 +110,38 @@ export default function TaxiPage({
             taxiForm={model.taxiForm}
           />
         ) : selectedTaxiService ? (
-          <TaxiBookingForm
-            actions={bookingFormActions}
-            currentUser={currentUser}
-            phoneNumberPattern={phoneNumberPattern}
-            selectedTaxiCarClass={selectedTaxiCarClass}
-            selectedTaxiService={selectedTaxiService}
-            submitting={submitting}
-            taxiBookingForm={model.taxiBookingForm}
-            taxiBookingGuestMode={model.taxiBookingGuestMode}
-            taxiCoordinates={model.taxiCoordinates}
-            taxiDistanceKm={model.taxiDistanceKm}
-            taxiEstimatedTotal={model.taxiEstimatedTotal}
-            taxiPointMode={model.taxiPointMode}
-            taxiRouteState={model.taxiRouteState}
-            onOpenAuth={onOpenAuth}
-          />
+          <>
+            <TaxiBookingForm
+              actions={bookingFormActions}
+              currentUser={currentUser}
+              phoneNumberPattern={phoneNumberPattern}
+              selectedTaxiCarClass={selectedTaxiCarClass}
+              selectedTaxiService={selectedTaxiService}
+              submitting={submitting}
+              taxiBookingForm={model.taxiBookingForm}
+              taxiBookingGuestMode={model.taxiBookingGuestMode}
+              taxiCoordinates={model.taxiCoordinates}
+              taxiDistanceKm={model.taxiDistanceKm}
+              taxiEstimatedTotal={model.taxiEstimatedTotal}
+              taxiPointMode={model.taxiPointMode}
+              taxiRouteState={model.taxiRouteState}
+              onOpenAuth={onOpenAuth}
+            />
+          </>
         ) : (
           <p className="empty">Choose a taxi service to create an order.</p>
         )}
         </section>
 
       </section>
+
+      {!model.showTaxiForm && selectedTaxiService && model.canManageSelectedTaxi && (
+        <section className="container taxi-drivers-workspace" aria-label="Driver management">
+          <div className="panel wide taxi-drivers-card">
+            <TaxiDriversPanel management={model.taxiDrivers} submitting={submitting} />
+          </div>
+        </section>
+      )}
 
       <SiteFooter onNavigate={onNavigate} onOpenAuth={onOpenAuth} onShowDestinations={onShowDestinations} />
     </div>

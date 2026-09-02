@@ -77,10 +77,15 @@ namespace TravelHub.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<int?>("TaxiServiceId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
                         .IsUnique();
+
+                    b.HasIndex("TaxiServiceId");
 
                     b.ToTable("Users");
                 });
@@ -647,6 +652,14 @@ namespace TravelHub.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TravelHub.Api.Models.AppUser", b =>
+                {
+                    b.HasOne("TravelHub.Api.Models.TaxiService", "TaxiService")
+                        .WithMany("Drivers")
+                        .HasForeignKey("TaxiServiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("TravelHub.Api.Models.TaxiService", b =>
                 {
                     b.HasOne("TravelHub.Api.Models.AppUser", "Owner")
@@ -666,6 +679,8 @@ namespace TravelHub.Api.Migrations
                     b.Navigation("OwnedTaxiServices");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("TaxiService");
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.Hotel", b =>
@@ -676,6 +691,8 @@ namespace TravelHub.Api.Migrations
             modelBuilder.Entity("TravelHub.Api.Models.TaxiService", b =>
                 {
                     b.Navigation("CarClasses");
+
+                    b.Navigation("Drivers");
                 });
 #pragma warning restore 612, 618
         }

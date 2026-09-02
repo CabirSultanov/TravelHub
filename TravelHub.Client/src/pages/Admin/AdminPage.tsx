@@ -24,6 +24,7 @@ type AdminPageProps = {
   taxiCandidates: AuthUser[];
   onAssignHotel: (hotelId: number, ownerId: number | null) => void | Promise<void>;
   onAssignTaxi: (taxiServiceId: number, ownerId: number | null) => void | Promise<void>;
+  onManageTaxiDrivers: (taxiService: TaxiService) => void;
 };
 
 export default function AdminPage({
@@ -46,6 +47,7 @@ export default function AdminPage({
   taxiCandidates,
   onAssignHotel,
   onAssignTaxi,
+  onManageTaxiDrivers,
 }: AdminPageProps) {
   const [hotelSearch, setHotelSearch] = useState('');
   const [taxiSearch, setTaxiSearch] = useState('');
@@ -194,6 +196,7 @@ export default function AdminPage({
         emptyMessage="No taxi services found."
         label={(taxi) => `${taxi.companyName} — ${taxi.city}`}
         onAssign={onAssignTaxi}
+        onManageDrivers={onManageTaxiDrivers}
         resources={filteredTaxiServices}
         submitting={submitting}
       />
@@ -206,6 +209,7 @@ function OwnerRows<T extends { id: number; ownerId?: number | null }>({
   emptyMessage,
   label,
   onAssign,
+  onManageDrivers,
   resources,
   submitting,
 }: {
@@ -213,6 +217,7 @@ function OwnerRows<T extends { id: number; ownerId?: number | null }>({
   emptyMessage: string;
   label: (resource: T) => string;
   onAssign: (resourceId: number, ownerId: number | null) => void | Promise<void>;
+  onManageDrivers?: (resource: T) => void;
   resources: T[];
   submitting: boolean;
 }) {
@@ -225,14 +230,17 @@ function OwnerRows<T extends { id: number; ownerId?: number | null }>({
               <strong>{label(resource)}</strong>
               <small>{resource.ownerId ? 'Owner assigned' : 'No owner assigned'}</small>
             </span>
-            <OwnerPicker
-              ariaLabel={`Owner for ${label(resource)}`}
-              candidates={candidates}
-              onAssign={onAssign}
-              ownerId={resource.ownerId ?? null}
-              resourceId={resource.id}
-              submitting={submitting}
-            />
+            <div className="owner-resource-actions">
+              {onManageDrivers && <button disabled={submitting} onClick={() => onManageDrivers(resource)} type="button">Manage drivers</button>}
+              <OwnerPicker
+                ariaLabel={`Owner for ${label(resource)}`}
+                candidates={candidates}
+                onAssign={onAssign}
+                ownerId={resource.ownerId ?? null}
+                resourceId={resource.id}
+                submitting={submitting}
+              />
+            </div>
           </article>
         );
       })}

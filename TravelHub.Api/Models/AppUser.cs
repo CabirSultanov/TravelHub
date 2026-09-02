@@ -47,4 +47,8 @@ public class AppUser
     public ICollection<Hotel> OwnedHotels { get; set; } = new List<Hotel>();
 
     public ICollection<TaxiService> OwnedTaxiServices { get; set; } = new List<TaxiService>();
+
+    public int? TaxiServiceId { get; set; }
+
+    public TaxiService? TaxiService { get; set; }
 }

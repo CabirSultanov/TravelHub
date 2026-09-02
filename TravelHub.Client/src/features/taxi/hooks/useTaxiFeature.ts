@@ -5,6 +5,7 @@ import { getErrorMessage } from '../../../utils/errors';
 import { splitTaxiCities, taxiCarClassOptions } from '../../../utils/taxi';
 import type { TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
 import { createEmptyTaxiBookingForm, emptyTaxiForm } from '../taxi.constants';
+import { useTaxiDrivers } from './useTaxiDrivers';
 import {
   applyTaxiPointToCoordinates,
   applyTaxiPointToForm,
@@ -126,6 +127,12 @@ export function useTaxiFeature({
     ? selectedTaxiService
     : taxiServices.find((taxiService) => taxiService.id === editingTaxiId) ?? null;
   const canManageSelectedTaxi = Boolean(managedTaxiService && canEditTaxiService(managedTaxiService));
+  const taxiDrivers = useTaxiDrivers({
+    active: canManageSelectedTaxi && !showTaxiForm,
+    taxiServiceId: selectedTaxiService?.id ?? null,
+    setMessage,
+    setSubmitting,
+  });
 
   function startCreateTaxiService() {
     if (!canManageTaxi) {
@@ -441,6 +448,7 @@ export function useTaxiFeature({
       canEditTaxiService,
       editingTaxiId,
       showTaxiForm,
+      taxiDrivers,
       loading,
     },
     actions: {

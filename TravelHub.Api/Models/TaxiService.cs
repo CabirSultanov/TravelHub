@@ -30,5 +30,8 @@ public class TaxiService
     [JsonIgnore]
     public AppUser? Owner { get; set; }
 
+    [JsonIgnore]
+    public ICollection<AppUser> Drivers { get; set; } = new List<AppUser>();
+
     public List<TaxiCarClass> CarClasses { get; set; } = new();
 }
