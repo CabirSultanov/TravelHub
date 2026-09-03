@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { isEmailConfirmationRequired } from '@/services/api';
+import { getApiDebugInfo } from '@/config/apiConfig';
+import { api, isEmailConfirmationRequired } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
@@ -20,6 +21,29 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [connectionError, setConnectionError] = useState('');
+  const [apiUrl] = useState(__DEV__ ? getApiDebugInfo() : null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void api.health().then(
+      () => {
+        if (isMounted) {
+          setConnectionError('');
+        }
+      },
+      (healthError: unknown) => {
+        if (isMounted) {
+          setConnectionError(healthError instanceof Error ? healthError.message : 'TravelHub API is not reachable.');
+        }
+      },
+    );
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (user) {
     return <Redirect href="/(driver)/available" />;
@@ -34,6 +58,7 @@ export default function LoginScreen() {
     setError('');
     try {
       await signIn(email, password);
+      setConnectionError('');
     } catch (submissionError) {
       setError(
         isEmailConfirmationRequired(submissionError)
@@ -53,6 +78,8 @@ export default function LoginScreen() {
             <Text style={styles.eyebrow}>TRAVELHUB</Text>
             <Text style={styles.title}>Driver</Text>
             <Text style={styles.subtitle}>Sign in with your TravelHub driver account.</Text>
+            {connectionError ? <Text accessibilityRole="alert" style={styles.connectionError}>{connectionError}</Text> : null}
+            {connectionError && __DEV__ && apiUrl ? <Text style={styles.apiDebug}>API: {apiUrl}</Text> : null}
           </View>
 
           <View style={styles.form}>
@@ -119,6 +146,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   error: { color: '#a83434', fontSize: 14, lineHeight: 20, marginTop: 6 },
+  connectionError: { color: '#a83434', fontSize: 14, lineHeight: 20, marginTop: 8 },
+  apiDebug: { color: '#607080', fontSize: 12, lineHeight: 18 },
   button: {
     alignItems: 'center',
     backgroundColor: '#1f7a8c',

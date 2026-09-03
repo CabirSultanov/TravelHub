@@ -100,33 +100,40 @@ The Vite dev server proxies `/api`, `/health`, and `/images` to the backend.
 
 `MobileApp` is an Expo React Native application for users with the `TaxiDriver` role. It is login-only in the current phase; ride management is not implemented yet.
 
-1. Install Node.js LTS and Expo Go on your Android or iOS phone.
-2. Install the mobile dependencies:
+Run web and mobile against the same local API using three terminals.
 
-```bash
+**Terminal 1 — backend**
+
+```powershell
+dotnet run --project TravelHub.Api --launch-profile mobile
+```
+
+**Terminal 2 — website**
+
+```powershell
+cd TravelHub.Client
+npm run dev
+```
+
+**Terminal 3 — Expo Go**
+
+```powershell
 cd MobileApp
 npm install
+npx expo start --lan
 ```
 
-3. Create `MobileApp/.env` from `MobileApp/.env.example` and set the API address to your computer's LAN IPv4 address:
+Open the website at `http://localhost:5173`. On a phone connected to the same Wi-Fi, open Expo Go and scan the QR code. MobileApp automatically gets the PC LAN host from Expo and connects to the same TravelHub API on port `5207`; `.env`, `ipconfig`, and manually copied IP addresses are not required for normal LAN development.
 
-```env
-EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:5207
-```
-
-4. Start the TravelHub backend, then start Expo:
-
-```bash
-npx expo start
-```
-
-5. Scan the QR code with Expo Go.
-
-`localhost` does **not** point to your computer when the app is running on a physical phone. The phone must be able to reach the computer using its LAN IPv4 address; normally both are on the same local network.
+If an older `MobileApp/.env` exists, remove or rename it to return to automatic discovery; an explicit API URL intentionally takes priority.
 
 The app stores only its access token in the device's secure storage. Native refresh-token support is intentionally deferred until a later phase with dedicated backend support.
 
-### 5) Environment Configuration
+### 5) Mobile troubleshooting
+
+If Expo opens but the API is unavailable, confirm the backend is running with the `mobile` profile and that `http://localhost:5207/health` works on the PC. Allow .NET only on **Private networks** when Windows Firewall prompts. If automatic discovery cannot work on a specific network, create `MobileApp/.env` with `EXPO_PUBLIC_API_URL=http://YOUR_PC_IP:5207`, then restart Expo. This is a fallback only; do not commit it.
+
+### 6) Environment Configuration
 
 Create `TravelHub.Client/.env`:
 

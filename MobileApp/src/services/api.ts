@@ -1,4 +1,5 @@
 import type { AuthResponse, AuthUser, LoginRequest } from '@/types/auth';
+import { getApiBaseUrl } from '@/config/apiConfig';
 
 export class ApiError extends Error {
   constructor(
@@ -8,16 +9,6 @@ export class ApiError extends Error {
   ) {
     super(message);
   }
-}
-
-function getApiUrl() {
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
-
-  if (!apiUrl) {
-    throw new ApiError('Set EXPO_PUBLIC_API_URL in your .env file before signing in.', 0);
-  }
-
-  return apiUrl.replace(/\/+$/, '');
 }
 
 function getErrorMessage(body: unknown) {
@@ -42,7 +33,7 @@ function getErrorMessage(body: unknown) {
   return '';
 }
 
-async function request<T>(path: string, init: RequestInit = {}, accessToken?: string): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, accessToken?: string, timeoutMs = 15_000): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
 
@@ -54,11 +45,19 @@ async function request<T>(path: string, init: RequestInit = {}, accessToken?: st
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
+  const url = `${getApiBaseUrl()}${path}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
-    response = await fetch(`${getApiUrl()}${path}`, { ...init, headers });
+    response = await fetch(url, { ...init, headers, signal: controller.signal });
   } catch {
-    throw new ApiError('Unable to reach TravelHub. Check the API URL and your network connection.', 0);
+    throw new ApiError(
+      'TravelHub API is not reachable. Make sure TravelHub.Api is running with the "mobile" profile, your phone and computer are on the same Wi-Fi, and Windows Firewall allows .NET on Private networks.',
+      0,
+    );
+  } finally {
+    clearTimeout(timeout);
   }
 
   const text = await response.text();
@@ -87,6 +86,7 @@ export function isEmailConfirmationRequired(error: unknown) {
 }
 
 export const api = {
+  health: () => request<{ status: string }>('/health', {}, undefined, 5_000),
   login: (requestBody: LoginRequest) => request<AuthResponse>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify(requestBody),
