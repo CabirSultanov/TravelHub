@@ -24,8 +24,11 @@ export default function DriverLayout() {
       headerShadowVisible: false,
       headerStyle: { backgroundColor: '#f5fafb' },
       headerTintColor: '#17323b',
+      headerTitleStyle: { fontSize: 18, fontWeight: '800' },
       tabBarActiveTintColor: '#1f7a8c',
+      tabBarInactiveTintColor: '#607080',
       tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+      tabBarStyle: { borderTopColor: '#dbe4eb', backgroundColor: '#ffffff' },
     }}>
       <Tabs.Screen name="available" options={{ title: 'Available' }} />
       <Tabs.Screen name="active" options={{ title: 'Active' }} />
