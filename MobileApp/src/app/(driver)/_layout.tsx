@@ -2,6 +2,7 @@ import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
+import { canAccessMobileApp } from '@/utils/mobileAccess';
 
 export default function DriverLayout() {
   const { isLoading, user } = useAuth();
@@ -14,7 +15,7 @@ export default function DriverLayout() {
     );
   }
 
-  if (!user || user.role !== 'TaxiDriver') {
+  if (!user || !canAccessMobileApp(user.role)) {
     return <Redirect href="/login" />;
   }
 

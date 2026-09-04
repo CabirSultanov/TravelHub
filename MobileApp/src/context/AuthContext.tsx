@@ -3,6 +3,7 @@ import { createContext, type PropsWithChildren, useContext, useEffect, useState 
 import { api } from '@/services/api';
 import { deleteToken, getToken, saveToken } from '@/services/auth';
 import type { AuthUser } from '@/types/auth';
+import { canAccessMobileApp } from '@/utils/mobileAccess';
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
 
         const currentUser = await api.getCurrentUser(token);
-        if (currentUser.role !== 'TaxiDriver') {
+        if (!canAccessMobileApp(currentUser.role)) {
           await clearSession();
           return;
         }
@@ -57,9 +58,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await api.login({ email: email.trim(), password });
-      if (response.user.role !== 'TaxiDriver') {
+      if (!canAccessMobileApp(response.user.role)) {
         await clearSession();
-        throw new Error('This application is available only for taxi drivers.');
+        throw new Error('This application is available only for taxi drivers, admins, and super admins.');
       }
 
       await saveToken(response.accessToken);

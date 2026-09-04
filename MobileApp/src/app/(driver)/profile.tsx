@@ -14,7 +14,7 @@ export default function ProfileScreen() {
       <View style={styles.card}>
         <Text style={styles.name}>{user.name}</Text>
         <Text style={styles.email}>{user.email}</Text>
-        <Text style={styles.role}>TaxiDriver</Text>
+        <Text style={styles.role}>{user.role}</Text>
         <Pressable accessibilityRole="button" onPress={() => void signOut()} style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
           <Text style={styles.buttonText}>Log out</Text>
         </Pressable>

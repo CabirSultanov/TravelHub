@@ -39,7 +39,7 @@ Then open Expo Go and scan the QR code. TravelHub Driver automatically derives t
 
 If you created `MobileApp/.env` for an older setup, delete or rename it to use automatic discovery again. An explicit `EXPO_PUBLIC_API_URL` intentionally takes priority.
 
-Sign in with a `TaxiDriver` account. Other TravelHub roles are intentionally denied access to the Driver app.
+Sign in with a `TaxiDriver`, `Admin`, or `SuperAdmin` account. Other TravelHub roles are intentionally denied access to the Driver app.
 
 ## Troubleshooting
 

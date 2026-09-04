@@ -77,7 +77,7 @@ export default function LoginScreen() {
           <View style={styles.brand}>
             <Text style={styles.eyebrow}>TRAVELHUB</Text>
             <Text style={styles.title}>Driver</Text>
-            <Text style={styles.subtitle}>Sign in with your TravelHub driver account.</Text>
+            <Text style={styles.subtitle}>Sign in with your TravelHub driver, admin, or super admin account.</Text>
             {connectionError ? <Text accessibilityRole="alert" style={styles.connectionError}>{connectionError}</Text> : null}
             {connectionError && __DEV__ && apiUrl ? <Text style={styles.apiDebug}>API: {apiUrl}</Text> : null}
           </View>
