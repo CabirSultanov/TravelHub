@@ -1067,7 +1067,6 @@ function App() {
           onAssignTaxi={ownerAssignments.assignTaxi}
           onManageTaxiDrivers={(taxiService) => {
             taxiFeature.actions.service.select(taxiService);
-            navigateTo('taxi');
           }}
           onDelete={adminUsers.remove}
           onDemote={adminUsers.demote}
@@ -1078,6 +1077,7 @@ function App() {
           regularUsersSearch={adminUsers.regularUsersSearch}
           regularUsersTotalItems={adminUsers.regularUsersTotalItems}
           submitting={submitting}
+          taxiDriverManagement={taxiFeature.model.taxiDrivers}
           taxiCandidates={ownerAssignments.taxiCandidates}
           taxiServices={ownerAssignments.taxiServices}
         />
