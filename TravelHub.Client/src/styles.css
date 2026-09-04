@@ -2724,6 +2724,10 @@ input[type='number']::-webkit-outer-spin-button {
   margin-right: auto;
 }
 
+.admin-drivers-card {
+  margin-top: 24px;
+}
+
 .taxi-drivers-panel h4 {
   margin: 8px 0 0;
 }
@@ -3081,6 +3085,39 @@ input[type='number']::-webkit-outer-spin-button {
 
 .taxi-booking-box {
   margin-top: 0;
+}
+
+.payment-method-section {
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  margin: 4px 0;
+  padding: 14px;
+  border: 1px solid #dbe4eb;
+  border-radius: 8px;
+}
+
+.payment-method-section legend {
+  padding: 0 6px;
+  color: #183845;
+  font-weight: 700;
+}
+
+.payment-method-section .booking-mode,
+.payment-method-section .checkbox {
+  grid-column: 1 / -1;
+}
+
+.taxi-driver-details {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #dbe4eb;
+}
+
+.trip-driver {
+  color: #183845;
 }
 
 .tariff-list {

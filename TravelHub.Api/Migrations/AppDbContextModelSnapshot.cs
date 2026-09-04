@@ -379,6 +379,12 @@ namespace TravelHub.Api.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ArrivedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("CancelledAt")
                         .HasColumnType("datetime2");
 
@@ -386,6 +392,9 @@ namespace TravelHub.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("CustomerName")
                         .IsRequired()
@@ -395,6 +404,9 @@ namespace TravelHub.Api.Migrations
                     b.Property<decimal>("DistanceKm")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("DriverId")
+                        .HasColumnType("int");
 
                     b.Property<string>("DropoffAddress")
                         .IsRequired()
@@ -424,6 +436,10 @@ namespace TravelHub.Api.Migrations
 
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("PaymentToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("PhoneNumber")
                         .IsRequired()
@@ -455,6 +471,12 @@ namespace TravelHub.Api.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("SavedCardLast4")
                         .HasMaxLength(4)
                         .HasColumnType("nvarchar(4)");
@@ -479,9 +501,29 @@ namespace TravelHub.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DriverId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("TaxiBookings");
+                });
+
+            modelBuilder.Entity("TravelHub.Api.Models.TaxiBookingDriverDecline", b =>
+                {
+                    b.Property<int>("TaxiBookingId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DriverId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("DeclinedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("TaxiBookingId", "DriverId");
+
+                    b.HasIndex("DriverId");
+
+                    b.ToTable("TaxiBookingDriverDeclines");
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.TaxiCarClass", b =>
@@ -551,6 +593,16 @@ namespace TravelHub.Api.Migrations
                     b.HasIndex("OwnerId");
 
                     b.ToTable("TaxiServices");
+                });
+
+            modelBuilder.Entity("TravelHub.Api.Models.AppUser", b =>
+                {
+                    b.HasOne("TravelHub.Api.Models.TaxiService", "TaxiService")
+                        .WithMany("Drivers")
+                        .HasForeignKey("TaxiServiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("TaxiService");
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.BookingRequest", b =>
@@ -632,15 +684,41 @@ namespace TravelHub.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TravelHub.Api.Models.TaxiBooking", b =>
+                modelBuilder.Entity("TravelHub.Api.Models.TaxiBooking", b =>
                 {
+                    b.HasOne("TravelHub.Api.Models.AppUser", "Driver")
+                        .WithMany()
+                        .HasForeignKey("DriverId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("TravelHub.Api.Models.AppUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("Driver");
+
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TravelHub.Api.Models.TaxiBookingDriverDecline", b =>
+                {
+                    b.HasOne("TravelHub.Api.Models.AppUser", "Driver")
+                        .WithMany()
+                        .HasForeignKey("DriverId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TravelHub.Api.Models.TaxiBooking", "TaxiBooking")
+                        .WithMany("DriverDeclines")
+                        .HasForeignKey("TaxiBookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Driver");
+
+                    b.Navigation("TaxiBooking");
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.TaxiCarClass", b =>
@@ -650,14 +728,6 @@ namespace TravelHub.Api.Migrations
                         .HasForeignKey("TaxiServiceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("TravelHub.Api.Models.AppUser", b =>
-                {
-                    b.HasOne("TravelHub.Api.Models.TaxiService", "TaxiService")
-                        .WithMany("Drivers")
-                        .HasForeignKey("TaxiServiceId")
-                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.TaxiService", b =>
@@ -679,13 +749,16 @@ namespace TravelHub.Api.Migrations
                     b.Navigation("OwnedTaxiServices");
 
                     b.Navigation("RefreshTokens");
-
-                    b.Navigation("TaxiService");
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.Hotel", b =>
                 {
                     b.Navigation("Reviews");
+                });
+
+            modelBuilder.Entity("TravelHub.Api.Models.TaxiBooking", b =>
+                {
+                    b.Navigation("DriverDeclines");
                 });
 
             modelBuilder.Entity("TravelHub.Api.Models.TaxiService", b =>

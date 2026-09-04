@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import TaxiDriversPanel from '../../features/taxi/components/TaxiDriversPanel';
+import type { TaxiDriverManagement } from '../../features/taxi/taxi.types';
 import type { AuthUser, Hotel, TaxiService } from '../../types';
 import { filterAndSortAdminResources } from './adminListUtils';
 
@@ -25,6 +27,7 @@ type AdminPageProps = {
   onAssignHotel: (hotelId: number, ownerId: number | null) => void | Promise<void>;
   onAssignTaxi: (taxiServiceId: number, ownerId: number | null) => void | Promise<void>;
   onManageTaxiDrivers: (taxiService: TaxiService) => void;
+  taxiDriverManagement: TaxiDriverManagement;
 };
 
 export default function AdminPage({
@@ -48,9 +51,11 @@ export default function AdminPage({
   onAssignHotel,
   onAssignTaxi,
   onManageTaxiDrivers,
+  taxiDriverManagement,
 }: AdminPageProps) {
   const [hotelSearch, setHotelSearch] = useState('');
   const [taxiSearch, setTaxiSearch] = useState('');
+  const [managedTaxiService, setManagedTaxiService] = useState<TaxiService | null>(null);
   const filteredHotels = filterAndSortAdminResources(
     hotels,
     hotelSearch,
@@ -196,10 +201,25 @@ export default function AdminPage({
         emptyMessage="No taxi services found."
         label={(taxi) => `${taxi.companyName} — ${taxi.city}`}
         onAssign={onAssignTaxi}
-        onManageDrivers={onManageTaxiDrivers}
+        onManageDrivers={(taxiService) => {
+          setManagedTaxiService(taxiService);
+          onManageTaxiDrivers(taxiService);
+        }}
         resources={filteredTaxiServices}
         submitting={submitting}
       />
+
+      {managedTaxiService && (
+        <section className="panel wide taxi-drivers-card admin-drivers-card" aria-label="Driver management">
+          <div className="section-title">
+            <div>
+              <p className="eyebrow">Taxi service</p>
+              <h3>{managedTaxiService.companyName}</h3>
+            </div>
+          </div>
+          <TaxiDriversPanel management={taxiDriverManagement} submitting={submitting} />
+        </section>
+      )}
     </section>
   );
 }

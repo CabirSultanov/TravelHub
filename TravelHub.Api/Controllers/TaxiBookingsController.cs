@@ -18,71 +18,33 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
     public async Task<ActionResult<List<TaxiBookingResponseDto>>> GetTaxiBookings(bool mine = false)
     {
         var query = db.TaxiBookings.AsNoTracking();
-
         if (mine || !IsAdmin())
         {
             var userId = GetCurrentUserId();
-
-            if (userId is null)
-            {
-                return Unauthorized();
-            }
-
+            if (userId is null) return Unauthorized();
             query = query.Where(booking => booking.UserId == userId.Value);
         }
 
-        return await query
+        var bookings = await query.Include(booking => booking.Driver)
             .OrderByDescending(booking => booking.Id)
-            .Select(booking => new TaxiBookingResponseDto
-            {
-                Id = booking.Id,
-                UserId = booking.UserId,
-                TaxiServiceId = booking.TaxiServiceId,
-                TaxiServiceName = booking.TaxiServiceName,
-                CarClassName = booking.CarClassName,
-                CustomerName = booking.CustomerName,
-                PhoneNumber = booking.PhoneNumber,
-                Email = booking.Email,
-                PickupAddress = booking.PickupAddress,
-                DropoffAddress = booking.DropoffAddress,
-                PickupX = booking.PickupX,
-                PickupY = booking.PickupY,
-                DropoffX = booking.DropoffX,
-                DropoffY = booking.DropoffY,
-                PickupLatitude = booking.PickupLatitude,
-                PickupLongitude = booking.PickupLongitude,
-                DropoffLatitude = booking.DropoffLatitude,
-                DropoffLongitude = booking.DropoffLongitude,
-                DistanceKm = booking.DistanceKm,
-                PricePerKm = booking.PricePerKm,
-                TotalPrice = booking.TotalPrice,
-                Status = booking.Status.ToString(),
-                PaidAt = booking.PaidAt,
-                CancelledAt = booking.CancelledAt,
-                SavedCardLast4 = booking.SavedCardLast4
-            })
             .ToListAsync();
+        return bookings.Select(ToResponse).ToList();
     }
 
     [HttpPost]
-    public async Task<ActionResult<TaxiBookingResponseDto>> CreateTaxiBooking(
-        TaxiBookingCreateDto bookingDto,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<TaxiBookingResponseDto>> CreateTaxiBooking(TaxiBookingCreateDto bookingDto, CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
 
-        if (userId is null)
-        {
-            return Unauthorized();
-        }
-
-        if (string.IsNullOrWhiteSpace(bookingDto.CustomerName) ||
+        if (bookingDto.Payment is null ||
+            string.IsNullOrWhiteSpace(bookingDto.CustomerName) ||
             string.IsNullOrWhiteSpace(bookingDto.PhoneNumber) ||
             string.IsNullOrWhiteSpace(bookingDto.Email) ||
             string.IsNullOrWhiteSpace(bookingDto.PickupAddress) ||
             string.IsNullOrWhiteSpace(bookingDto.DropoffAddress))
         {
-            return BadRequest("CustomerName, PhoneNumber, Email, PickupAddress and DropoffAddress are required.");
+            return BadRequest("CustomerName, PhoneNumber, Email, PickupAddress, DropoffAddress and Payment are required.");
         }
 
         if (!TaxiBookingRules.IsLatitude(bookingDto.PickupLatitude) ||
@@ -93,36 +55,23 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
             return BadRequest("Pickup and dropoff latitude/longitude values are invalid.");
         }
 
-        if (TaxiBookingRules.IsSameLocation(
-            bookingDto.PickupLatitude,
-            bookingDto.PickupLongitude,
-            bookingDto.DropoffLatitude,
-            bookingDto.DropoffLongitude))
+        if (TaxiBookingRules.IsSameLocation(bookingDto.PickupLatitude, bookingDto.PickupLongitude, bookingDto.DropoffLatitude, bookingDto.DropoffLongitude))
         {
             return BadRequest("Pickup and dropoff points must be different.");
         }
 
-        var taxiService = await db.TaxiServices
-            .Include(service => service.CarClasses)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(service => service.Id == bookingDto.TaxiServiceId);
-
-        if (taxiService is null)
-        {
-            return BadRequest("Taxi service does not exist.");
-        }
+        var taxiService = await db.TaxiServices.Include(service => service.CarClasses).AsNoTracking()
+            .FirstOrDefaultAsync(service => service.Id == bookingDto.TaxiServiceId, cancellationToken);
+        if (taxiService is null) return BadRequest("Taxi service does not exist.");
 
         var carClassName = bookingDto.CarClassName.Trim();
-        var carClass = taxiService.CarClasses.FirstOrDefault(currentClass =>
-            currentClass.Name.Equals(carClassName, StringComparison.OrdinalIgnoreCase));
+        var carClass = taxiService.CarClasses.FirstOrDefault(currentClass => currentClass.Name.Equals(carClassName, StringComparison.OrdinalIgnoreCase));
+        if (carClass is null) return BadRequest("Car class does not belong to selected taxi service.");
 
-        if (carClass is null)
-        {
-            return BadRequest("Car class does not belong to selected taxi service.");
-        }
+        var paymentMethod = await ResolvePaymentMethodAsync(userId.Value, bookingDto.Payment, cancellationToken);
+        if (paymentMethod.Error is not null) return BadRequest(paymentMethod.Error);
 
         TaxiRouteResult route;
-
         try
         {
             route = await routingService.GetRouteAsync(
@@ -140,15 +89,13 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
         var totalPrice = TaxiBookingRules.CalculateTotalPrice(route.DistanceKm, carClass.PricePerKm);
         var pickupLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.PickupLatitude, bookingDto.PickupLongitude);
         var dropoffLegacyPoint = TaxiBookingRules.ToLegacyMapPoint(bookingDto.DropoffLatitude, bookingDto.DropoffLongitude);
-
-        var previousPendingBookings = await db.TaxiBookings
-            .Where(booking => booking.UserId == userId.Value && booking.Status == BookingStatus.PendingPayment)
-            .ToListAsync();
         var cancelledAt = DateTime.UtcNow;
-
-        foreach (var previousBooking in previousPendingBookings)
+        var previousAwaitingBookings = await db.TaxiBookings
+            .Where(booking => booking.UserId == userId.Value && booking.Status == TaxiBookingStatus.AwaitingDriver)
+            .ToListAsync(cancellationToken);
+        foreach (var previousBooking in previousAwaitingBookings)
         {
-            previousBooking.Status = BookingStatus.Cancelled;
+            previousBooking.Status = TaxiBookingStatus.Cancelled;
             previousBooking.CancelledAt = cancelledAt;
         }
 
@@ -174,128 +121,72 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
             DistanceKm = route.DistanceKm,
             PricePerKm = carClass.PricePerKm,
             TotalPrice = totalPrice,
-            Status = BookingStatus.PendingPayment
+            Status = TaxiBookingStatus.AwaitingDriver,
+            PaymentToken = paymentMethod.Token,
+            SavedCardLast4 = paymentMethod.Last4
         };
 
         db.TaxiBookings.Add(taxiBooking);
-        await db.SaveChangesAsync();
-
+        await db.SaveChangesAsync(cancellationToken);
         return CreatedAtAction(nameof(GetTaxiBookings), ToResponse(taxiBooking));
     }
 
-    [HttpPost("{id:int}/pay")]
-    public async Task<ActionResult<TaxiBookingResponseDto>> PayTaxiBooking(int id, BookingPaymentDto paymentDto)
+    [HttpPut("{id:int}/cancel")]
+    public async Task<IActionResult> CancelTaxiBooking(int id, CancellationToken cancellationToken)
     {
-        var taxiBooking = await db.TaxiBookings.FirstOrDefaultAsync(booking => booking.Id == id);
-
-        if (taxiBooking is null)
+        var taxiBooking = await db.TaxiBookings.FindAsync([id], cancellationToken);
+        if (taxiBooking is null) return NotFound();
+        if (!CanAccess(taxiBooking)) return Forbid();
+        if (taxiBooking.Status != TaxiBookingStatus.AwaitingDriver)
         {
-            return NotFound();
+            return Conflict("Only taxi bookings waiting for a driver can be cancelled.");
         }
 
-        if (!CanAccess(taxiBooking))
-        {
-            return Forbid();
-        }
-
-        if (taxiBooking.Status != BookingStatus.PendingPayment)
-        {
-            return Conflict("Only pending taxi bookings can be paid.");
-        }
-
-        var userId = GetCurrentUserId();
-
-        if (userId is null)
-        {
-            return Unauthorized();
-        }
-
-        string? savedCardLast4;
-
-        if (paymentDto.SavedPaymentCardId is not null)
-        {
-            var savedCard = await db.SavedPaymentCards
-                .AsNoTracking()
-                .FirstOrDefaultAsync(card => card.Id == paymentDto.SavedPaymentCardId.Value && card.UserId == userId.Value);
-
-            if (savedCard is null)
-            {
-                return BadRequest("Saved payment card does not exist.");
-            }
-
-            if (PaymentCardRules.IsExpired(savedCard.ExpiryMonth, savedCard.ExpiryYear))
-            {
-                return BadRequest("Saved payment card is expired.");
-            }
-
-            savedCardLast4 = savedCard.Last4;
-        }
-        else
-        {
-            var validationError = PaymentCardRules.CreateCard(
-                paymentDto.CardNumber,
-                paymentDto.CardHolderName,
-                paymentDto.ExpiryMonth,
-                paymentDto.ExpiryYear,
-                paymentDto.Cvv,
-                out var cardDraft);
-
-            if (validationError is not null)
-            {
-                return BadRequest(validationError);
-            }
-
-            if (paymentDto.SaveCard)
-            {
-                db.SavedPaymentCards.Add(new SavedPaymentCard
-                {
-                    UserId = userId.Value,
-                    CardHolderName = cardDraft.CardHolderName,
-                    Brand = cardDraft.Brand,
-                    Last4 = cardDraft.Last4,
-                    ExpiryMonth = cardDraft.ExpiryMonth,
-                    ExpiryYear = cardDraft.ExpiryYear,
-                    Token = cardDraft.Token
-                });
-            }
-
-            savedCardLast4 = paymentDto.SaveCard ? cardDraft.Last4 : null;
-        }
-
-        taxiBooking.Status = BookingStatus.Paid;
-        taxiBooking.PaidAt = DateTime.UtcNow;
-        taxiBooking.SavedCardLast4 = savedCardLast4;
-
-        await db.SaveChangesAsync();
-
-        return ToResponse(taxiBooking);
+        taxiBooking.Status = TaxiBookingStatus.Cancelled;
+        taxiBooking.CancelledAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        return NoContent();
     }
 
-    [HttpPut("{id:int}/cancel")]
-    public async Task<IActionResult> CancelTaxiBooking(int id)
+    private async Task<PaymentMethodResult> ResolvePaymentMethodAsync(int userId, BookingPaymentDto payment, CancellationToken cancellationToken)
     {
-        var taxiBooking = await db.TaxiBookings.FindAsync(id);
-
-        if (taxiBooking is null)
+        if (payment.SavedPaymentCardId is not null)
         {
-            return NotFound();
+            var savedCard = await db.SavedPaymentCards.AsNoTracking()
+                .FirstOrDefaultAsync(card => card.Id == payment.SavedPaymentCardId.Value && card.UserId == userId, cancellationToken);
+            if (savedCard is null) return new PaymentMethodResult(null, null, "Saved payment card does not exist.");
+            if (PaymentCardRules.IsExpired(savedCard.ExpiryMonth, savedCard.ExpiryYear))
+            {
+                return new PaymentMethodResult(null, null, "Saved payment card is expired.");
+            }
+
+            return new PaymentMethodResult(savedCard.Token, savedCard.Last4, null);
         }
 
-        if (!CanAccess(taxiBooking))
+        var validationError = PaymentCardRules.CreateCard(
+            payment.CardNumber,
+            payment.CardHolderName,
+            payment.ExpiryMonth,
+            payment.ExpiryYear,
+            payment.Cvv,
+            out var cardDraft);
+        if (validationError is not null) return new PaymentMethodResult(null, null, validationError);
+
+        if (payment.SaveCard)
         {
-            return Forbid();
+            db.SavedPaymentCards.Add(new SavedPaymentCard
+            {
+                UserId = userId,
+                CardHolderName = cardDraft.CardHolderName,
+                Brand = cardDraft.Brand,
+                Last4 = cardDraft.Last4,
+                ExpiryMonth = cardDraft.ExpiryMonth,
+                ExpiryYear = cardDraft.ExpiryYear,
+                Token = cardDraft.Token
+            });
         }
 
-        if (taxiBooking.Status != BookingStatus.PendingPayment)
-        {
-            return Conflict("Only pending taxi bookings can be cancelled.");
-        }
-
-        taxiBooking.Status = BookingStatus.Cancelled;
-        taxiBooking.CancelledAt = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-
-        return NoContent();
+        return new PaymentMethodResult(cardDraft.Token, cardDraft.Last4, null);
     }
 
     private static TaxiBookingResponseDto ToResponse(TaxiBooking booking) => new()
@@ -324,7 +215,13 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
         Status = booking.Status.ToString(),
         PaidAt = booking.PaidAt,
         CancelledAt = booking.CancelledAt,
-        SavedCardLast4 = booking.SavedCardLast4
+        SavedCardLast4 = booking.SavedCardLast4,
+        DriverId = booking.DriverId,
+        DriverName = booking.Driver?.Name,
+        DriverPhoneNumber = booking.Driver?.PhoneNumber,
+        AcceptedAt = booking.AcceptedAt,
+        ArrivedAt = booking.ArrivedAt,
+        CompletedAt = booking.CompletedAt
     };
 
     private bool IsAdmin() => User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.SuperAdmin);
@@ -340,4 +237,6 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
         var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return int.TryParse(value, out var userId) ? userId : null;
     }
+
+    private sealed record PaymentMethodResult(string? Token, string? Last4, string? Error);
 }

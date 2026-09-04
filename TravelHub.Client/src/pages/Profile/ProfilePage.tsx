@@ -1,8 +1,7 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent } from 'react';
 import type {
   AuthUser,
   Booking,
-  BookingStatus,
   PaymentCardForm,
   ProfileForm,
   SavedPaymentCard,
@@ -23,15 +22,12 @@ type ProfilePageProps = {
   profileForm: ProfileForm;
   paymentCardForm: PaymentCardForm;
   showPaymentCardForm: boolean;
-  payingBookingId: number | null;
-  payingTaxiBookingId: number | null;
   accountPhonePrefix: string;
   accountPhonePattern: string;
   cardNumberPattern: string;
   cvvPattern: string;
   currentYear: number;
   formatTaxiCarClassName: (name: string) => string;
-  renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
   onProfileFormChange: (form: ProfileForm) => void;
   onSubmitProfile: (event: FormEvent<HTMLFormElement>) => void;
   onCancelProfileEdit: () => void;
@@ -42,15 +38,23 @@ type ProfilePageProps = {
   onCancelPaymentCardForm: () => void;
   onShowPaymentCardForm: (show: boolean) => void;
   onDeletePaymentCard: (cardId: number) => void | Promise<void>;
-  onOpenPaymentForm: (bookingId: number) => void;
-  onCancelBooking: (booking: Booking) => void | Promise<void>;
-  onOpenTaxiPaymentForm: (bookingId: number) => void;
-  onCancelTaxiBooking: (booking: TaxiBooking) => void | Promise<void>;
 };
 
-function formatProfilePaymentStatus(status: BookingStatus) {
+function formatProfilePaymentStatus(status: Booking['status'] | TaxiBooking['status']) {
   if (status === 'PendingPayment') {
     return 'Not paid';
+  }
+
+  if (status === 'AwaitingDriver') {
+    return 'Finding a driver';
+  }
+
+  if (status === 'DriverAssigned') {
+    return 'Driver is on the way';
+  }
+
+  if (status === 'DriverArrived') {
+    return 'Driver arrived';
   }
 
   return status;

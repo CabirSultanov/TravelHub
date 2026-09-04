@@ -1,11 +1,10 @@
-import type { ReactNode } from 'react';
 import TaxiBookingForm from '../../features/taxi/components/TaxiBookingForm';
 import TaxiBookingResult from '../../features/taxi/components/TaxiBookingResult';
 import TaxiServiceForm from '../../features/taxi/components/TaxiServiceForm';
 import TaxiServiceList from '../../features/taxi/components/TaxiServiceList';
 import TaxiDriversPanel from '../../features/taxi/components/TaxiDriversPanel';
 import SiteFooter from '../../components/common/SiteFooter';
-import type { AuthUser, Booking, Page, TaxiBooking } from '../../types';
+import type { AuthUser, Page, PaymentForm, PaymentMode, SavedPaymentCard, TaxiBooking } from '../../types';
 import type { TaxiFeature } from '../../features/taxi/taxi.types';
 
 type TaxiPageProps = {
@@ -15,7 +14,15 @@ type TaxiPageProps = {
   loading: boolean;
   phoneNumberPattern: string;
   pricePattern: string;
-  renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
+  paymentMode: PaymentMode;
+  paymentForm: PaymentForm;
+  savedPaymentCards: SavedPaymentCard[];
+  cardNumberPattern: string;
+  cvvPattern: string;
+  currentYear: number;
+  onPaymentModeChange: (mode: PaymentMode) => void;
+  onPaymentFormChange: (form: PaymentForm) => void;
+  onCancelTaxiBooking: (booking: TaxiBooking) => void | Promise<void>;
   onNavigate: (page: Page) => void;
   onOpenAuth: () => void;
   onShowDestinations: () => void;
@@ -29,7 +36,15 @@ export default function TaxiPage({
   loading,
   phoneNumberPattern,
   pricePattern,
-  renderPaymentForm,
+  paymentMode,
+  paymentForm,
+  savedPaymentCards,
+  cardNumberPattern,
+  cvvPattern,
+  currentYear,
+  onPaymentModeChange,
+  onPaymentFormChange,
+  onCancelTaxiBooking,
   onNavigate,
   onOpenAuth,
   onShowDestinations,
@@ -83,12 +98,12 @@ export default function TaxiPage({
             taxiServices={model.taxiServices}
           />
 
-          {model.taxiBooking?.status === 'PendingPayment' && (
+          {model.taxiBooking && (
             <section className="taxi-payment-slot" aria-label="Taxi payment">
               <TaxiBookingResult
                 booking={model.taxiBooking}
+                onCancel={() => void onCancelTaxiBooking(model.taxiBooking!)}
                 onReset={actions.resetBooking}
-                renderPaymentForm={renderPaymentForm}
               />
             </section>
           )}
@@ -113,10 +128,18 @@ export default function TaxiPage({
           <>
             <TaxiBookingForm
               actions={bookingFormActions}
+              cardNumberPattern={cardNumberPattern}
+              currentYear={currentYear}
               currentUser={currentUser}
+              cvvPattern={cvvPattern}
+              onPaymentFormChange={onPaymentFormChange}
+              onPaymentModeChange={onPaymentModeChange}
+              paymentForm={paymentForm}
+              paymentMode={paymentMode}
               phoneNumberPattern={phoneNumberPattern}
               selectedTaxiCarClass={selectedTaxiCarClass}
               selectedTaxiService={selectedTaxiService}
+              savedPaymentCards={savedPaymentCards}
               submitting={submitting}
               taxiBookingForm={model.taxiBookingForm}
               taxiBookingGuestMode={model.taxiBookingGuestMode}
@@ -135,7 +158,7 @@ export default function TaxiPage({
 
       </section>
 
-      {!model.showTaxiForm && selectedTaxiService && model.canManageSelectedTaxi && (
+      {!model.showTaxiForm && selectedTaxiService && model.canManageSelectedTaxi && currentUser?.role === 'TaxiOwner' && (
         <section className="container taxi-drivers-workspace" aria-label="Driver management">
           <div className="panel wide taxi-drivers-card">
             <TaxiDriversPanel management={model.taxiDrivers} submitting={submitting} />

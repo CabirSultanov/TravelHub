@@ -452,11 +452,6 @@ export const api = {
       body: JSON.stringify(route),
       signal,
     }),
-  payTaxiBooking: (bookingId: number, payment: BookingPayment) =>
-    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/pay`, {
-      method: 'POST',
-      body: JSON.stringify(payment),
-    }),
   cancelTaxiBooking: (bookingId: number) =>
     request<void>(`/api/taxi-bookings/${bookingId}/cancel`, {
       method: 'PUT',

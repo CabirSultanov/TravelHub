@@ -74,7 +74,17 @@ public class TaxiBooking
     [Precision(18, 2)]
     public decimal TotalPrice { get; set; }
 
-    public BookingStatus Status { get; set; } = BookingStatus.PendingPayment;
+    public TaxiBookingStatus Status { get; set; } = TaxiBookingStatus.AwaitingDriver;
+
+    public int? DriverId { get; set; }
+
+    public AppUser? Driver { get; set; }
+
+    public DateTime? AcceptedAt { get; set; }
+
+    public DateTime? ArrivedAt { get; set; }
+
+    public DateTime? CompletedAt { get; set; }
 
     public DateTime? PaidAt { get; set; }
 
@@ -82,4 +92,12 @@ public class TaxiBooking
 
     [MaxLength(4)]
     public string? SavedCardLast4 { get; set; }
+
+    [MaxLength(64)]
+    public string? PaymentToken { get; set; }
+
+    [Timestamp]
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+    public ICollection<TaxiBookingDriverDecline> DriverDeclines { get; set; } = new List<TaxiBookingDriverDecline>();
 }

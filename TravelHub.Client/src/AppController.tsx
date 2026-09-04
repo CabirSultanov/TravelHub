@@ -93,7 +93,6 @@ function App() {
   const [paymentCardForm, setPaymentCardForm] = useState<PaymentCardForm>(emptyPaymentCardForm);
   const [showPaymentCardForm, setShowPaymentCardForm] = useState(false);
   const [payingBookingId, setPayingBookingId] = useState<number | null>(null);
-  const [payingTaxiBookingId, setPayingTaxiBookingId] = useState<number | null>(null);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [taxiBookingsLoading, setTaxiBookingsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -131,7 +130,6 @@ function App() {
     },
     onRequireAuth: requireAuth,
     onResetPayment: resetPaymentForm,
-    onResetTaxiPayment: () => setPayingTaxiBookingId(null),
     setMessage,
     setSubmitting,
   });
@@ -186,7 +184,6 @@ function App() {
       setTaxiBookings([]);
       setSavedPaymentCards([]);
       setPayingBookingId(null);
-      setPayingTaxiBookingId(null);
     });
 
     return () => api.setSessionExpiredHandler(null);
@@ -237,7 +234,6 @@ function App() {
       setBookings([]);
       setTaxiBookings([]);
       setSavedPaymentCards([]);
-      setPayingTaxiBookingId(null);
       return;
     }
 
@@ -245,6 +241,15 @@ function App() {
     void loadTaxiBookings();
     void loadPaymentCards();
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser || !['taxi', 'trips', 'profile'].includes(page)) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => void loadTaxiBookings(), 10_000);
+    return () => window.clearInterval(intervalId);
+  }, [currentUser?.id, page]);
 
   useEffect(() => {
     if (loading || currentUser || (page !== 'profile' && page !== 'trips')) {
@@ -560,7 +565,14 @@ function App() {
     setTaxiBookingsLoading(true);
 
     try {
-      setTaxiBookings(await api.getTaxiBookings(true));
+      const loadedBookings = await api.getTaxiBookings(true);
+      setTaxiBookings(loadedBookings);
+
+      const currentBookingId = taxiFeature.model.taxiBooking?.id;
+      const currentBooking = loadedBookings.find((booking) => booking.id === currentBookingId);
+      if (currentBooking) {
+        taxiFeature.actions.setBooking(currentBooking);
+      }
     } catch (error) {
       if (!getErrorMessage(error).includes('status 404')) {
         setMessage(getErrorMessage(error));
@@ -651,44 +663,6 @@ function App() {
     }
   }
 
-  async function submitTaxiBookingPayment(event: FormEvent<HTMLFormElement>, targetBooking: TaxiBooking) {
-    event.preventDefault();
-
-    setSubmitting(true);
-    setPaymentProcessing(true);
-    setPaymentSuccess(false);
-    setMessage('');
-
-    try {
-      const payment = createPaymentPayload();
-      await delay(3000);
-      const paidBooking = await api.payTaxiBooking(targetBooking.id, payment);
-
-      setPaymentProcessing(false);
-      setPaymentSuccess(true);
-      await delay(3000);
-
-      if (taxiFeature.model.taxiBooking?.id === paidBooking.id) {
-        taxiFeature.actions.setBooking(paidBooking);
-      }
-
-      if (paymentMode === 'new' && paymentForm.saveCard) {
-        await loadPaymentCards();
-      }
-
-      upsertTaxiBooking(paidBooking);
-      resetPaymentForm();
-      setPayingTaxiBookingId(null);
-      setMessage('Payment completed.');
-    } catch (error) {
-      setMessage(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-      setPaymentProcessing(false);
-      setPaymentSuccess(false);
-    }
-  }
-
   async function cancelBooking(targetBooking: Booking) {
     setSubmitting(true);
     setMessage('');
@@ -734,7 +708,6 @@ function App() {
       }
 
       upsertTaxiBooking(cancelledBooking);
-      setPayingTaxiBookingId(null);
       setMessage('Taxi booking cancelled.');
     } catch (error) {
       setMessage(getErrorMessage(error));
@@ -751,7 +724,6 @@ function App() {
     setPaymentCardForm(emptyPaymentCardForm);
     setShowPaymentCardForm(false);
     setPayingBookingId(null);
-    setPayingTaxiBookingId(null);
     navigateTo('home');
   }
 
@@ -822,13 +794,6 @@ function App() {
 
   function openPaymentForm(bookingId: number) {
     setPayingBookingId(bookingId);
-    setPayingTaxiBookingId(null);
-    resetPaymentForm();
-  }
-
-  function openTaxiPaymentForm(bookingId: number) {
-    setPayingTaxiBookingId(bookingId);
-    setPayingBookingId(null);
     resetPaymentForm();
   }
 
@@ -842,27 +807,19 @@ function App() {
     };
   }
 
-  function renderPaymentForm(targetBooking: Booking | TaxiBooking, bookingKind: 'hotel' | 'taxi' = 'hotel') {
+  function renderPaymentForm(targetBooking: Booking) {
     return (
       <PaymentFormComponent
         cardNumberPattern={cardNumberPattern}
         currentYear={currentYear}
         cvvPattern={cvvPattern}
         onCancel={() => {
-          if (bookingKind === 'taxi') {
-            void cancelTaxiBooking(targetBooking as TaxiBooking);
-          } else {
-            void cancelBooking(targetBooking as Booking);
-          }
+          void cancelBooking(targetBooking);
         }}
         onPaymentFormChange={setPaymentForm}
         onPaymentModeChange={setPaymentMode}
         onSubmit={(event) => {
-          if (bookingKind === 'taxi') {
-            void submitTaxiBookingPayment(event, targetBooking as TaxiBooking);
-          } else {
-            void submitBookingPayment(event, targetBooking as Booking);
-          }
+          void submitBookingPayment(event, targetBooking);
         }}
         paymentForm={paymentForm}
         paymentMode={paymentMode}
@@ -923,16 +880,24 @@ function App() {
 
       {page === 'taxi' && (
         <TaxiPage
+          cardNumberPattern={cardNumberPattern}
+          currentYear={currentYear}
           currentUser={currentUser}
+          cvvPattern={cvvPattern}
           feature={taxiFeature}
           loading={initialDataLoading}
+          onCancelTaxiBooking={cancelTaxiBooking}
           onNavigate={navigateTo}
           onOpenAuth={openAuth}
+          onPaymentFormChange={setPaymentForm}
+          onPaymentModeChange={setPaymentMode}
           onShowDestinations={showDestinations}
           onTaxiRouteChange={updateTaxiRouteSearch}
+          paymentForm={paymentForm}
+          paymentMode={paymentMode}
           phoneNumberPattern={phoneNumberPattern}
           pricePattern={pricePattern}
-          renderPaymentForm={renderPaymentForm}
+          savedPaymentCards={savedPaymentCards}
           submitting={submitting}
         />
       )}
@@ -1006,27 +971,20 @@ function App() {
           cvvPattern={cvvPattern}
           editingProfile={editingProfile}
           formatTaxiCarClassName={formatTaxiCarClassName}
-          onCancelBooking={cancelBooking}
           onCancelPaymentCardForm={() => {
             setPaymentCardForm(emptyPaymentCardForm);
             setShowPaymentCardForm(false);
           }}
           onCancelProfileEdit={() => setEditingProfile(false)}
-          onCancelTaxiBooking={cancelTaxiBooking}
           onDeletePaymentCard={deletePaymentCard}
           onDeleteProfile={account.deleteProfile}
-          onOpenPaymentForm={openPaymentForm}
           onOpenProfileEditor={account.openProfileEditor}
-          onOpenTaxiPaymentForm={openTaxiPaymentForm}
           onPaymentCardFormChange={setPaymentCardForm}
           onProfileFormChange={setProfileForm}
           onShowPaymentCardForm={setShowPaymentCardForm}
           onSubmitPaymentCard={(event) => void submitPaymentCard(event)}
           onSubmitProfile={(event) => void account.submitProfile(event)}
-          payingBookingId={payingBookingId}
-          payingTaxiBookingId={payingTaxiBookingId}
           paymentCardForm={paymentCardForm}
-          renderPaymentForm={renderPaymentForm}
           savedPaymentCards={savedPaymentCards}
           profileForm={profileForm}
           showPaymentCardForm={showPaymentCardForm}
@@ -1045,9 +1003,7 @@ function App() {
           onCancelTaxiBooking={cancelTaxiBooking}
           onNavigate={navigateTo}
           onOpenPaymentForm={openPaymentForm}
-          onOpenTaxiPaymentForm={openTaxiPaymentForm}
           payingBookingId={payingBookingId}
-          payingTaxiBookingId={payingTaxiBookingId}
           renderPaymentForm={renderPaymentForm}
           submitting={submitting}
           taxiBookings={taxiBookings}
@@ -1067,7 +1023,6 @@ function App() {
           onAssignTaxi={ownerAssignments.assignTaxi}
           onManageTaxiDrivers={(taxiService) => {
             taxiFeature.actions.service.select(taxiService);
-            navigateTo('taxi');
           }}
           onDelete={adminUsers.remove}
           onDemote={adminUsers.demote}
@@ -1078,6 +1033,7 @@ function App() {
           regularUsersSearch={adminUsers.regularUsersSearch}
           regularUsersTotalItems={adminUsers.regularUsersTotalItems}
           submitting={submitting}
+          taxiDriverManagement={taxiFeature.model.taxiDrivers}
           taxiCandidates={ownerAssignments.taxiCandidates}
           taxiServices={ownerAssignments.taxiServices}
         />

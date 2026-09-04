@@ -116,6 +116,13 @@ public class TaxiDriversController(AppDbContext db) : ControllerBase
             return BadRequest("User is not a taxi driver.");
         }
 
+        var hasActiveRide = await db.TaxiBookings.AnyAsync(booking => booking.DriverId == driver.Id
+            && (booking.Status == TaxiBookingStatus.DriverAssigned || booking.Status == TaxiBookingStatus.DriverArrived), cancellationToken);
+        if (hasActiveRide)
+        {
+            return BadRequest("A driver with an active ride cannot be removed.");
+        }
+
         driver.Role = UserRoles.User;
         driver.TaxiServiceId = null;
         await db.SaveChangesAsync(cancellationToken);
