@@ -5,14 +5,14 @@ import { useFocusEffect } from 'expo-router';
 import { DriverPlaceholder } from '@/components/DriverPlaceholder';
 import { DriverRideCard } from '@/components/DriverRideCard';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/services/api';
+import { ApiError, api } from '@/services/api';
 import { getToken } from '@/services/auth';
 import type { DriverRide } from '@/types/auth';
 
 const REFRESH_INTERVAL_MS = 10_000;
 
 export default function AvailableScreen() {
-  const { user } = useAuth();
+  const { signOut, user } = useAuth();
   const [rides, setRides] = useState<DriverRide[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,11 +27,15 @@ export default function AvailableScreen() {
       setRides(nextRides);
       setError('');
     } catch (loadError) {
+      if (loadError instanceof ApiError && loadError.status === 401) {
+        await signOut();
+        return;
+      }
       setError(loadError instanceof Error ? loadError.message : 'Unable to load available rides.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [signOut]);
 
   useFocusEffect(useCallback(() => {
     if (user?.role !== 'TaxiDriver') return undefined;
@@ -53,6 +57,10 @@ export default function AvailableScreen() {
       }
       await loadRides();
     } catch (updateError) {
+      if (updateError instanceof ApiError && updateError.status === 401) {
+        await signOut();
+        return;
+      }
       setError(updateError instanceof Error ? updateError.message : 'Unable to update this ride.');
     } finally {
       setUpdatingRideId(null);
