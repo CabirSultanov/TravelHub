@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { api } from '../../../api';
 import { getErrorMessage } from '../../../utils/errors';
 import { splitTaxiCities, taxiCarClassOptions } from '../../../utils/taxi';
-import type { TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
+import type { BookingPayment, TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
 import { createEmptyTaxiBookingForm, emptyTaxiForm } from '../taxi.constants';
 import { useTaxiDrivers } from './useTaxiDrivers';
 import {
@@ -40,7 +40,6 @@ export function useTaxiFeature({
   onRequireAuth,
   onBookingCreated,
   onResetPayment,
-  onResetTaxiPayment,
 }: TaxiFeatureOptions): TaxiFeature {
   const [taxiServices, setTaxiServices] = useState<TaxiService[]>([]);
   const [taxiBooking, setTaxiBooking] = useState<TaxiBooking | null>(null);
@@ -323,7 +322,6 @@ export function useTaxiFeature({
       carClassName: selectedCarClassName,
     });
     setTaxiBooking(null);
-    onResetTaxiPayment();
     setEditingTaxiId(null);
     setTaxiForm(emptyTaxiForm);
     setShowTaxiForm(false);
@@ -333,7 +331,6 @@ export function useTaxiFeature({
   function clearTaxiRoutePreview() {
     setTaxiBooking(null);
     setTaxiRouteState(idleTaxiRouteState);
-    onResetTaxiPayment();
   }
 
   function updateTaxiMapPoint(mode: 'pickup' | 'dropoff', coordinates: Coordinates, address: string) {
@@ -366,7 +363,7 @@ export function useTaxiFeature({
     }));
   }
 
-  async function submitTaxiBooking(event: FormEvent<HTMLFormElement>) {
+  async function submitTaxiBooking(event: FormEvent<HTMLFormElement>, payment: BookingPayment) {
     event.preventDefault();
 
     if (!currentUser) {
@@ -407,6 +404,7 @@ export function useTaxiFeature({
         pickupLongitude: pickupCoordinates.longitude,
         dropoffLatitude: dropoffCoordinates.latitude,
         dropoffLongitude: dropoffCoordinates.longitude,
+        payment,
       });
 
       setTaxiBooking(createdBooking);
@@ -425,7 +423,6 @@ export function useTaxiFeature({
     setTaxiBookingForm(createEmptyTaxiBookingForm(currentUser, selectedTaxiService ?? taxiServices[0]));
     setTaxiCoordinates({ pickup: null, dropoff: null });
     setTaxiRouteState(idleTaxiRouteState);
-    onResetTaxiPayment();
     setMessage('');
   }
 
@@ -477,7 +474,7 @@ export function useTaxiFeature({
         updatePoint: updateTaxiMapPoint,
         updatePointAddress: updateTaxiPointAddress,
         setRoute: updateTaxiRoute,
-        submit: (event) => void submitTaxiBooking(event),
+        submit: (event, payment) => void submitTaxiBooking(event, payment),
       },
       resetBooking: resetTaxiBooking,
       setBooking: setTaxiBooking,

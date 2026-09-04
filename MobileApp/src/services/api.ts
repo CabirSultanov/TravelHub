@@ -1,4 +1,4 @@
-import type { AuthResponse, AuthUser, LoginRequest } from '@/types/auth';
+import type { AuthResponse, AuthUser, DriverRide, LoginRequest } from '@/types/auth';
 import { getApiBaseUrl } from '@/config/apiConfig';
 
 export class ApiError extends Error {
@@ -92,4 +92,18 @@ export const api = {
     body: JSON.stringify(requestBody),
   }),
   getCurrentUser: (accessToken: string) => request<AuthUser>('/api/auth/me', {}, accessToken),
+  getAvailableRides: (accessToken: string) => request<DriverRide[]>('/api/driver/taxi-bookings/available', {}, accessToken),
+  getActiveRide: async (accessToken: string) => {
+    try {
+      return await request<DriverRide>('/api/driver/taxi-bookings/active', {}, accessToken);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  },
+  getRideHistory: (accessToken: string) => request<DriverRide[]>('/api/driver/taxi-bookings/history', {}, accessToken),
+  acceptRide: (rideId: number, accessToken: string) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/accept`, { method: 'POST' }, accessToken),
+  declineRide: (rideId: number, accessToken: string) => request<void>(`/api/driver/taxi-bookings/${rideId}/decline`, { method: 'POST' }, accessToken),
+  markRideArrived: (rideId: number, accessToken: string) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/arrived`, { method: 'POST' }, accessToken),
+  completeRide: (rideId: number, accessToken: string) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/complete`, { method: 'POST' }, accessToken),
 };

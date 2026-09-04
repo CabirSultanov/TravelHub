@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react';
 import type {
   AuthUser,
+  BookingPayment,
   BookingGuestMode,
   TaxiBooking,
   TaxiBookingCreate,
@@ -40,7 +41,7 @@ export type TaxiRouteState = {
   encodedPolyline?: string;
 };
 
-export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {
+export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId' | 'payment'> & {
   taxiServiceId: string;
 };
 
@@ -73,7 +74,7 @@ export type TaxiBookingFormActions = {
   updatePoint: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
   updatePointAddress: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
   setRoute: (route: TaxiRouteState) => void;
-  submit: (event: FormEvent<HTMLFormElement>) => void;
+  submit: (event: FormEvent<HTMLFormElement>, payment: BookingPayment) => void;
 };
 
 export type TaxiFeatureModel = {
@@ -125,5 +126,4 @@ export type TaxiFeatureOptions = {
   onRequireAuth: (message: string) => void;
   onBookingCreated: (booking: TaxiBooking) => void;
   onResetPayment: () => void;
-  onResetTaxiPayment: () => void;
 };

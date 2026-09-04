@@ -8,7 +8,7 @@ import RoomForm from '../../features/hotels/components/RoomForm';
 import RoomList, { RoomPhotoStrip } from '../../features/hotels/components/RoomList';
 import ImageCarousel from '../../components/common/ImageCarousel';
 import SiteFooter from '../../components/common/SiteFooter';
-import type { AuthUser, Booking, Hotel, Page, TaxiBooking } from '../../types';
+import type { AuthUser, Booking, Hotel, Page } from '../../types';
 import {
   clearInvalidHotelCheckOut,
   hotelDateRangeErrorMessage,
@@ -27,7 +27,7 @@ type HotelsPageProps = {
   submitting: boolean;
   loading: boolean;
   phoneNumberPattern: string;
-  renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
+  renderPaymentForm: (booking: Booking) => ReactNode;
   onOpenAuth: () => void;
   onRequireAuth: (message: string) => void;
   setMessage: (message: string) => void;

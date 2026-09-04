@@ -49,7 +49,7 @@ public class TaxiBookingsControllerTests
     {
         await using var db = CreateDbContext();
         var taxiService = await AddTaxiServiceAsync(db);
-        var previousBooking = CreateBooking(1, BookingStatus.PendingPayment);
+        var previousBooking = CreateBooking(1, TaxiBookingStatus.AwaitingDriver);
         db.TaxiBookings.Add(previousBooking);
         await db.SaveChangesAsync();
 
@@ -60,13 +60,13 @@ public class TaxiBookingsControllerTests
         db.ChangeTracker.Clear();
         var storedPreviousBooking = await db.TaxiBookings.FindAsync(previousBooking.Id);
         var pendingBookings = await db.TaxiBookings
-            .Where(booking => booking.UserId == 1 && booking.Status == BookingStatus.PendingPayment)
+            .Where(booking => booking.UserId == 1 && booking.Status == TaxiBookingStatus.AwaitingDriver)
             .ToListAsync();
 
         Assert.NotNull(storedPreviousBooking);
-        Assert.Equal(BookingStatus.Cancelled, storedPreviousBooking.Status);
+        Assert.Equal(TaxiBookingStatus.Cancelled, storedPreviousBooking.Status);
         Assert.NotNull(storedPreviousBooking.CancelledAt);
-        Assert.Equal(BookingStatus.PendingPayment.ToString(), createdBooking.Status);
+        Assert.Equal(TaxiBookingStatus.AwaitingDriver.ToString(), createdBooking.Status);
         Assert.Single(pendingBookings);
         Assert.Equal(createdBooking.Id, pendingBookings[0].Id);
     }
@@ -77,9 +77,9 @@ public class TaxiBookingsControllerTests
         await using var db = CreateDbContext();
         var taxiService = await AddTaxiServiceAsync(db);
         db.TaxiBookings.AddRange(
-            CreateBooking(1, BookingStatus.PendingPayment),
-            CreateBooking(1, BookingStatus.PendingPayment),
-            CreateBooking(1, BookingStatus.PendingPayment));
+            CreateBooking(1, TaxiBookingStatus.AwaitingDriver),
+            CreateBooking(1, TaxiBookingStatus.AwaitingDriver),
+            CreateBooking(1, TaxiBookingStatus.AwaitingDriver));
         await db.SaveChangesAsync();
 
         var result = await CreateController(db, 1).CreateTaxiBooking(CreateBookingDto(taxiService.Id), CancellationToken.None);
@@ -88,8 +88,8 @@ public class TaxiBookingsControllerTests
         var createdBooking = Assert.IsType<TaxiBookingResponseDto>(createdResult.Value);
         db.ChangeTracker.Clear();
         var userBookings = await db.TaxiBookings.Where(booking => booking.UserId == 1).ToListAsync();
-        var cancelledBookings = userBookings.Where(booking => booking.Status == BookingStatus.Cancelled).ToList();
-        var pendingBookings = userBookings.Where(booking => booking.Status == BookingStatus.PendingPayment).ToList();
+        var cancelledBookings = userBookings.Where(booking => booking.Status == TaxiBookingStatus.Cancelled).ToList();
+        var pendingBookings = userBookings.Where(booking => booking.Status == TaxiBookingStatus.AwaitingDriver).ToList();
 
         Assert.Equal(3, cancelledBookings.Count);
         Assert.All(cancelledBookings, booking => Assert.NotNull(booking.CancelledAt));
@@ -101,17 +101,17 @@ public class TaxiBookingsControllerTests
     public async Task CancelTaxiBooking_WhenPending_CancelsBooking()
     {
         await using var db = CreateDbContext();
-        var booking = CreateBooking(1, BookingStatus.PendingPayment);
+        var booking = CreateBooking(1, TaxiBookingStatus.AwaitingDriver);
         db.TaxiBookings.Add(booking);
         await db.SaveChangesAsync();
 
-        var result = await CreateController(db, 1).CancelTaxiBooking(booking.Id);
+        var result = await CreateController(db, 1).CancelTaxiBooking(booking.Id, default);
 
         Assert.IsType<NoContentResult>(result);
         db.ChangeTracker.Clear();
         var storedBooking = await db.TaxiBookings.FindAsync(booking.Id);
         Assert.NotNull(storedBooking);
-        Assert.Equal(BookingStatus.Cancelled, storedBooking.Status);
+        Assert.Equal(TaxiBookingStatus.Cancelled, storedBooking.Status);
         Assert.NotNull(storedBooking.CancelledAt);
     }
 
@@ -120,19 +120,19 @@ public class TaxiBookingsControllerTests
     {
         await using var db = CreateDbContext();
         var paidAt = DateTime.UtcNow.AddMinutes(-1);
-        var booking = CreateBooking(1, BookingStatus.Paid);
+        var booking = CreateBooking(1, TaxiBookingStatus.DriverAssigned);
         booking.PaidAt = paidAt;
         db.TaxiBookings.Add(booking);
         await db.SaveChangesAsync();
 
-        var result = await CreateController(db, 1).CancelTaxiBooking(booking.Id);
+        var result = await CreateController(db, 1).CancelTaxiBooking(booking.Id, default);
 
         var conflict = Assert.IsType<ConflictObjectResult>(result);
-        Assert.Equal("Only pending taxi bookings can be cancelled.", conflict.Value);
+        Assert.Equal("Only taxi bookings waiting for a driver can be cancelled.", conflict.Value);
         db.ChangeTracker.Clear();
         var storedBooking = await db.TaxiBookings.FindAsync(booking.Id);
         Assert.NotNull(storedBooking);
-        Assert.Equal(BookingStatus.Paid, storedBooking.Status);
+        Assert.Equal(TaxiBookingStatus.DriverAssigned, storedBooking.Status);
         Assert.Equal(paidAt, storedBooking.PaidAt);
         Assert.Null(storedBooking.CancelledAt);
     }
@@ -142,19 +142,19 @@ public class TaxiBookingsControllerTests
     {
         await using var db = CreateDbContext();
         var cancelledAt = DateTime.UtcNow.AddMinutes(-1);
-        var booking = CreateBooking(1, BookingStatus.Cancelled);
+        var booking = CreateBooking(1, TaxiBookingStatus.Cancelled);
         booking.CancelledAt = cancelledAt;
         db.TaxiBookings.Add(booking);
         await db.SaveChangesAsync();
 
-        var result = await CreateController(db, 1).CancelTaxiBooking(booking.Id);
+        var result = await CreateController(db, 1).CancelTaxiBooking(booking.Id, default);
 
         var conflict = Assert.IsType<ConflictObjectResult>(result);
-        Assert.Equal("Only pending taxi bookings can be cancelled.", conflict.Value);
+        Assert.Equal("Only taxi bookings waiting for a driver can be cancelled.", conflict.Value);
         db.ChangeTracker.Clear();
         var storedBooking = await db.TaxiBookings.FindAsync(booking.Id);
         Assert.NotNull(storedBooking);
-        Assert.Equal(BookingStatus.Cancelled, storedBooking.Status);
+        Assert.Equal(TaxiBookingStatus.Cancelled, storedBooking.Status);
         Assert.Equal(cancelledAt, storedBooking.CancelledAt);
     }
 
@@ -163,8 +163,8 @@ public class TaxiBookingsControllerTests
     {
         await using var db = CreateDbContext();
         var taxiService = await AddTaxiServiceAsync(db);
-        var currentUsersBooking = CreateBooking(1, BookingStatus.PendingPayment);
-        var otherUsersBooking = CreateBooking(2, BookingStatus.PendingPayment);
+        var currentUsersBooking = CreateBooking(1, TaxiBookingStatus.AwaitingDriver);
+        var otherUsersBooking = CreateBooking(2, TaxiBookingStatus.AwaitingDriver);
         db.TaxiBookings.AddRange(currentUsersBooking, otherUsersBooking);
         await db.SaveChangesAsync();
 
@@ -176,13 +176,13 @@ public class TaxiBookingsControllerTests
         var storedCurrentUsersBooking = await db.TaxiBookings.FindAsync(currentUsersBooking.Id);
         var storedOtherUsersBooking = await db.TaxiBookings.FindAsync(otherUsersBooking.Id);
         var currentUsersPendingBookings = await db.TaxiBookings
-            .Where(booking => booking.UserId == 1 && booking.Status == BookingStatus.PendingPayment)
+            .Where(booking => booking.UserId == 1 && booking.Status == TaxiBookingStatus.AwaitingDriver)
             .ToListAsync();
 
         Assert.NotNull(storedCurrentUsersBooking);
-        Assert.Equal(BookingStatus.Cancelled, storedCurrentUsersBooking.Status);
+        Assert.Equal(TaxiBookingStatus.Cancelled, storedCurrentUsersBooking.Status);
         Assert.NotNull(storedOtherUsersBooking);
-        Assert.Equal(BookingStatus.PendingPayment, storedOtherUsersBooking.Status);
+        Assert.Equal(TaxiBookingStatus.AwaitingDriver, storedOtherUsersBooking.Status);
         Assert.Null(storedOtherUsersBooking.CancelledAt);
         Assert.Single(currentUsersPendingBookings);
         Assert.Equal(createdBooking.Id, currentUsersPendingBookings[0].Id);
@@ -283,7 +283,8 @@ public class TaxiBookingsControllerTests
         PickupLatitude = 40.4675m,
         PickupLongitude = 50.0467m,
         DropoffLatitude = 40.4093m,
-        DropoffLongitude = 49.8671m
+        DropoffLongitude = 49.8671m,
+        Payment = Payment()
     };
 
     private static TaxiBookingCreateDto CreateBookingDto(int taxiServiceId) => new()
@@ -298,10 +299,11 @@ public class TaxiBookingsControllerTests
         PickupLatitude = 40.4675m,
         PickupLongitude = 50.0467m,
         DropoffLatitude = 40.4093m,
-        DropoffLongitude = 49.8671m
+        DropoffLongitude = 49.8671m,
+        Payment = Payment()
     };
 
-    private static TaxiBooking CreateBooking(int userId, BookingStatus status) => new()
+    private static TaxiBooking CreateBooking(int userId, TaxiBookingStatus status) => new()
     {
         UserId = userId,
         TaxiServiceId = 1,
@@ -324,6 +326,15 @@ public class TaxiBookingsControllerTests
         PricePerKm = 2m,
         TotalPrice = 56.56m,
         Status = status
+    };
+
+    private static BookingPaymentDto Payment() => new()
+    {
+        CardNumber = "4111111111111111",
+        CardHolderName = "Jane Doe",
+        ExpiryMonth = 12,
+        ExpiryYear = DateTime.UtcNow.Year + 1,
+        Cvv = "123"
     };
 
     private sealed class FakeRoutingService(decimal distanceKm) : IRoutingService

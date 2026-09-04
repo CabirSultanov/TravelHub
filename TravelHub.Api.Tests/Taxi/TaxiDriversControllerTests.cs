@@ -150,6 +150,36 @@ public class TaxiDriversControllerTests
         Assert.Null(typeof(UpdateProfileRequestDto).GetProperty("TaxiServiceId"));
     }
 
+    [Fact]
+    public async Task Manager_CannotRemoveDriverWithAnActiveRide()
+    {
+        await using var db = CreateDb();
+        db.TaxiServices.Add(Taxi(1));
+        db.Users.Add(User(2, UserRoles.TaxiDriver, taxiServiceId: 1));
+        db.TaxiBookings.Add(new TaxiBooking
+        {
+            TaxiServiceId = 1,
+            TaxiServiceName = "Taxi 1",
+            DriverId = 2,
+            UserId = 3,
+            CarClassName = "Standard",
+            CustomerName = "Customer",
+            PhoneNumber = "+994501234567",
+            Email = "customer@example.com",
+            PickupAddress = "Pickup",
+            DropoffAddress = "Dropoff",
+            Status = TaxiBookingStatus.DriverAssigned,
+            PaymentToken = "demo"
+        });
+        await db.SaveChangesAsync();
+
+        var result = await Controller(db, 9, UserRoles.Admin).RemoveDriver(1, 2, default);
+
+        var error = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal("A driver with an active ride cannot be removed.", error.Value);
+        Assert.Equal(UserRoles.TaxiDriver, (await db.Users.FindAsync(2))!.Role);
+    }
+
     private static TaxiDriversController Controller(AppDbContext db, int userId, string role)
     {
         var controller = new TaxiDriversController(db);

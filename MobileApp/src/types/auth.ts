@@ -16,6 +16,24 @@ export type AuthResponse = {
   accessTokenExpiresAt: string;
 };
 
+export type DriverRideStatus = 'AwaitingDriver' | 'DriverAssigned' | 'DriverArrived' | 'Completed';
+
+export type DriverRide = {
+  id: number;
+  taxiServiceName: string;
+  carClassName: string;
+  customerName: string;
+  phoneNumber: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  distanceKm: number;
+  totalPrice: number;
+  status: DriverRideStatus;
+  acceptedAt?: string | null;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
+};
+
 export type LoginRequest = {
   email: string;
   password: string;
