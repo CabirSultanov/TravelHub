@@ -90,8 +90,7 @@ namespace TravelHub.Api.Migrations
                 table: "TaxiBookings",
                 column: "DriverId",
                 principalTable: "Users",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "Id");
         }
 
         /// <inheritdoc />

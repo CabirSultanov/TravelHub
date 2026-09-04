@@ -82,7 +82,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasOne(booking => booking.Driver)
             .WithMany()
             .HasForeignKey(booking => booking.DriverId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<TaxiBooking>()
             .Property(booking => booking.RowVersion)

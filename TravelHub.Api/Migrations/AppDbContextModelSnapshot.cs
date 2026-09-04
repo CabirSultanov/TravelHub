@@ -684,12 +684,12 @@ namespace TravelHub.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TravelHub.Api.Models.TaxiBooking", b =>
+                modelBuilder.Entity("TravelHub.Api.Models.TaxiBooking", b =>
                 {
                     b.HasOne("TravelHub.Api.Models.AppUser", "Driver")
                         .WithMany()
                         .HasForeignKey("DriverId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("TravelHub.Api.Models.AppUser", "User")
                         .WithMany()
