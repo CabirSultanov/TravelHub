@@ -704,7 +704,7 @@ function App() {
       };
 
       if (taxiFeature.model.taxiBooking?.id === targetBooking.id) {
-        taxiFeature.actions.setBooking(cancelledBooking);
+        taxiFeature.actions.setBooking(null);
       }
 
       upsertTaxiBooking(cancelledBooking);
