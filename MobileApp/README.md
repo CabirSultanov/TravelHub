@@ -1,6 +1,29 @@
 # TravelHub Driver MobileApp
 
-Expo React Native application for TravelHub taxi drivers. It includes sign-in, secure access-token storage, session restoration, and placeholder driver tabs. Ride actions are intentionally not implemented yet.
+Expo React Native application for TravelHub taxi drivers, using the same API and database as the website. Access tokens remain in SecureStore.
+
+## Driver workflow
+
+- **Available**: route, class and fare first. Accept opens Active; Decline removes the request only for this driver. An existing active ride takes priority over new requests.
+- **Active**: pickup point, passenger phone and `Call passenger`. `I've arrived` updates the passenger's screen; `Complete ride` asks for confirmation and shows the completed trip with links to History or the next request.
+- **History**: compact completed trips with local dates and expandable details.
+- **Profile**: account, real role, phone, assigned taxi service and local logout.
+
+Available and Active refresh serially every 10 seconds while focused and foregrounded. Returning to a tab or pulling down refreshes immediately. Network errors keep the last details visible but disable ride actions until a fresh read succeeds. Expired sessions return to sign-in; denied driver access clears ride details. After an uncertain action response, the app checks server state before another action.
+
+Only assigned TaxiDriver accounts dispatch rides; Admin/SuperAdmin can still enter the app but cannot operate rides. There are no invented orders, GPS/ETA, earnings estimates or payment changes. The existing mobile fare label remains AZN; no currency conversion is performed.
+
+## Mobile checks
+
+From `MobileApp`:
+
+```powershell
+npm run typecheck
+node scripts/test-driver-state.cjs
+node scripts/test-driver-feed.cjs
+```
+
+The checks use Node and the installed TypeScript compiler, with isolated data and no live API/database. On an emulator, verify Accept → Active → I've arrived → Complete confirmation → result → History, then Profile → Log out, using designated test orders only.
 
 ## Run on a physical phone
 

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { DriverRide } from '@/types/auth';
+import { formatRidePrice } from '@/utils/driverRides';
 
 export function DriverRideCard({
   ride,
@@ -9,6 +10,7 @@ export function DriverRideCard({
   secondaryActionLabel,
   onSecondaryAction,
   busy = false,
+  disabled = false,
 }: {
   ride: DriverRide;
   actionLabel?: string;
@@ -16,41 +18,50 @@ export function DriverRideCard({
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
   busy?: boolean;
+  disabled?: boolean;
 }) {
+  const actionsDisabled = busy || disabled;
+
   return (
     <View style={styles.card}>
       <View style={styles.topRow}>
-        <View>
-          <Text style={styles.service}>{ride.taxiServiceName}</Text>
+        <View style={styles.tripHeading}>
+          <Text style={styles.rideNumber}>RIDE #{ride.id}</Text>
           <Text style={styles.className}>{ride.carClassName}</Text>
         </View>
-        <Text style={styles.price}>{ride.totalPrice.toFixed(2)} AZN</Text>
+        <View style={styles.fare}>
+          <Text style={styles.price}>{formatRidePrice(ride.totalPrice)}</Text>
+          <Text style={styles.priceCaption}>Trip fare</Text>
+        </View>
       </View>
 
       <View style={styles.route}>
-        <Text style={styles.routeLabel}>PICKUP</Text>
-        <Text style={styles.address}>{ride.pickupAddress}</Text>
-        <View style={styles.routeLine} />
-        <Text style={styles.routeLabel}>DROPOFF</Text>
-        <Text style={styles.address}>{ride.dropoffAddress}</Text>
+        <View style={styles.routePoint}>
+          <View style={styles.pickupMarker}><Text style={styles.markerText}>A</Text></View>
+          <View style={styles.addressBlock}><Text style={styles.routeLabel}>PICKUP</Text><Text style={styles.address}>{ride.pickupAddress}</Text></View>
+        </View>
+        <View style={styles.routePoint}>
+          <View style={styles.dropoffMarker}><Text style={styles.markerText}>B</Text></View>
+          <View style={styles.addressBlock}><Text style={styles.routeLabel}>DROPOFF</Text><Text style={styles.address}>{ride.dropoffAddress}</Text></View>
+        </View>
       </View>
 
-      <View style={styles.customerRow}>
-        <Text style={styles.customer}>{ride.customerName}</Text>
-        <Text style={styles.phone}>{ride.phoneNumber}</Text>
+      <View style={styles.metaRow}>
+        <Text style={styles.service}>{ride.taxiServiceName}</Text>
+        <Text style={styles.distance}>{ride.distanceKm.toFixed(2)} km trip</Text>
       </View>
-      <Text style={styles.distance}>{ride.distanceKm.toFixed(2)} km</Text>
+      <Text style={styles.customer}>Passenger · {ride.customerName}</Text>
 
-      {(actionLabel || secondaryActionLabel) && (
+      {Boolean(actionLabel || secondaryActionLabel) && (
         <View style={styles.actions}>
-          {secondaryActionLabel && onSecondaryAction && (
-            <Pressable disabled={busy} onPress={onSecondaryAction} style={({ pressed }) => [styles.secondaryButton, (pressed || busy) && styles.pressed]}>
-              <Text style={styles.secondaryButtonText}>{secondaryActionLabel}</Text>
+          {Boolean(actionLabel) && onAction && (
+            <Pressable accessibilityRole="button" accessibilityLabel={`${actionLabel} ${ride.id}`} accessibilityState={{ disabled: actionsDisabled, busy }} disabled={actionsDisabled} onPress={onAction} style={({ pressed }) => [styles.primaryButton, (pressed || actionsDisabled) && styles.pressed]}>
+              <Text style={styles.primaryButtonText}>{busy ? 'Updating...' : actionLabel}</Text>
             </Pressable>
           )}
-          {actionLabel && onAction && (
-            <Pressable disabled={busy} onPress={onAction} style={({ pressed }) => [styles.primaryButton, (pressed || busy) && styles.pressed]}>
-              <Text style={styles.primaryButtonText}>{busy ? 'Updating...' : actionLabel}</Text>
+          {Boolean(secondaryActionLabel) && onSecondaryAction && (
+            <Pressable accessibilityRole="button" accessibilityLabel={`${secondaryActionLabel} ride ${ride.id}`} accessibilityState={{ disabled: actionsDisabled }} disabled={actionsDisabled} onPress={onSecondaryAction} style={({ pressed }) => [styles.secondaryButton, (pressed || actionsDisabled) && styles.pressed]}>
+              <Text style={styles.secondaryButtonText}>{secondaryActionLabel}</Text>
             </Pressable>
           )}
         </View>
@@ -60,23 +71,30 @@ export function DriverRideCard({
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#ffffff', borderColor: '#dbe4eb', borderRadius: 18, borderWidth: 1, gap: 14, padding: 18 },
-  topRow: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
-  service: { color: '#17323b', fontSize: 18, fontWeight: '800' },
-  className: { color: '#607080', fontSize: 14, marginTop: 3 },
-  price: { color: '#1f7a8c', fontSize: 17, fontWeight: '800' },
-  route: { backgroundColor: '#f5fafb', borderRadius: 12, gap: 4, padding: 13 },
-  routeLabel: { color: '#1f7a8c', fontSize: 11, fontWeight: '800', letterSpacing: 1.1 },
-  address: { color: '#31515f', fontSize: 15, lineHeight: 21 },
-  routeLine: { backgroundColor: '#cbdde3', height: 1, marginVertical: 7 },
-  customerRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  customer: { color: '#17323b', fontSize: 16, fontWeight: '700' },
-  phone: { color: '#607080', fontSize: 14 },
-  distance: { color: '#607080', fontSize: 14 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 2 },
-  primaryButton: { alignItems: 'center', backgroundColor: '#1f7a8c', borderRadius: 10, flex: 1, justifyContent: 'center', minHeight: 46 },
-  secondaryButton: { alignItems: 'center', borderColor: '#b43d3d', borderRadius: 10, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 46 },
-  primaryButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
-  secondaryButtonText: { color: '#b43d3d', fontSize: 15, fontWeight: '800' },
+  card: { backgroundColor: '#ffffff', borderColor: '#dbe4eb', borderRadius: 20, borderWidth: 1, gap: 12, padding: 18 },
+  topRow: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
+  tripHeading: { flex: 1, gap: 5, minWidth: 95 },
+  rideNumber: { color: '#607080', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  className: { color: '#17323b', fontSize: 20, fontWeight: '800' },
+  fare: { alignItems: 'flex-end', gap: 2 },
+  price: { color: '#176b7b', fontSize: 25, fontWeight: '800' },
+  priceCaption: { color: '#607080', fontSize: 11 },
+  route: { backgroundColor: '#f5fafb', borderRadius: 14, gap: 17, padding: 14 },
+  routePoint: { alignItems: 'flex-start', flexDirection: 'row', gap: 11 },
+  pickupMarker: { alignItems: 'center', backgroundColor: '#d9eef2', borderRadius: 14, height: 28, justifyContent: 'center', width: 28 },
+  dropoffMarker: { alignItems: 'center', backgroundColor: '#e8eef1', borderRadius: 8, height: 28, justifyContent: 'center', width: 28 },
+  markerText: { color: '#1f7a8c', fontSize: 12, fontWeight: '800' },
+  addressBlock: { flex: 1, gap: 4 },
+  routeLabel: { color: '#607080', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  address: { color: '#17323b', fontSize: 16, fontWeight: '600', lineHeight: 23 },
+  metaRow: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
+  service: { color: '#607080', flexShrink: 1, fontSize: 13, fontWeight: '700' },
+  distance: { color: '#607080', fontSize: 13 },
+  customer: { color: '#607080', fontSize: 13, lineHeight: 19 },
+  actions: { gap: 4, marginTop: 3 },
+  primaryButton: { alignItems: 'center', backgroundColor: '#1f7a8c', borderRadius: 12, justifyContent: 'center', minHeight: 54, paddingHorizontal: 16, paddingVertical: 12 },
+  secondaryButton: { alignItems: 'center', borderRadius: 10, justifyContent: 'center', minHeight: 44, paddingHorizontal: 12 },
+  primaryButtonText: { color: '#ffffff', fontSize: 17, fontWeight: '800' },
+  secondaryButtonText: { color: '#607080', fontSize: 14, fontWeight: '700' },
   pressed: { opacity: 0.65 },
 });

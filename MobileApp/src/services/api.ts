@@ -47,20 +47,26 @@ async function request<T>(path: string, init: RequestInit = {}, accessToken?: st
 
   const url = `${getApiBaseUrl()}${path}`;
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  if (init.signal?.aborted) controller.abort();
+  init.signal?.addEventListener('abort', cancel, { once: true });
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
+  let text: string;
   try {
     response = await fetch(url, { ...init, headers, signal: controller.signal });
+    text = await response.text();
   } catch {
+    if (init.signal?.aborted) throw Object.assign(new Error('Request cancelled.'), { name: 'AbortError' });
     throw new ApiError(
       'TravelHub API is not reachable. Make sure TravelHub.Api is running with the "mobile" profile, your phone and computer are on the same Wi-Fi, and Windows Firewall allows .NET on Private networks.',
       0,
     );
   } finally {
     clearTimeout(timeout);
+    init.signal?.removeEventListener('abort', cancel);
   }
 
-  const text = await response.text();
   let body: unknown = text;
   if (text) {
     try {
@@ -92,18 +98,19 @@ export const api = {
     body: JSON.stringify(requestBody),
   }),
   getCurrentUser: (accessToken: string) => request<AuthUser>('/api/auth/me', {}, accessToken),
-  getAvailableRides: (accessToken: string) => request<DriverRide[]>('/api/driver/taxi-bookings/available', {}, accessToken),
-  getActiveRide: async (accessToken: string) => {
+  getTaxiService: (id: number, accessToken: string, signal?: AbortSignal) => request<{ id: number; companyName: string; city: string; phoneNumber: string }>(`/api/taxi-services/${id}`, { signal }, accessToken),
+  getAvailableRides: (accessToken: string, signal?: AbortSignal) => request<DriverRide[]>('/api/driver/taxi-bookings/available', { signal }, accessToken),
+  getActiveRide: async (accessToken: string, signal?: AbortSignal) => {
     try {
-      return await request<DriverRide>('/api/driver/taxi-bookings/active', {}, accessToken);
+      return await request<DriverRide>('/api/driver/taxi-bookings/active', { signal }, accessToken);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) return null;
       throw error;
     }
   },
-  getRideHistory: (accessToken: string) => request<DriverRide[]>('/api/driver/taxi-bookings/history', {}, accessToken),
-  acceptRide: (rideId: number, accessToken: string) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/accept`, { method: 'POST' }, accessToken),
-  declineRide: (rideId: number, accessToken: string) => request<void>(`/api/driver/taxi-bookings/${rideId}/decline`, { method: 'POST' }, accessToken),
-  markRideArrived: (rideId: number, accessToken: string) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/arrived`, { method: 'POST' }, accessToken),
-  completeRide: (rideId: number, accessToken: string) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/complete`, { method: 'POST' }, accessToken),
+  getRideHistory: (accessToken: string, signal?: AbortSignal) => request<DriverRide[]>('/api/driver/taxi-bookings/history', { signal }, accessToken),
+  acceptRide: (rideId: number, accessToken: string, signal?: AbortSignal) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/accept`, { method: 'POST', signal }, accessToken),
+  declineRide: (rideId: number, accessToken: string, signal?: AbortSignal) => request<void>(`/api/driver/taxi-bookings/${rideId}/decline`, { method: 'POST', signal }, accessToken),
+  markRideArrived: (rideId: number, accessToken: string, signal?: AbortSignal) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/arrived`, { method: 'POST', signal }, accessToken),
+  completeRide: (rideId: number, accessToken: string, signal?: AbortSignal) => request<DriverRide>(`/api/driver/taxi-bookings/${rideId}/complete`, { method: 'POST', signal }, accessToken),
 };
