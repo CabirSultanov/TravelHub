@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Booking, Page, TaxiBooking } from '../../types';
 import { formatMoney } from '../../utils/formatting';
+import { getTaxiRideStatusLabel } from '../../utils/taxiRide';
 
 type MyTripsPageProps = {
   bookings: Booking[];
@@ -12,6 +13,7 @@ type MyTripsPageProps = {
   formatTaxiCarClassName: (name: string) => string;
   renderPaymentForm: (booking: Booking) => ReactNode;
   onNavigate: (page: Page) => void;
+  onOpenRide: (bookingId: number) => void;
   onOpenPaymentForm: (bookingId: number) => void;
   onCancelBooking: (booking: Booking) => void | Promise<void>;
   onCancelTaxiBooking: (booking: TaxiBooking) => void | Promise<void>;
@@ -27,6 +29,7 @@ export default function MyTripsPage({
   formatTaxiCarClassName,
   renderPaymentForm,
   onNavigate,
+  onOpenRide,
   onOpenPaymentForm,
   onCancelBooking,
   onCancelTaxiBooking,
@@ -131,7 +134,7 @@ export default function MyTripsPage({
                   <div>
                     <div className="trip-meta">
                       <span className={`status ${booking.status === 'AwaitingDriver' ? 'pending' : 'upcoming'}`}>
-                        {booking.status}
+                        {getTaxiRideStatusLabel(booking.status)}
                       </span>
                       <span className="muted">Taxi booking #{booking.id}</span>
                     </div>
@@ -150,6 +153,11 @@ export default function MyTripsPage({
                         Cancel request
                       </button>
                     )}
+                    {booking.status !== 'Cancelled' && (
+                      <button className="btn btn-primary" onClick={() => onOpenRide(booking.id)} type="button">
+                        {booking.status === 'Completed' && booking.rating == null ? 'Rate ride' : 'View ride'}
+                      </button>
+                    )}
                     {booking.status !== 'AwaitingDriver' && (
                       <button className="btn btn-secondary" onClick={() => onNavigate('taxi')} type="button">
                         Book taxi
@@ -157,6 +165,7 @@ export default function MyTripsPage({
                     )}
                   </div>
                   {booking.driverName && <small className="trip-driver">Driver: {booking.driverName}{booking.driverPhoneNumber ? ` / ${booking.driverPhoneNumber}` : ''}</small>}
+                  {booking.rating != null && <small className="trip-driver">Your rating: {booking.rating} / 5</small>}
                 </article>
               ))}
 

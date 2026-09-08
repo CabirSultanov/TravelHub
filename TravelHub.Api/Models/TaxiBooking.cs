@@ -86,6 +86,14 @@ public class TaxiBooking
 
     public DateTime? CompletedAt { get; set; }
 
+    [Range(1, 5)]
+    public int? Rating { get; set; }
+
+    [MaxLength(1000)]
+    public string? ReviewComment { get; set; }
+
+    public DateTime? ReviewedAt { get; set; }
+
     public DateTime? PaidAt { get; set; }
 
     public DateTime? CancelledAt { get; set; }

@@ -249,6 +249,23 @@ describe('api hotels', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/hotels/cities', expect.objectContaining({ credentials: 'include' }));
   });
 
+  it('loads and reviews an individual ride using the shared authenticated request and abort signal', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ id: 42, rating: 5 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { api } = await import('./api');
+    const controller = new AbortController();
+    await api.getTaxiBooking(42, controller.signal);
+    await api.reviewTaxiBooking(42, { rating: 5, comment: 'Good ride' }, controller.signal);
+    await api.cancelTaxiBooking(42, controller.signal);
+
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0]).toEqual(['/api/taxi-bookings/42', expect.objectContaining({ signal: controller.signal, credentials: 'include' })]);
+    expect(calls[1]).toEqual(['/api/taxi-bookings/42/review', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ rating: 5, comment: 'Good ride' }), signal: controller.signal,
+    })]);
+    expect(calls[2]).toEqual(['/api/taxi-bookings/42/cancel', expect.objectContaining({ method: 'PUT', signal: controller.signal })]);
+  });
+
   it('requests and mutates hotel reviews through the existing API wrapper', async () => {
     const reviews = {
       items: [],

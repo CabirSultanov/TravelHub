@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using TravelHub.Api.Controllers;
 using TravelHub.Api.Data;
 using TravelHub.Api.DTO;
@@ -188,10 +189,203 @@ public class TaxiBookingsControllerTests
         Assert.Equal(createdBooking.Id, currentUsersPendingBookings[0].Id);
     }
 
-    private static AppDbContext CreateDbContext()
+    [Theory]
+    [InlineData(1, UserRoles.User)]
+    [InlineData(2, UserRoles.Admin)]
+    [InlineData(2, UserRoles.SuperAdmin)]
+    public async Task GetTaxiBooking_AllowsOwnerAndAdminsAndReturnsDriverAndReview(int userId, string role)
+    {
+        await using var db = CreateDbContext();
+        var booking = CreateBooking(1, TaxiBookingStatus.Completed);
+        booking.Driver = new AppUser { Name = "Driver Name", PhoneNumber = "+994501111111", Email = "driver@example.com", PasswordHash = "hash" };
+        booking.Rating = 4;
+        booking.ReviewComment = "Good ride";
+        booking.ReviewedAt = DateTime.UtcNow;
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var result = await CreateController(db, userId, role: role).GetTaxiBooking(booking.Id, default);
+
+        Assert.Equal(booking.Id, result.Value!.Id);
+        Assert.Equal("Driver Name", result.Value.DriverName);
+        Assert.Equal("+994501111111", result.Value.DriverPhoneNumber);
+        Assert.Equal(4, result.Value.Rating);
+        Assert.Equal("Good ride", result.Value.ReviewComment);
+        Assert.Equal(DateTimeKind.Utc, result.Value.ReviewedAt!.Value.Kind);
+    }
+
+    [Theory]
+    [InlineData(UserRoles.User)]
+    [InlineData(UserRoles.TaxiDriver)]
+    [InlineData(UserRoles.TaxiOwner)]
+    public async Task GetTaxiBooking_DeniesUnrelatedUser(string role)
+    {
+        await using var db = CreateDbContext();
+        var booking = CreateBooking(1, TaxiBookingStatus.DriverAssigned);
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db, 2, role: role).GetTaxiBooking(booking.Id, default);
+
+        Assert.IsType<ForbidResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetTaxiBooking_UnknownBookingReturnsNotFound()
+    {
+        await using var db = CreateDbContext();
+        var result = await CreateController(db).GetTaxiBooking(999, default);
+        Assert.IsType<NotFoundResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task DetailAndReview_RequireAuthenticatedUserId()
+    {
+        await using var db = CreateDbContext();
+        var controller = CreateController(db);
+        controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+
+        Assert.IsType<UnauthorizedResult>((await controller.GetTaxiBooking(1, default)).Result);
+        Assert.IsType<UnauthorizedResult>((await controller.ReviewTaxiBooking(1, new() { Rating = 5 }, default)).Result);
+    }
+
+    [Theory]
+    [InlineData(UserRoles.User)]
+    [InlineData(UserRoles.Admin)]
+    [InlineData(UserRoles.SuperAdmin)]
+    public async Task ReviewTaxiBooking_OwnerCanReviewOnceAndReadPersistedReview(string role)
+    {
+        await using var db = CreateDbContext();
+        var booking = CreateBooking(1, TaxiBookingStatus.Completed);
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+        var controller = CreateController(db, role: role);
+
+        var result = await controller.ReviewTaxiBooking(booking.Id, new() { Rating = 5, Comment = "  Excellent ride  " }, default);
+
+        Assert.Equal(5, result.Value!.Rating);
+        Assert.Equal("Excellent ride", result.Value.ReviewComment);
+        Assert.NotNull(result.Value.ReviewedAt);
+        db.ChangeTracker.Clear();
+        var detail = await controller.GetTaxiBooking(booking.Id, default);
+        var history = await controller.GetTaxiBookings(mine: true);
+        Assert.Equal(5, detail.Value!.Rating);
+        Assert.Equal("Excellent ride", Assert.Single(history.Value!).ReviewComment);
+
+        var duplicate = await controller.ReviewTaxiBooking(booking.Id, new() { Rating = 1, Comment = "Replacement" }, default);
+
+        Assert.IsType<ConflictObjectResult>(duplicate.Result);
+        db.ChangeTracker.Clear();
+        Assert.Equal(5, (await db.TaxiBookings.SingleAsync()).Rating);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ReviewTaxiBooking_CommentIsOptional(string? comment)
+    {
+        await using var db = CreateDbContext();
+        var booking = CreateBooking(1, TaxiBookingStatus.Completed);
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db).ReviewTaxiBooking(booking.Id, new() { Rating = 1, Comment = comment }, default);
+
+        Assert.Equal(1, result.Value!.Rating);
+        Assert.Null(result.Value.ReviewComment);
+    }
+
+    [Theory]
+    [InlineData(UserRoles.User)]
+    [InlineData(UserRoles.TaxiDriver)]
+    [InlineData(UserRoles.TaxiOwner)]
+    [InlineData(UserRoles.Admin)]
+    [InlineData(UserRoles.SuperAdmin)]
+    public async Task ReviewTaxiBooking_OnlyBookingOwnerCanWrite(string role)
+    {
+        await using var db = CreateDbContext();
+        var booking = CreateBooking(1, TaxiBookingStatus.Completed);
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db, 2, role: role).ReviewTaxiBooking(booking.Id, new() { Rating = 5 }, default);
+
+        Assert.IsType<ForbidResult>(result.Result);
+        Assert.Null(booking.Rating);
+    }
+
+    [Theory]
+    [InlineData(TaxiBookingStatus.AwaitingDriver)]
+    [InlineData(TaxiBookingStatus.DriverAssigned)]
+    [InlineData(TaxiBookingStatus.DriverArrived)]
+    [InlineData(TaxiBookingStatus.Cancelled)]
+    [InlineData(TaxiBookingStatus.PendingPayment)]
+    [InlineData(TaxiBookingStatus.Paid)]
+    public async Task ReviewTaxiBooking_OnlyCompletedCanBeReviewed(TaxiBookingStatus status)
+    {
+        await using var db = CreateDbContext();
+        var booking = CreateBooking(1, status);
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db).ReviewTaxiBooking(booking.Id, new() { Rating = 5 }, default);
+
+        Assert.IsType<ConflictObjectResult>(result.Result);
+        Assert.Null(booking.Rating);
+        Assert.Equal(status, booking.Status);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(6, 0)]
+    [InlineData(5, 1001)]
+    public async Task ReviewTaxiBooking_InvalidRatingOrCommentDoesNotPersist(int rating, int commentLength)
+    {
+        await using var db = CreateDbContext();
+        var booking = CreateBooking(1, TaxiBookingStatus.Completed);
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        var result = await CreateController(db).ReviewTaxiBooking(booking.Id, new() { Rating = rating, Comment = new string('x', commentLength) }, default);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+        Assert.Null(booking.Rating);
+        Assert.Null(booking.ReviewedAt);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReviewAndCancel_ConcurrentUpdateReturnsConflictAndDoesNotPersist(bool review)
+    {
+        var interceptor = new ConcurrentSaveInterceptor();
+        await using var db = CreateDbContext(interceptor);
+        var status = review ? TaxiBookingStatus.Completed : TaxiBookingStatus.AwaitingDriver;
+        var booking = CreateBooking(1, status);
+        db.TaxiBookings.Add(booking);
+        await db.SaveChangesAsync();
+        interceptor.ThrowOnSave = true;
+        var controller = CreateController(db);
+
+        IActionResult? result = review
+            ? (await controller.ReviewTaxiBooking(booking.Id, new() { Rating = 5 }, default)).Result
+            : await controller.CancelTaxiBooking(booking.Id, default);
+
+        Assert.IsType<ConflictObjectResult>(result);
+        db.ChangeTracker.Clear();
+        var stored = await db.TaxiBookings.SingleAsync();
+        Assert.Equal(status, stored.Status);
+        Assert.Null(stored.Rating);
+        Assert.Null(stored.CancelledAt);
+    }
+
+    private static AppDbContext CreateDbContext(params IInterceptor[] interceptors)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptors)
             .Options;
 
         return new AppDbContext(options);
@@ -200,7 +394,8 @@ public class TaxiBookingsControllerTests
     private static TaxiBookingsController CreateController(
         AppDbContext db,
         int userId = 1,
-        IRoutingService? routingService = null)
+        IRoutingService? routingService = null,
+        string role = UserRoles.User)
     {
         var controller = new TaxiBookingsController(db, routingService ?? new FakeRoutingService(28.28m));
         controller.ControllerContext = new ControllerContext
@@ -210,7 +405,7 @@ public class TaxiBookingsControllerTests
                 User = new ClaimsPrincipal(new ClaimsIdentity(
                     [
                         new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-                        new Claim(ClaimTypes.Role, UserRoles.User)
+                        new Claim(ClaimTypes.Role, role)
                     ],
                     "TestAuth"))
             }
@@ -357,5 +552,16 @@ public class TaxiBookingsControllerTests
             decimal dropoffLongitude,
             CancellationToken cancellationToken) =>
             throw new RoutingUnavailableException("No route");
+    }
+
+    private sealed class ConcurrentSaveInterceptor : SaveChangesInterceptor
+    {
+        public bool ThrowOnSave { get; set; }
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default) =>
+            ThrowOnSave ? throw new DbUpdateConcurrencyException("Concurrent booking update") : ValueTask.FromResult(result);
     }
 }

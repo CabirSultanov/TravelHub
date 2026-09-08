@@ -17,6 +17,7 @@ export type TaxiRouteSearch = {
 export type ParsedRoute = {
   page: Page;
   hotelId: number | null;
+  taxiRideId: number | null;
   hotels: HotelRouteSearch;
   taxi: TaxiRouteSearch;
   authMode: AuthMode;
@@ -93,6 +94,10 @@ export function getPageFromPathname(pathname: string): Page {
     return 'hotels';
   }
 
+  if (getTaxiRideIdFromPathname(cleanPath) !== null) {
+    return 'taxi';
+  }
+
   return appPages.find((currentPage) => pageRoutes[currentPage] === cleanPath) ?? 'home';
 }
 
@@ -100,6 +105,16 @@ export function getHotelIdFromPathname(pathname: string) {
   const match = stripUrlSuffix(pathname).replace(/\/+$/, '').match(/^\/hotels\/(\d+)$/);
 
   return match ? Number(match[1]) : null;
+}
+
+export function getTaxiRideIdFromPathname(pathname: string) {
+  const match = stripUrlSuffix(pathname).replace(/\/+$/, '').match(/^\/taxi\/rides\/([1-9]\d*)$/);
+  const id = match ? Number(match[1]) : NaN;
+  return Number.isSafeInteger(id) && id <= 2_147_483_647 ? id : null;
+}
+
+export function buildTaxiRideUrl(bookingId: number) {
+  return `/taxi/rides/${bookingId}`;
 }
 
 export function parseAppRoute(pathname: string, search = ''): ParsedRoute {
@@ -111,6 +126,9 @@ export function parseAppRoute(pathname: string, search = ''): ParsedRoute {
   return {
     page,
     hotelId,
+    taxiRideId: page === 'auth'
+      ? getTaxiRideIdFromPathname(`/taxi/rides/${params.get('ride') ?? ''}`)
+      : getTaxiRideIdFromPathname(pathname),
     hotels:
       page === 'hotels'
         ? normalizeHotelRouteSearch({
@@ -191,11 +209,15 @@ export function buildTaxiUrl(search: Partial<TaxiRouteSearch> = {}) {
   return withParams('/taxi', params);
 }
 
-export function buildAuthUrl(mode: AuthMode = 'register') {
-  return `/auth?mode=${mode}`;
+export function buildAuthUrl(mode: AuthMode = 'register', returnRideId: number | null = null) {
+  return `/auth?mode=${mode}${returnRideId !== null ? `&ride=${returnRideId}` : ''}`;
 }
 
 export function buildParsedRouteUrl(route: ParsedRoute) {
+  if (route.page === 'taxi' && route.taxiRideId !== null) {
+    return buildTaxiRideUrl(route.taxiRideId);
+  }
+
   if (route.hotelId !== null) {
     return buildHotelDetailUrl(route.hotelId, route.hotels);
   }
@@ -209,7 +231,7 @@ export function buildParsedRouteUrl(route: ParsedRoute) {
   }
 
   if (route.page === 'auth') {
-    return buildAuthUrl(route.authMode);
+    return buildAuthUrl(route.authMode, route.taxiRideId);
   }
 
   return pageRoutes[route.page];

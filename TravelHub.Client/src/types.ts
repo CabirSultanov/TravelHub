@@ -276,6 +276,9 @@ export type TaxiBooking = {
   acceptedAt?: string | null;
   arrivedAt?: string | null;
   completedAt?: string | null;
+  rating: number | null;
+  reviewComment: string | null;
+  reviewedAt: string | null;
 };
 
 export type TaxiBookingCreate = {

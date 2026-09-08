@@ -47,6 +47,15 @@ public class TaxiBookingCreateDto
     public BookingPaymentDto Payment { get; set; } = new();
 }
 
+public class TaxiBookingReviewDto
+{
+    [Range(1, 5)]
+    public int Rating { get; set; }
+
+    [MaxLength(1000)]
+    public string? Comment { get; set; }
+}
+
 public class TaxiBookingResponseDto
 {
     public int Id { get; set; }
@@ -110,6 +119,12 @@ public class TaxiBookingResponseDto
     public DateTime? ArrivedAt { get; set; }
 
     public DateTime? CompletedAt { get; set; }
+
+    public int? Rating { get; set; }
+
+    public string? ReviewComment { get; set; }
+
+    public DateTime? ReviewedAt { get; set; }
 }
 
 public class TaxiDriverRideResponseDto

@@ -88,6 +88,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .Property(booking => booking.RowVersion)
             .IsRowVersion();
 
+        modelBuilder.Entity<TaxiBooking>()
+            .Property(booking => booking.ReviewedAt)
+            .HasConversion(nullableUtcDateTimeConverter);
+
         modelBuilder.Entity<TaxiBookingDriverDecline>()
             .HasKey(decline => new { decline.TaxiBookingId, decline.DriverId });
 

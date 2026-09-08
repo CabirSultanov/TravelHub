@@ -31,6 +31,53 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
         return bookings.Select(ToResponse).ToList();
     }
 
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<TaxiBookingResponseDto>> GetTaxiBooking(int id, CancellationToken cancellationToken)
+    {
+        if (GetCurrentUserId() is null) return Unauthorized();
+
+        var booking = await db.TaxiBookings.AsNoTracking()
+            .Include(current => current.Driver)
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        if (booking is null) return NotFound();
+        if (!CanAccess(booking)) return Forbid();
+
+        return ToResponse(booking);
+    }
+
+    [HttpPost("{id:int}/review")]
+    public async Task<ActionResult<TaxiBookingResponseDto>> ReviewTaxiBooking(int id, TaxiBookingReviewDto reviewDto, CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        var booking = await db.TaxiBookings.Include(current => current.Driver)
+            .FirstOrDefaultAsync(current => current.Id == id, cancellationToken);
+        if (booking is null) return NotFound();
+        if (booking.UserId != userId.Value) return Forbid();
+        if (booking.Status != TaxiBookingStatus.Completed) return Conflict("Only completed rides can be reviewed.");
+        if (booking.Rating is not null) return Conflict("You have already reviewed this ride.");
+        if (reviewDto.Rating is < 1 or > 5) return BadRequest("Rating must be an integer from 1 to 5.");
+
+        var comment = string.IsNullOrWhiteSpace(reviewDto.Comment) ? null : reviewDto.Comment.Trim();
+        if (comment?.Length > 1000) return BadRequest("Comment must be 1000 characters or fewer.");
+
+        booking.Rating = reviewDto.Rating;
+        booking.ReviewComment = comment;
+        booking.ReviewedAt = DateTime.UtcNow;
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict("This ride was updated. Refresh it before submitting a review again.");
+        }
+
+        return ToResponse(booking);
+    }
+
     [HttpPost]
     public async Task<ActionResult<TaxiBookingResponseDto>> CreateTaxiBooking(TaxiBookingCreateDto bookingDto, CancellationToken cancellationToken)
     {
@@ -144,7 +191,14 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
 
         taxiBooking.Status = TaxiBookingStatus.Cancelled;
         taxiBooking.CancelledAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict("This ride was updated and could not be cancelled. Refresh its status.");
+        }
         return NoContent();
     }
 
@@ -221,7 +275,10 @@ public class TaxiBookingsController(AppDbContext db, IRoutingService routingServ
         DriverPhoneNumber = booking.Driver?.PhoneNumber,
         AcceptedAt = booking.AcceptedAt,
         ArrivedAt = booking.ArrivedAt,
-        CompletedAt = booking.CompletedAt
+        CompletedAt = booking.CompletedAt,
+        Rating = booking.Rating,
+        ReviewComment = booking.ReviewComment,
+        ReviewedAt = booking.ReviewedAt
     };
 
     private bool IsAdmin() => User.IsInRole(UserRoles.Admin) || User.IsInRole(UserRoles.SuperAdmin);

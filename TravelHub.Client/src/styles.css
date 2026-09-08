@@ -4409,3 +4409,22 @@ small {
     grid-template-columns: 1fr;
   }
 }
+.taxi-active-rides {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.taxi-active-rides a {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  color: #005f69;
+  background: #f1fafb;
+  border-radius: 12px;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.taxi-active-rides a:hover { background: #e0f3f5; }
+.taxi-active-rides a:focus-visible { outline: 2px solid #005f69; outline-offset: 3px; }

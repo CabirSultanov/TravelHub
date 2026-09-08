@@ -42,7 +42,7 @@ let accessToken: string | null = null;
 let refreshPromise: Promise<AuthResponse | null> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
@@ -440,7 +440,15 @@ export const api = {
     request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'PUT' }),
   removeTaxiDriver: (taxiServiceId: number, userId: number) =>
     request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'DELETE' }),
-  getTaxiBookings: (mine = false) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`),
+  getTaxiBookings: (mine = false, signal?: AbortSignal) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`, { signal }),
+  getTaxiBooking: (bookingId: number, signal?: AbortSignal) =>
+    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}`, { signal }),
+  reviewTaxiBooking: (bookingId: number, review: { rating: number; comment?: string }, signal?: AbortSignal) =>
+    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(review),
+      signal,
+    }),
   createTaxiBooking: (booking: TaxiBookingCreate) =>
     request<TaxiBooking>('/api/taxi-bookings', {
       method: 'POST',
@@ -452,9 +460,10 @@ export const api = {
       body: JSON.stringify(route),
       signal,
     }),
-  cancelTaxiBooking: (bookingId: number) =>
+  cancelTaxiBooking: (bookingId: number, signal?: AbortSignal) =>
     request<void>(`/api/taxi-bookings/${bookingId}/cancel`, {
       method: 'PUT',
+      signal,
     }),
   getBookings: (mine = false) => request<Booking[]>(`/api/booking-requests${mine ? '?mine=true' : ''}`),
   createBooking: (booking: BookingCreate) =>
