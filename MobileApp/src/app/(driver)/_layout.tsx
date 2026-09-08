@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
 import { canAccessMobileApp } from '@/utils/mobileAccess';
@@ -30,14 +30,19 @@ export default function DriverLayout() {
       tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
       tabBarStyle: { borderTopColor: '#dbe4eb', backgroundColor: '#ffffff' },
     }}>
-      <Tabs.Screen name="available" options={{ title: 'Available' }} />
-      <Tabs.Screen name="active" options={{ title: 'Active' }} />
-      <Tabs.Screen name="history" options={{ title: 'History' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      <Tabs.Screen name="available" options={{ title: 'Available', tabBarIcon: () => <TabIcon symbol="🚕" /> }} />
+      <Tabs.Screen name="active" options={{ title: 'Active', tabBarIcon: () => <TabIcon symbol="🚗" /> }} />
+      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: () => <TabIcon symbol="📋" /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: () => <TabIcon symbol="👤" /> }} />
     </Tabs>
   );
 }
 
+function TabIcon({ symbol }: { symbol: string }) {
+  return <Text style={styles.tabIcon}>{symbol}</Text>;
+}
+
 const styles = StyleSheet.create({
   loading: { alignItems: 'center', backgroundColor: '#f5fafb', flex: 1, justifyContent: 'center' },
+  tabIcon: { fontSize: 19 },
 });
