@@ -9,33 +9,32 @@ namespace TravelHub.Api.Tests.Admin;
 public class AdminsControllerPaginationTests
 {
     [Fact]
-    public async Task GetRegularUsers_ReturnsFirstPageWithTotals()
+    public async Task GetUsers_ReturnsFirstPageWithTotals()
     {
         await using var db = CreateDb();
         SeedUsers(db, regularUsers: 12, admins: 1, superAdmins: 1);
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(page: 1, pageSize: 10);
+        var result = await controller.GetUsers(page: 1, pageSize: 10);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 
         Assert.Equal(10, response.Items.Count);
-        Assert.Equal(12, response.TotalItems);
+        Assert.Equal(14, response.TotalItems);
         Assert.Equal(2, response.TotalPages);
         Assert.Equal(1, response.Page);
-        Assert.All(response.Items, user => Assert.Equal(UserRoles.User, user.Role));
     }
 
     [Fact]
-    public async Task GetRegularUsers_ReturnsSecondPageRemainingUsers()
+    public async Task GetUsers_ReturnsSecondPageRemainingUsers()
     {
         await using var db = CreateDb();
         SeedUsers(db, regularUsers: 12);
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(page: 2, pageSize: 10);
+        var result = await controller.GetUsers(page: 2, pageSize: 10);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 
@@ -44,23 +43,26 @@ public class AdminsControllerPaginationTests
     }
 
     [Fact]
-    public async Task GetRegularUsers_ExcludesAdminsAndSuperAdmins()
+    public async Task GetUsers_IncludesEveryAccountRole()
     {
         await using var db = CreateDb();
         SeedUsers(db, regularUsers: 3, admins: 2, superAdmins: 1);
+        AddUsers(db, 1, UserRoles.TaxiOwner);
+        AddUsers(db, 1, UserRoles.TaxiDriver);
+        AddUsers(db, 1, UserRoles.HotelOwner);
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(page: 1, pageSize: 10);
+        var result = await controller.GetUsers(page: 1, pageSize: 10);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 
-        Assert.Equal(3, response.TotalItems);
-        Assert.All(response.Items, user => Assert.Equal(UserRoles.User, user.Role));
+        Assert.Equal(9, response.TotalItems);
+        Assert.Equal(new[] { UserRoles.User, UserRoles.Admin, UserRoles.SuperAdmin, UserRoles.HotelOwner, UserRoles.TaxiOwner, UserRoles.TaxiDriver }.Order(), response.Items.Select(user => user.Role).Distinct().Order());
     }
 
     [Fact]
-    public async Task GetRegularUsers_OrdersByNameThenEmail()
+    public async Task GetUsers_OrdersByNameThenEmail()
     {
         await using var db = CreateDb();
         db.Users.AddRange(
@@ -76,7 +78,7 @@ public class AdminsControllerPaginationTests
             .ToListAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(page: 1, pageSize: 10);
+        var result = await controller.GetUsers(page: 1, pageSize: 10);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 
@@ -84,7 +86,7 @@ public class AdminsControllerPaginationTests
     }
 
     [Fact]
-    public async Task GetRegularUsers_FiltersByNameBeforePagination()
+    public async Task GetUsers_FiltersByNameBeforePagination()
     {
         await using var db = CreateDb();
         db.Users.AddRange(
@@ -94,7 +96,7 @@ public class AdminsControllerPaginationTests
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(search: "  JOHN  ", page: 1, pageSize: 1);
+        var result = await controller.GetUsers(search: "  JOHN  ", page: 1, pageSize: 1);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 
@@ -104,7 +106,7 @@ public class AdminsControllerPaginationTests
     }
 
     [Fact]
-    public async Task GetRegularUsers_FiltersByEmailAndPhoneNumber()
+    public async Task GetUsers_FiltersByEmailAndPhoneNumber()
     {
         await using var db = CreateDb();
         db.Users.AddRange(
@@ -113,22 +115,22 @@ public class AdminsControllerPaginationTests
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var emailResult = await controller.GetRegularUsers(search: "AYLA@EXAMPLE", pageSize: 10);
-        var phoneResult = await controller.GetRegularUsers(search: "9876543", pageSize: 10);
+        var emailResult = await controller.GetUsers(search: "AYLA@EXAMPLE", pageSize: 10);
+        var phoneResult = await controller.GetUsers(search: "9876543", pageSize: 10);
 
         Assert.Equal("Ayla", Assert.Single(emailResult.Value!.Items).Name);
         Assert.Equal("Nigar", Assert.Single(phoneResult.Value!.Items).Name);
     }
 
     [Fact]
-    public async Task GetRegularUsers_NormalizesInvalidPage()
+    public async Task GetUsers_NormalizesInvalidPage()
     {
         await using var db = CreateDb();
         SeedUsers(db, regularUsers: 3);
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(page: 0, pageSize: 10);
+        var result = await controller.GetUsers(page: 0, pageSize: 10);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 
@@ -137,14 +139,14 @@ public class AdminsControllerPaginationTests
     }
 
     [Fact]
-    public async Task GetRegularUsers_WhenRequestedPageIsTooLarge_UsesLastPage()
+    public async Task GetUsers_WhenRequestedPageIsTooLarge_UsesLastPage()
     {
         await using var db = CreateDb();
         SeedUsers(db, regularUsers: 21);
         await db.SaveChangesAsync();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(page: 9, pageSize: 10);
+        var result = await controller.GetUsers(page: 9, pageSize: 10);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 
@@ -154,12 +156,12 @@ public class AdminsControllerPaginationTests
     }
 
     [Fact]
-    public async Task GetRegularUsers_WithZeroUsers_ReturnsEmptyFirstPage()
+    public async Task GetUsers_WithZeroUsers_ReturnsEmptyFirstPage()
     {
         await using var db = CreateDb();
         var controller = CreateController(db);
 
-        var result = await controller.GetRegularUsers(page: 2, pageSize: 10);
+        var result = await controller.GetUsers(page: 2, pageSize: 10);
         Assert.NotNull(result.Value);
         var response = result.Value!;
 

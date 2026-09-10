@@ -1,74 +1,73 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../../api';
 import type { AuthUser } from '../../../types';
 import { getErrorMessage } from '../../../utils/errors';
+import { useSavedAction } from '../../../hooks/useSavedAction';
 
-const SEARCH_DEBOUNCE_MS = 300;
-
-export function useTaxiDrivers({ active, taxiServiceId, setMessage, setSubmitting }: {
+export function useTaxiDrivers({ active, taxiServiceId, setSubmitting }: {
   active: boolean;
   taxiServiceId: number | null;
-  setMessage: (message: string) => void;
-  setSubmitting: (submitting: boolean) => void;
+  setSubmitting?: (submitting: boolean) => void;
 }) {
-  const [drivers, setDrivers] = useState<AuthUser[]>([]);
-  const [candidates, setCandidates] = useState<AuthUser[]>([]);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const requestId = useRef(0);
+  const [snapshot, setSnapshot] = useState<{
+    serviceId: number | null; drivers: AuthUser[]; candidates: AuthUser[]; search: string;
+  }>({ serviceId: null, drivers: [], candidates: [], search: '' });
+  const [query, setQuery] = useState({ serviceId: taxiServiceId, search: '' });
+  const search = query.serviceId === taxiServiceId ? query.search : '';
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const revision = useRef(0);
+  const context = useRef({ active, taxiServiceId });
+  context.current = { active, taxiServiceId };
+  const action = useSavedAction(setSubmitting);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  async function load() {
-    if (!active || taxiServiceId === null) {
-      setDrivers([]);
-      setCandidates([]);
-      return;
-    }
-
-    const currentRequestId = ++requestId.current;
-    try {
-      const [nextDrivers, nextCandidates] = await Promise.all([
-        api.getTaxiDrivers(taxiServiceId),
-        api.getTaxiDriverCandidates(taxiServiceId, debouncedSearch),
-      ]);
-      if (currentRequestId !== requestId.current) return;
-      setDrivers(nextDrivers);
-      setCandidates(nextCandidates);
-    } catch (error) {
-      if (currentRequestId === requestId.current) setMessage(getErrorMessage(error));
-    }
-  }
-
-  useEffect(() => {
-    void load();
-    return () => { requestId.current += 1; };
-  }, [active, taxiServiceId, debouncedSearch]);
-
-  async function run(action: () => Promise<void>, message: string) {
+  const refresh = useCallback(async () => {
     if (!active || taxiServiceId === null) return;
-    setSubmitting(true);
-    setMessage('');
+    const request = ++revision.current;
+    setLoading(true);
+    setError('');
     try {
-      await action();
-      await load();
-      setMessage(message);
-    } catch (error) {
-      setMessage(getErrorMessage(error));
+      const [drivers, candidates] = await Promise.all([
+        api.getTaxiDrivers(taxiServiceId), api.getTaxiDriverCandidates(taxiServiceId, search.trim()),
+      ]);
+      if (request !== revision.current || !context.current.active || context.current.taxiServiceId !== taxiServiceId) return;
+      setSnapshot({ serviceId: taxiServiceId, drivers, candidates, search });
+    } catch (reason) {
+      if (request === revision.current && context.current.taxiServiceId === taxiServiceId) setError(getErrorMessage(reason));
+      throw reason;
     } finally {
-      setSubmitting(false);
+      if (request === revision.current && context.current.taxiServiceId === taxiServiceId) setLoading(false);
     }
-  }
+  }, [active, taxiServiceId, search]);
 
+  useEffect(() => {
+    setError('');
+    setLoading(true);
+    const timer = window.setTimeout(() => void refresh().catch(() => undefined), search ? 300 : 0);
+    return () => { window.clearTimeout(timer); revision.current += 1; };
+  }, [refresh]);
+
+  const isCurrent = active && snapshot.serviceId === taxiServiceId;
   return {
-    drivers,
-    candidates,
+    drivers: isCurrent ? snapshot.drivers : [],
+    candidates: isCurrent && snapshot.search === search ? snapshot.candidates : [],
     search,
-    setSearch,
-    assign: (userId: number) => run(() => api.assignTaxiDriver(taxiServiceId!, userId), 'Driver assigned.'),
-    remove: (userId: number) => run(() => api.removeTaxiDriver(taxiServiceId!, userId), 'Driver removed.'),
+    setSearch: (value: string) => {
+      if (action.busy || value === search) return;
+      revision.current += 1;
+      setLoading(true);
+      setQuery({ serviceId: taxiServiceId, search: value });
+    },
+    loading: active && (loading || (!isCurrent && !error)),
+    error, refresh,
+    busy: action.busy, feedback: action.feedback, needsRefresh: action.needsRefresh,
+    retry: () => action.retry(refresh),
+    clearFeedback: action.clear,
+    assign: (userId: number) => active && taxiServiceId !== null
+      ? action.run(() => api.assignTaxiDriver(taxiServiceId, userId), refresh, 'Driver added to the team.')
+      : Promise.resolve(false),
+    remove: (userId: number) => active && taxiServiceId !== null
+      ? action.run(() => api.removeTaxiDriver(taxiServiceId, userId), refresh, 'Driver assignment removed. The account was not deleted.')
+      : Promise.resolve(false),
   };
 }

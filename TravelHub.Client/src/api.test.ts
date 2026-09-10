@@ -174,7 +174,7 @@ describe('api admin users', () => {
     vi.stubGlobal('fetch', fetchMock);
     const { api } = await import('./api');
 
-    const response = await api.getAdminCandidates(' cabir ', 2, 10);
+    const response = await api.getAdminUsers(' cabir ', 2, 10);
 
     expect(response).toEqual(pagedUsers);
     expect(fetchMock).toHaveBeenCalledWith(

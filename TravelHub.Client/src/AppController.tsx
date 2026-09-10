@@ -5,8 +5,6 @@ import PaymentFormComponent from './components/booking/PaymentForm';
 import { useHotelsFeature } from './features/hotels/hooks/useHotelsFeature';
 import { useTaxiFeature } from './features/taxi/hooks/useTaxiFeature';
 import { useTaxiRide } from './features/taxi/hooks/useTaxiRide';
-import { useAdminUsers } from './hooks/useAdminUsers';
-import { useOwnerAssignments } from './hooks/useOwnerAssignments';
 import { useAccount } from './hooks/useAccount';
 import SiteHeader from './components/common/SiteHeader';
 import AdminPage from './pages/Admin/AdminPage';
@@ -116,16 +114,6 @@ function App() {
     onSignedOut: resetAccountData,
   });
   const { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading, emailConfirmation, verificationCode, setVerificationCode, resendSeconds } = account;
-  const adminUsers = useAdminUsers({
-    active: page === 'admin' && currentUser?.role === 'SuperAdmin',
-    setMessage,
-    setSubmitting,
-  });
-  const ownerAssignments = useOwnerAssignments({
-    active: page === 'admin' && (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin'),
-    setMessage,
-    setSubmitting,
-  });
 
   const taxiFeature = useTaxiFeature({
     currentUser,
@@ -1068,31 +1056,7 @@ function App() {
       )}
 
       {page === 'admin' && (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
-        <AdminPage
-          adminCandidates={adminUsers.adminCandidates}
-          admins={adminUsers.admins}
-          canManageUsers={currentUser.role === 'SuperAdmin'}
-          hotelCandidates={ownerAssignments.hotelCandidates}
-          hotels={ownerAssignments.hotels}
-          onBlock={adminUsers.block}
-          onAssignHotel={ownerAssignments.assignHotel}
-          onAssignTaxi={ownerAssignments.assignTaxi}
-          onManageTaxiDrivers={(taxiService) => {
-            taxiFeature.actions.service.select(taxiService);
-          }}
-          onDelete={adminUsers.remove}
-          onDemote={adminUsers.demote}
-          onPromote={adminUsers.promote}
-          onRegularUsersSearchChange={adminUsers.setRegularUsersSearch}
-          onUnblock={adminUsers.unblock}
-          regularUsersLoading={adminUsers.regularUsersLoading}
-          regularUsersSearch={adminUsers.regularUsersSearch}
-          regularUsersTotalItems={adminUsers.regularUsersTotalItems}
-          submitting={submitting}
-          taxiDriverManagement={taxiFeature.model.taxiDrivers}
-          taxiCandidates={ownerAssignments.taxiCandidates}
-          taxiServices={ownerAssignments.taxiServices}
-        />
+        <AdminPage currentUser={currentUser} />
       )}
     </main>
   );

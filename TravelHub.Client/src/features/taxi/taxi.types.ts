@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import type { ActionFeedback } from '../../hooks/useSavedAction';
 import type {
   AuthUser,
   BookingPayment,
@@ -63,8 +64,15 @@ export type TaxiDriverManagement = {
   candidates: AuthUser[];
   search: string;
   setSearch: (search: string) => void;
-  assign: (userId: number) => void | Promise<void>;
-  remove: (userId: number) => void | Promise<void>;
+  assign: (userId: number) => Promise<boolean>;
+  remove: (userId: number) => Promise<boolean>;
+  loading: boolean;
+  error: string;
+  busy: boolean;
+  feedback: ActionFeedback | null;
+  needsRefresh: boolean;
+  retry: () => Promise<void>;
+  clearFeedback: () => void;
 };
 
 export type TaxiBookingFormActions = {

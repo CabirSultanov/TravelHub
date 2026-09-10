@@ -262,7 +262,7 @@ export const api = {
     accessToken = null;
   },
   getAdmins: () => request<AuthUser[]>('/api/admins'),
-  getAdminCandidates: (searchTerm = '', page = 1, pageSize = 100) => {
+  getAdminUsers: (searchTerm = '', page = 1, pageSize = 100) => {
     const search = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),

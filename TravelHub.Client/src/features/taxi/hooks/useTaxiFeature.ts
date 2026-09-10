@@ -129,7 +129,6 @@ export function useTaxiFeature({
   const taxiDrivers = useTaxiDrivers({
     active: canManageSelectedTaxi && !showTaxiForm,
     taxiServiceId: selectedTaxiService?.id ?? null,
-    setMessage,
     setSubmitting,
   });
 

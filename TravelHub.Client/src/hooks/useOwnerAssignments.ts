@@ -1,65 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { AuthUser, Hotel, TaxiService } from '../types';
 import { getErrorMessage } from '../utils/errors';
 
-type UseOwnerAssignmentsOptions = {
-  active: boolean;
-  setMessage: (message: string) => void;
-  setSubmitting: (submitting: boolean) => void;
-};
-
-export function useOwnerAssignments({ active, setMessage, setSubmitting }: UseOwnerAssignmentsOptions) {
-  const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [taxiServices, setTaxiServices] = useState<TaxiService[]>([]);
-  const [hotelCandidates, setHotelCandidates] = useState<AuthUser[]>([]);
-  const [taxiCandidates, setTaxiCandidates] = useState<AuthUser[]>([]);
-
-  async function load() {
-    const [hotelPage, taxis, hotelUsers, taxiUsers] = await Promise.all([
-      api.getHotels({ page: 1, pageSize: 100 }),
-      api.getTaxiServices(),
-      api.getOwnerCandidates('hotel'),
-      api.getOwnerCandidates('taxi'),
-    ]);
-
-    setHotels(hotelPage.items);
-    setTaxiServices(taxis);
-    setHotelCandidates(hotelUsers);
-    setTaxiCandidates(taxiUsers);
+export async function loadAllAdminHotels() {
+  const first = await api.getHotels({ page: 1, pageSize: 100 });
+  const hotels = [...first.items];
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    hotels.push(...(await api.getHotels({ page, pageSize: 100 })).items);
   }
+  return hotels;
+}
+
+export function useOwnerAssignments() {
+  const [data, setData] = useState<{
+    hotels: Hotel[]; taxiServices: TaxiService[]; hotelCandidates: AuthUser[]; taxiCandidates: AuthUser[];
+  }>({ hotels: [], taxiServices: [], hotelCandidates: [], taxiCandidates: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const revision = useRef(0);
+
+  const refresh = useCallback(async () => {
+    const request = ++revision.current;
+    setLoading(true);
+    setError('');
+    try {
+      const [hotels, taxiServices, hotelCandidates, taxiCandidates] = await Promise.all([
+        loadAllAdminHotels(), api.getTaxiServices(), api.getOwnerCandidates('hotel'), api.getOwnerCandidates('taxi'),
+      ]);
+      if (request === revision.current) setData({ hotels, taxiServices, hotelCandidates, taxiCandidates });
+    } catch (reason) {
+      if (request === revision.current) setError(getErrorMessage(reason));
+      throw reason;
+    } finally {
+      if (request === revision.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!active) {
-      return;
-    }
+    void refresh().catch(() => undefined);
+    return () => { revision.current += 1; };
+  }, [refresh]);
 
-    void load().catch((error) => setMessage(getErrorMessage(error)));
-  }, [active, setMessage]);
-
-  async function run(action: () => Promise<void>, successMessage: string) {
-    setSubmitting(true);
-    setMessage('');
-
-    try {
-      await action();
-      await load();
-      setMessage(successMessage);
-    } catch (error) {
-      setMessage(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return {
-    hotels,
-    taxiServices,
-    hotelCandidates,
-    taxiCandidates,
-    assignHotel: (hotelId: number, ownerId: number | null) =>
-      run(() => api.updateHotelOwner(hotelId, ownerId), ownerId === null ? 'Hotel owner removed.' : 'Hotel owner assigned.'),
-    assignTaxi: (taxiServiceId: number, ownerId: number | null) =>
-      run(() => api.updateTaxiServiceOwner(taxiServiceId, ownerId), ownerId === null ? 'Taxi owner removed.' : 'Taxi owner assigned.'),
-  };
+  return { ...data, loading, error, refresh };
 }

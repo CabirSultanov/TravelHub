@@ -174,7 +174,7 @@ export default function TaxiPage({
       {!model.showTaxiForm && selectedTaxiService && model.canManageSelectedTaxi && currentUser?.role === 'TaxiOwner' && (
         <section className="container taxi-drivers-workspace" aria-label="Driver management">
           <div className="panel wide taxi-drivers-card">
-            <TaxiDriversPanel management={model.taxiDrivers} submitting={submitting} />
+            <TaxiDriversPanel key={selectedTaxiService.id} companyName={selectedTaxiService.companyName} management={model.taxiDrivers} submitting={submitting} />
           </div>
         </section>
       )}
