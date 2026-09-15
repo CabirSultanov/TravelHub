@@ -26,6 +26,9 @@ import type {
   TaxiServiceInput,
   UpdateProfileRequest,
   VerifyEmailRequest,
+  PasswordCodeSent,
+  PasswordCodeVerified,
+  ResetPasswordRequest,
 } from './types';
 
 const refreshUrl = '/api/auth/refresh';
@@ -238,6 +241,18 @@ export const api = {
       { skipAuthRefresh: true, skipAccessToken: true },
     ),
   refresh: refreshAccessToken,
+  requestPasswordCode: (email: string, signal?: AbortSignal) =>
+    request<PasswordCodeSent>('/api/auth/forgot-password', {
+      method: 'POST', body: JSON.stringify({ email }), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
+  verifyPasswordCode: (email: string, code: string, signal?: AbortSignal) =>
+    request<PasswordCodeVerified>('/api/auth/verify-password-code', {
+      method: 'POST', body: JSON.stringify({ email, code }), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
+  resetPassword: (body: ResetPasswordRequest, signal?: AbortSignal) =>
+    request<void>('/api/auth/reset-password', {
+      method: 'POST', body: JSON.stringify(body), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
   logout: async () => {
     try {
       await request<void>(

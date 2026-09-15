@@ -641,6 +641,8 @@ public class AuthRegistrationTests
 
     private sealed class FakeEmailService : IEmailService
     {
+        public Task SendPasswordRecoveryAsync(string email, string name, string code, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SendPasswordChangedAsync(string email, string name, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public string? LastEmail { get; private set; }
         public string? LastCode { get; private set; }
 

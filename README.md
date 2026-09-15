@@ -168,6 +168,18 @@ Do not commit `.env` files or real credentials.
 
 New registrations also require Gmail email confirmation. TravelHub sends a six-digit code through Gmail SMTP; the default SMTP host is `smtp.gmail.com` on port `587` with STARTTLS. Optionally override `Email:SenderName`, `Email:SmtpHost`, or `Email:SmtpPort` through User Secrets or environment variables. Use a Gmail App Password, never your normal Gmail password.
 
+### Website password recovery
+
+On **Sign in**, choose **Forgot password?**, enter your account Gmail address, verify the emailed six-digit code, then enter and confirm a new password. The site keeps its existing password requirements. Recovery uses the same SMTP configuration above; no new mail provider or credentials are required. A separate notification is sent after a successful password change. Registration/email confirmation, roles and MobileApp are unchanged.
+
+- Codes expire after 10 minutes, allow at most five guesses, and can be requested once per account per minute. A new code invalidates the previous code/recovery grant. Verification issues a single-use, ten-minute reset grant kept only in page memory, never in local storage or URLs. Reloading the page requires starting recovery again.
+- Unknown, blocked and existing accounts receive the same request response, including delivery failures. Responses are padded to five seconds with a four-second SMTP timeout. Delivery problems are reported only in sanitized server logs; check those logs and Spam if mail does not arrive. No password/code/token is logged.
+- Recovery endpoints share a limit of ten requests per minute per remote IP using ASP.NET Core's built-in limiter. Behind a reverse proxy this is the address seen by the API; configure trusted proxy forwarding/deployment-level limits before scaling. The per-account cooldown and guess count are persistent and concurrency-protected in SQL.
+- Password reset revokes all unexpired refresh tokens, including rotation-replay tokens. Existing access JWTs keep their configured short expiry; this change does not redesign token validation or automatically sign the user in. Unconfirmed users still need the existing email-confirmation flow after resetting; blocked users cannot recover until unblocked.
+- Migration `20260915124448_AddPasswordRecovery` adds only `PasswordRecoveries` (one row per account, storing hashes, expiry and attempt/concurrency state). It does not alter existing user/password/role columns or delete account data. Deleting an account also removes its recovery row. **API startup applies pending migrations to its configured database**: review the migration and generated SQL before restarting a deployment. Do not use a production-connected API for test resets; automated tests use an isolated in-memory database and fake mail delivery.
+
+These protections follow the [OWASP password recovery guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html). Use HTTPS in deployment, as for login.
+
 New hotel, room, and taxi image uploads use Cloudinary. Configure the `Cloudinary:CloudName`, `Cloudinary:ApiKey`, and `Cloudinary:ApiSecret` User Secrets locally, or set `Cloudinary__CloudName`, `Cloudinary__ApiKey`, and `Cloudinary__ApiSecret` in production. Existing `/images/...` URLs remain served by TravelHub for backwards compatibility.
 
 ---

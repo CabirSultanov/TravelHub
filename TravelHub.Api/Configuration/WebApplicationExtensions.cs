@@ -9,6 +9,7 @@ public static class WebApplicationExtensions
 {
     public static WebApplication UseTravelHubPipeline(this WebApplication app)
     {
+        app.UseRouting();
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -29,6 +30,7 @@ public static class WebApplicationExtensions
             });
         }
 
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.Use(async (context, next) =>
         {

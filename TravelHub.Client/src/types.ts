@@ -308,3 +308,6 @@ export type TaxiRoutePreview = {
   durationSeconds: number;
   encodedPolyline: string;
 };
+export type PasswordCodeSent = { message: string; resendAfterSeconds: number };
+export type PasswordCodeVerified = { resetToken: string; expiresAt: string };
+export type ResetPasswordRequest = { email: string; resetToken: string; newPassword: string; confirmNewPassword: string };

@@ -16,6 +16,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TaxiService> TaxiServices => Set<TaxiService>();
     public DbSet<TaxiCarClass> TaxiCarClasses => Set<TaxiCarClass>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordRecovery> PasswordRecoveries => Set<PasswordRecovery>();
     public DbSet<HotelReview> HotelReviews => Set<HotelReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -41,6 +42,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<RefreshToken>()
             .HasIndex(refreshToken => refreshToken.TokenHash)
             .IsUnique();
+
+        modelBuilder.Entity<PasswordRecovery>()
+            .HasOne(recovery => recovery.User)
+            .WithOne()
+            .HasForeignKey<PasswordRecovery>(recovery => recovery.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<RefreshToken>()
             .HasOne(refreshToken => refreshToken.User)
