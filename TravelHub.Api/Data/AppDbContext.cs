@@ -11,10 +11,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<HotelRoom> HotelRooms => Set<HotelRoom>();
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
     public DbSet<TaxiBooking> TaxiBookings => Set<TaxiBooking>();
+    public DbSet<TaxiBookingDriverDecline> TaxiBookingDriverDeclines => Set<TaxiBookingDriverDecline>();
     public DbSet<SavedPaymentCard> SavedPaymentCards => Set<SavedPaymentCard>();
     public DbSet<TaxiService> TaxiServices => Set<TaxiService>();
     public DbSet<TaxiCarClass> TaxiCarClasses => Set<TaxiCarClass>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordRecovery> PasswordRecoveries => Set<PasswordRecovery>();
     public DbSet<HotelReview> HotelReviews => Set<HotelReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -40,6 +42,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<RefreshToken>()
             .HasIndex(refreshToken => refreshToken.TokenHash)
             .IsUnique();
+
+        modelBuilder.Entity<PasswordRecovery>()
+            .HasOne(recovery => recovery.User)
+            .WithOne()
+            .HasForeignKey<PasswordRecovery>(recovery => recovery.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<RefreshToken>()
             .HasOne(refreshToken => refreshToken.User)
@@ -76,6 +84,35 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany(taxiService => taxiService.Drivers)
             .HasForeignKey(user => user.TaxiServiceId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<TaxiBooking>()
+            .HasOne(booking => booking.Driver)
+            .WithMany()
+            .HasForeignKey(booking => booking.DriverId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<TaxiBooking>()
+            .Property(booking => booking.RowVersion)
+            .IsRowVersion();
+
+        modelBuilder.Entity<TaxiBooking>()
+            .Property(booking => booking.ReviewedAt)
+            .HasConversion(nullableUtcDateTimeConverter);
+
+        modelBuilder.Entity<TaxiBookingDriverDecline>()
+            .HasKey(decline => new { decline.TaxiBookingId, decline.DriverId });
+
+        modelBuilder.Entity<TaxiBookingDriverDecline>()
+            .HasOne(decline => decline.TaxiBooking)
+            .WithMany(booking => booking.DriverDeclines)
+            .HasForeignKey(decline => decline.TaxiBookingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TaxiBookingDriverDecline>()
+            .HasOne(decline => decline.Driver)
+            .WithMany()
+            .HasForeignKey(decline => decline.DriverId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<HotelReview>()
             .HasIndex(review => new { review.UserId, review.HotelId })

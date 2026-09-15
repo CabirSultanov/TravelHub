@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { AuthForm, AuthMode, EmailConfirmationRequired } from '../../types';
 import { getPasswordRequirements } from '../../utils/authValidation';
+import PasswordRecoveryForm from './PasswordRecoveryForm';
 
 type AuthPageProps = {
   authMode: AuthMode;
@@ -40,10 +41,13 @@ export default function AuthPage({
   onReturnToLogin,
 }: AuthPageProps) {
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [recoveringPassword, setRecoveringPassword] = useState(false);
+  const forgotButton = useRef<HTMLButtonElement>(null);
   const passwordRequirements = getPasswordRequirements(authForm.password);
+  useEffect(() => { if (authMode !== 'login') setRecoveringPassword(false); }, [authMode]);
 
   return (
-    <section className="auth-page od-auth-page">
+    <section className={`auth-page od-auth-page${recoveringPassword ? ' is-recovering' : ''}`}>
       <main className="auth-wrap">
         <section className="auth-shell">
           <div className="auth-media">
@@ -53,8 +57,15 @@ export default function AuthPage({
           </div>
 
           <div className="auth-panel">
-            <p className="eyebrow">Account</p>
-            {emailConfirmation ? (
+            {!recoveringPassword && <p className="eyebrow">Account</p>}
+            {recoveringPassword && authMode === 'login' ? (
+              <PasswordRecoveryForm initialEmail={authForm.email} onClose={(email) => {
+                setRecoveringPassword(false);
+                onReturnToLogin();
+                onAuthFormChange({ ...authForm, email, password: '' });
+                window.requestAnimationFrame(() => forgotButton.current?.focus());
+              }} />
+            ) : emailConfirmation ? (
               <section className="email-verification" aria-labelledby="email-verification-title">
                 <h2 id="email-verification-title">Verify your email</h2>
                 <p>We sent a 6-digit verification code to:</p>
@@ -169,6 +180,10 @@ export default function AuthPage({
                   </div>
                 )}
               </div>
+              {authMode === 'login' && <button ref={forgotButton} className="link-button auth-forgot-password" type="button" disabled={submitting} onClick={() => {
+                onAuthFormChange({ ...authForm, password: '' });
+                setRecoveringPassword(true);
+              }}>Forgot password?</button>}
               {message && <p className="auth-message">{message}</p>}
               <button className="btn btn-primary btn-wide" disabled={submitting} type="submit">
                 {authMode === 'register' ? 'Create account' : 'Sign in'}

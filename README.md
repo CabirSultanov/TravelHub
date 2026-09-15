@@ -29,6 +29,7 @@ TravelHub/
 ├── TravelHub.Client/           # React + TypeScript frontend
 │   ├── public/                 # Static assets and favicon
 │   └── src/                    # Pages, features, API client, utilities
+├── MobileApp/                   # Expo React Native app for taxi drivers
 ├── .github/workflows/          # GitHub Actions CI
 ├── images/                     # Uploaded/static images served by API
 ├── docs/                       # Additional project documentation
@@ -37,6 +38,19 @@ TravelHub/
 ```
 
 ---
+
+## Hotel owner workspace
+
+HotelOwner accounts have a **My hotels** link to `/owner`. Normal login opens the workspace; signing in for a specific page preserves that destination. An administrator still assigns hotels and creates/deletes hotel properties.
+
+- **Overview:** planned paid arrivals/departures using the Baku calendar date, pending payments for current/upcoming stays, and the next five paid arrivals. These are scheduled stays, not actual check-in events or bank revenue.
+- **Bookings:** server-scoped, paginated read-only guest reservations, contact details, date/status/search filters and saved totals. No owner payment/cancellation actions or card details.
+- **Hotels & rooms:** existing hotel/photo/room editors, including open/closed sales. Price edits affect new bookings only. Types with booking history cannot be deleted; current/future paid and pending bookings protect room stock and saved capacity. Existing minimum room-type/guest-place rules remain.
+- **Reviews:** read-only existing ratings and paginated feedback for a selected owned hotel.
+
+Overview and the open booking list refresh every 30 seconds while the browser tab is visible. Other reads refresh on entry/return and manually. Cancelled hotel bookings are retained; the previous hourly-age cleanup worker is no longer registered. Previously deleted bookings cannot be recovered.
+
+Protected read APIs: `GET /api/owner/hotels`, `/api/owner/overview`, `/api/owner/bookings`, `/api/owner/bookings/{id}`. Ownership comes from the authenticated account and current hotel assignment. This feature adds no migration or dependency. Test with isolated data; do not start the API against the working database for verification because startup may apply pending migrations from other features.
 
 ## Technology Stack
 
@@ -95,7 +109,44 @@ http://localhost:5173
 
 The Vite dev server proxies `/api`, `/health`, and `/images` to the backend.
 
-### 4) Environment Configuration
+### 4) Mobile Driver App
+
+`MobileApp` is an Expo React Native application for users with the `TaxiDriver` role. It is login-only in the current phase; ride management is not implemented yet.
+
+Run web and mobile against the same local API using three terminals.
+
+**Terminal 1 — backend**
+
+```powershell
+dotnet run --project TravelHub.Api --launch-profile mobile
+```
+
+**Terminal 2 — website**
+
+```powershell
+cd TravelHub.Client
+npm run dev
+```
+
+**Terminal 3 — Expo Go**
+
+```powershell
+cd MobileApp
+npm install
+npx expo start --lan
+```
+
+Open the website at `http://localhost:5173`. On a phone connected to the same Wi-Fi, open Expo Go and scan the QR code. MobileApp automatically gets the PC LAN host from Expo and connects to the same TravelHub API on port `5207`; `.env`, `ipconfig`, and manually copied IP addresses are not required for normal LAN development.
+
+If an older `MobileApp/.env` exists, remove or rename it to return to automatic discovery; an explicit API URL intentionally takes priority.
+
+The app stores only its access token in the device's secure storage. Native refresh-token support is intentionally deferred until a later phase with dedicated backend support.
+
+### 5) Mobile troubleshooting
+
+If Expo opens but the API is unavailable, confirm the backend is running with the `mobile` profile and that `http://localhost:5207/health` works on the PC. Allow .NET only on **Private networks** when Windows Firewall prompts. If automatic discovery cannot work on a specific network, create `MobileApp/.env` with `EXPO_PUBLIC_API_URL=http://YOUR_PC_IP:5207`, then restart Expo. This is a fallback only; do not commit it.
+
+### 6) Environment Configuration
 
 Create `TravelHub.Client/.env`:
 
@@ -129,6 +180,18 @@ dotnet user-secrets set "SeedSuperAdmin:Password" "your-local-super-admin-passwo
 Do not commit `.env` files or real credentials.
 
 New registrations also require Gmail email confirmation. TravelHub sends a six-digit code through Gmail SMTP; the default SMTP host is `smtp.gmail.com` on port `587` with STARTTLS. Optionally override `Email:SenderName`, `Email:SmtpHost`, or `Email:SmtpPort` through User Secrets or environment variables. Use a Gmail App Password, never your normal Gmail password.
+
+### Website password recovery
+
+On **Sign in**, choose **Forgot password?**, enter your account Gmail address, verify the emailed six-digit code, then enter and confirm a new password. The site keeps its existing password requirements. Recovery uses the same SMTP configuration above; no new mail provider or credentials are required. A separate notification is sent after a successful password change. Registration/email confirmation, roles and MobileApp are unchanged.
+
+- Codes expire after 10 minutes, allow at most five guesses, and can be requested once per account per minute. A new code invalidates the previous code/recovery grant. Verification issues a single-use, ten-minute reset grant kept only in page memory, never in local storage or URLs. Reloading the page requires starting recovery again.
+- Unknown, blocked and existing accounts receive the same request response, including delivery failures. Responses are padded to five seconds with a four-second SMTP timeout. Delivery problems are reported only in sanitized server logs; check those logs and Spam if mail does not arrive. No password/code/token is logged.
+- Recovery endpoints share a limit of ten requests per minute per remote IP using ASP.NET Core's built-in limiter. Behind a reverse proxy this is the address seen by the API; configure trusted proxy forwarding/deployment-level limits before scaling. The per-account cooldown and guess count are persistent and concurrency-protected in SQL.
+- Password reset revokes all unexpired refresh tokens, including rotation-replay tokens. Existing access JWTs keep their configured short expiry; this change does not redesign token validation or automatically sign the user in. Unconfirmed users still need the existing email-confirmation flow after resetting; blocked users cannot recover until unblocked.
+- Migration `20260915124448_AddPasswordRecovery` adds only `PasswordRecoveries` (one row per account, storing hashes, expiry and attempt/concurrency state). It does not alter existing user/password/role columns or delete account data. Deleting an account also removes its recovery row. **API startup applies pending migrations to its configured database**: review the migration and generated SQL before restarting a deployment. Do not use a production-connected API for test resets; automated tests use an isolated in-memory database and fake mail delivery.
+
+These protections follow the [OWASP password recovery guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html). Use HTTPS in deployment, as for login.
 
 New hotel, room, and taxi image uploads use Cloudinary. Configure the `Cloudinary:CloudName`, `Cloudinary:ApiKey`, and `Cloudinary:ApiSecret` User Secrets locally, or set `Cloudinary__CloudName`, `Cloudinary__ApiKey`, and `Cloudinary__ApiSecret` in production. Existing `/images/...` URLs remain served by TravelHub for backwards compatibility.
 

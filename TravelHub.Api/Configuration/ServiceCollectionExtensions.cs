@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using TravelHub.Api.Data;
 using TravelHub.Api.Models;
 using TravelHub.Api.Services;
@@ -22,7 +24,6 @@ public static class ServiceCollectionExtensions
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(connectionString));
-        services.AddHostedService<CancelledBookingCleanupService>();
         services.AddOptions<GoogleMapsOptions>()
             .Bind(configuration.GetSection(GoogleMapsOptions.SectionName));
         services.AddOptions<EmailOptions>()
@@ -49,6 +50,21 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services.AddControllers();
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = async (context, cancellationToken) =>
+                await context.HttpContext.Response.WriteAsync("Too many recovery attempts. Please wait one minute and try again.", cancellationToken);
+            options.AddPolicy("password-recovery", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
+        });
         services.AddCors(options =>
         {
             options.AddPolicy("LocalClient", policy =>

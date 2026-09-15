@@ -1,8 +1,9 @@
 import type { FormEvent, ReactNode } from 'react';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import TaxiMap from './TaxiMap';
+import PaymentMethodFields from '../../../components/booking/PaymentMethodFields';
 import { formatMoney, formatTaxiCarClassName } from '../../../utils/formatting';
-import type { AuthUser, TaxiCarClass, TaxiService } from '../../../types';
+import type { AuthUser, BookingPayment, PaymentForm, PaymentMode, SavedPaymentCard, TaxiCarClass, TaxiService } from '../../../types';
 import { GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_LIBRARIES } from '../googleMapsConfig';
 import { canCreateTaxiBooking } from '../taxi.state';
 import type {
@@ -26,6 +27,14 @@ type TaxiBookingFormProps = {
   currentUser: AuthUser | null;
   submitting: boolean;
   phoneNumberPattern: string;
+  cardNumberPattern: string;
+  cvvPattern: string;
+  currentYear: number;
+  paymentMode: PaymentMode;
+  paymentForm: PaymentForm;
+  savedPaymentCards: SavedPaymentCard[];
+  onPaymentModeChange: (mode: PaymentMode) => void;
+  onPaymentFormChange: (form: PaymentForm) => void;
   actions: TaxiBookingFormActions;
   onOpenAuth: () => void;
   children?: ReactNode;
@@ -44,6 +53,14 @@ export default function TaxiBookingForm({
   currentUser,
   submitting,
   phoneNumberPattern,
+  cardNumberPattern,
+  cvvPattern,
+  currentYear,
+  paymentMode,
+  paymentForm,
+  savedPaymentCards,
+  onPaymentModeChange,
+  onPaymentFormChange,
   actions,
   onOpenAuth,
   children,
@@ -56,6 +73,16 @@ export default function TaxiBookingForm({
   );
   const distanceLabel =
     taxiRouteState.status === 'loading' ? 'Calculating...' : taxiDistanceKm > 0 ? `${taxiDistanceKm.toFixed(2)} km` : '-';
+  const payment: BookingPayment = paymentMode === 'saved' && savedPaymentCards.length > 0
+    ? { savedPaymentCardId: Number(paymentForm.savedPaymentCardId), saveCard: false }
+    : {
+        cardNumber: paymentForm.cardNumber,
+        cardHolderName: paymentForm.cardHolderName,
+        expiryMonth: Number(paymentForm.expiryMonth),
+        expiryYear: Number(paymentForm.expiryYear),
+        cvv: paymentForm.cvv,
+        saveCard: paymentForm.saveCard,
+      };
 
   return (
     <section className="taxi-order">
@@ -67,7 +94,7 @@ export default function TaxiBookingForm({
           </button>
         </div>
       ) : (
-        <form className="form-grid taxi-order-form" onSubmit={(event: FormEvent<HTMLFormElement>) => void actions.submit(event)}>
+        <form className="form-grid taxi-order-form" onSubmit={(event: FormEvent<HTMLFormElement>) => void actions.submit(event, payment)}>
           <label className="field-label">
             Car class
             <select
@@ -146,8 +173,23 @@ export default function TaxiBookingForm({
             </span>
           </div>
 
+          <fieldset className="payment-method-section">
+            <legend>Payment method</legend>
+            <p>Your card is charged only after a driver accepts this ride.</p>
+            <PaymentMethodFields
+              cardNumberPattern={cardNumberPattern}
+              currentYear={currentYear}
+              cvvPattern={cvvPattern}
+              onPaymentFormChange={onPaymentFormChange}
+              onPaymentModeChange={onPaymentModeChange}
+              paymentForm={paymentForm}
+              paymentMode={paymentMode}
+              savedPaymentCards={savedPaymentCards}
+            />
+          </fieldset>
+
           <button className="primary" disabled={submitting || !canCreateBooking} type="submit">
-            Create taxi booking
+            Request ride
           </button>
         </form>
       )}

@@ -26,7 +26,19 @@ import type {
   TaxiServiceInput,
   UpdateProfileRequest,
   VerifyEmailRequest,
+  PasswordCodeSent,
+  PasswordCodeVerified,
+  ResetPasswordRequest,
 } from './types';
+import type { OwnerBooking, OwnerBookingFilters, OwnerOverview } from './pages/Owner/ownerTypes';
+
+function ownerQuery(filters: Record<string, string | number | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  }
+  return query.toString();
+}
 
 const refreshUrl = '/api/auth/refresh';
 const authEndpoints = new Set([
@@ -42,7 +54,7 @@ let accessToken: string | null = null;
 let refreshPromise: Promise<AuthResponse | null> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
@@ -182,6 +194,14 @@ async function refreshAccessToken(): Promise<AuthResponse | null> {
 }
 
 export const api = {
+  getOwnerHotels: (filters: { search?: string; page?: number; pageSize?: number } = {}, signal?: AbortSignal) =>
+    request<PagedResponse<Hotel>>(`/api/owner/hotels?${ownerQuery(filters)}`, { signal }),
+  getOwnerOverview: (hotelId?: number, signal?: AbortSignal) =>
+    request<OwnerOverview>(`/api/owner/overview?${ownerQuery({ hotelId })}`, { signal }),
+  getOwnerBookings: (filters: OwnerBookingFilters = {}, signal?: AbortSignal) =>
+    request<PagedResponse<OwnerBooking>>(`/api/owner/bookings?${ownerQuery(filters)}`, { signal }),
+  getOwnerBooking: (id: number, signal?: AbortSignal) =>
+    request<OwnerBooking>(`/api/owner/bookings/${id}`, { signal }),
   setSessionExpiredHandler: (handler: (() => void) | null) => {
     sessionExpiredHandler = handler;
   },
@@ -238,6 +258,18 @@ export const api = {
       { skipAuthRefresh: true, skipAccessToken: true },
     ),
   refresh: refreshAccessToken,
+  requestPasswordCode: (email: string, signal?: AbortSignal) =>
+    request<PasswordCodeSent>('/api/auth/forgot-password', {
+      method: 'POST', body: JSON.stringify({ email }), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
+  verifyPasswordCode: (email: string, code: string, signal?: AbortSignal) =>
+    request<PasswordCodeVerified>('/api/auth/verify-password-code', {
+      method: 'POST', body: JSON.stringify({ email, code }), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
+  resetPassword: (body: ResetPasswordRequest, signal?: AbortSignal) =>
+    request<void>('/api/auth/reset-password', {
+      method: 'POST', body: JSON.stringify(body), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
   logout: async () => {
     try {
       await request<void>(
@@ -262,7 +294,7 @@ export const api = {
     accessToken = null;
   },
   getAdmins: () => request<AuthUser[]>('/api/admins'),
-  getAdminCandidates: (searchTerm = '', page = 1, pageSize = 100) => {
+  getAdminUsers: (searchTerm = '', page = 1, pageSize = 100) => {
     const search = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),
@@ -308,8 +340,8 @@ export const api = {
     return request<PagedResponse<Hotel>>(`/api/hotels?${search}`);
   },
   getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
-  getHotelReviews: (hotelId: number, page = 1, pageSize = 3) =>
-    request<HotelReviewsResponse>(`/api/hotels/${hotelId}/reviews?page=${page}&pageSize=${pageSize}`),
+  getHotelReviews: (hotelId: number, page = 1, pageSize = 3, signal?: AbortSignal) =>
+    request<HotelReviewsResponse>(`/api/hotels/${hotelId}/reviews?page=${page}&pageSize=${pageSize}`, { signal }),
   getMyHotelReview: async (hotelId: number) => {
     try {
       return await request<HotelReview>(`/api/hotels/${hotelId}/reviews/mine`);
@@ -440,7 +472,15 @@ export const api = {
     request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'PUT' }),
   removeTaxiDriver: (taxiServiceId: number, userId: number) =>
     request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'DELETE' }),
-  getTaxiBookings: (mine = false) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`),
+  getTaxiBookings: (mine = false, signal?: AbortSignal) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`, { signal }),
+  getTaxiBooking: (bookingId: number, signal?: AbortSignal) =>
+    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}`, { signal }),
+  reviewTaxiBooking: (bookingId: number, review: { rating: number; comment?: string }, signal?: AbortSignal) =>
+    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(review),
+      signal,
+    }),
   createTaxiBooking: (booking: TaxiBookingCreate) =>
     request<TaxiBooking>('/api/taxi-bookings', {
       method: 'POST',
@@ -452,14 +492,10 @@ export const api = {
       body: JSON.stringify(route),
       signal,
     }),
-  payTaxiBooking: (bookingId: number, payment: BookingPayment) =>
-    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/pay`, {
-      method: 'POST',
-      body: JSON.stringify(payment),
-    }),
-  cancelTaxiBooking: (bookingId: number) =>
+  cancelTaxiBooking: (bookingId: number, signal?: AbortSignal) =>
     request<void>(`/api/taxi-bookings/${bookingId}/cancel`, {
       method: 'PUT',
+      signal,
     }),
   getBookings: (mine = false) => request<Booking[]>(`/api/booking-requests${mine ? '?mine=true' : ''}`),
   createBooking: (booking: BookingCreate) =>

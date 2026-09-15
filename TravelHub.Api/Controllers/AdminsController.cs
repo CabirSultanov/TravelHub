@@ -13,8 +13,8 @@ namespace TravelHub.Api.Controllers;
 [Route("api/admins")]
 public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordHasher) : ControllerBase
 {
-    private const int DefaultRegularUsersPageSize = 10;
-    private const int MaxRegularUsersPageSize = 100;
+    private const int DefaultUsersPageSize = 10;
+    private const int MaxUsersPageSize = 100;
 
     [HttpGet]
     public async Task<ActionResult<List<AuthUserDto>>> GetAdmins(string? role)
@@ -38,11 +38,11 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
     }
 
     [HttpGet("users")]
-    public async Task<ActionResult<PagedResponseDto<AuthUserDto>>> GetRegularUsers(string? search = null, int page = 1, int pageSize = DefaultRegularUsersPageSize)
+    public async Task<ActionResult<PagedResponseDto<AuthUserDto>>> GetUsers(string? search = null, int page = 1, int pageSize = DefaultUsersPageSize)
     {
         var normalizedPage = Math.Max(1, page);
-        var normalizedPageSize = Math.Clamp(pageSize, 1, MaxRegularUsersPageSize);
-        var query = db.Users.AsNoTracking().Where(user => user.Role == UserRoles.User);
+        var normalizedPageSize = Math.Clamp(pageSize, 1, MaxUsersPageSize);
+        var query = db.Users.AsNoTracking();
         var normalizedSearch = search?.Trim();
         if (!string.IsNullOrEmpty(normalizedSearch))
         {

@@ -615,7 +615,7 @@ public class AuthController(
         return true;
     }
 
-    private static bool IsValidEmail(string email, out string error)
+    internal static bool IsValidEmail(string email, out string error)
     {
         var trimmed = email.Trim();
 
@@ -659,7 +659,7 @@ public class AuthController(
         return true;
     }
 
-    private static bool IsValidPassword(string password, out string error)
+    internal static bool IsValidPassword(string password, out string error)
     {
         if (string.IsNullOrWhiteSpace(password))
         {

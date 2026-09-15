@@ -4,8 +4,7 @@ import ConfirmDeleteModal from './components/common/ConfirmDeleteModal';
 import PaymentFormComponent from './components/booking/PaymentForm';
 import { useHotelsFeature } from './features/hotels/hooks/useHotelsFeature';
 import { useTaxiFeature } from './features/taxi/hooks/useTaxiFeature';
-import { useAdminUsers } from './hooks/useAdminUsers';
-import { useOwnerAssignments } from './hooks/useOwnerAssignments';
+import { useTaxiRide } from './features/taxi/hooks/useTaxiRide';
 import { useAccount } from './hooks/useAccount';
 import SiteHeader from './components/common/SiteHeader';
 import AdminPage from './pages/Admin/AdminPage';
@@ -15,6 +14,8 @@ import HotelsPage from './pages/Hotels/HotelsPage';
 import MyTripsPage from './pages/MyTrips/MyTripsPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import TaxiPage from './pages/Taxi/TaxiPage';
+import TaxiRidePage from './pages/Taxi/TaxiRidePage';
+import OwnerWorkspacePage from './pages/Owner/OwnerWorkspacePage';
 import { formatTaxiCarClassName } from './utils/formatting';
 import { getErrorMessage } from './utils/errors';
 import { accountPhonePrefix } from './utils/account';
@@ -24,6 +25,7 @@ import {
   buildHotelsUrl,
   buildParsedRouteUrl,
   buildTaxiUrl,
+  buildTaxiRideUrl,
   emptyHotelRouteSearch,
   emptyTaxiRouteSearch,
   getHotelIdFromPathname,
@@ -31,6 +33,7 @@ import {
   normalizeTaxiRouteSearch,
   pageRoutes,
   parseAppRoute,
+  safeReturnTo,
   type HotelRouteSearch,
   type ParsedRoute,
   type TaxiRouteSearch,
@@ -78,8 +81,11 @@ function App() {
   const initialRouteRef = useRef<ParsedRoute | null>(null);
   initialRouteRef.current ??= parseAppRoute(window.location.pathname, window.location.search);
   const initialRoute = initialRouteRef.current;
+  const authReturnToRef = useRef(initialRoute.returnTo ?? null);
+  const ownerEditStateRef = useRef({ dirty: false, busy: false });
   const [page, setPage] = useState<Page>(initialRoute.page);
   const [hotelDetailId, setHotelDetailId] = useState<number | null>(initialRoute.hotelId);
+  const [taxiRideId, setTaxiRideId] = useState<number | null>(initialRoute.taxiRideId);
   const [hotelSearch, setHotelSearch] = useState<HotelRouteSearch>(initialRoute.hotels);
   const [requestedHotelRoomId, setRequestedHotelRoomId] = useState<number | null>(initialRoute.hotels.roomId);
   const [requestedTaxiSearch, setRequestedTaxiSearch] = useState<TaxiRouteSearch>(initialRoute.taxi);
@@ -87,13 +93,13 @@ function App() {
   const [hotelDetailNotFound, setHotelDetailNotFound] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [taxiBookings, setTaxiBookings] = useState<TaxiBooking[]>([]);
+  const taxiListRequestRef = useRef<AbortController | null>(null);
   const [savedPaymentCards, setSavedPaymentCards] = useState<SavedPaymentCard[]>([]);
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('new');
   const [paymentCardForm, setPaymentCardForm] = useState<PaymentCardForm>(emptyPaymentCardForm);
   const [showPaymentCardForm, setShowPaymentCardForm] = useState(false);
   const [payingBookingId, setPayingBookingId] = useState<number | null>(null);
-  const [payingTaxiBookingId, setPayingTaxiBookingId] = useState<number | null>(null);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [taxiBookingsLoading, setTaxiBookingsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -108,32 +114,43 @@ function App() {
     initialAuthMode: initialRoute.authMode,
     setMessage,
     setSubmitting,
-    onAuthenticated: () => navigateTo('home'),
+    onAuthenticated: (user) => {
+      const returnTo = safeReturnTo(authReturnToRef.current);
+      authReturnToRef.current = null;
+      if (returnTo) {
+        const url = new URL(returnTo, window.location.origin);
+        const route = parseAppRoute(url.pathname, url.search);
+        applyParsedRoute(route);
+        pushRoute(buildParsedRouteUrl(route), { page: route.page });
+      } else if (taxiRideId !== null) openTaxiRide(taxiRideId);
+      else navigateTo(user.role === 'HotelOwner' ? 'owner' : 'home');
+    },
     onSignedOut: resetAccountData,
   });
   const { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading, emailConfirmation, verificationCode, setVerificationCode, resendSeconds } = account;
-  const adminUsers = useAdminUsers({
-    active: page === 'admin' && currentUser?.role === 'SuperAdmin',
-    setMessage,
-    setSubmitting,
-  });
-  const ownerAssignments = useOwnerAssignments({
-    active: page === 'admin' && (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin'),
-    setMessage,
-    setSubmitting,
-  });
 
   const taxiFeature = useTaxiFeature({
     currentUser,
     onBookingCreated: (booking) => {
       upsertTaxiBooking(booking);
-      void loadTaxiBookings();
+      openTaxiRide(booking.id);
     },
     onRequireAuth: requireAuth,
     onResetPayment: resetPaymentForm,
-    onResetTaxiPayment: () => setPayingTaxiBookingId(null),
     setMessage,
     setSubmitting,
+  });
+  const taxiRide = useTaxiRide({
+    bookingId: page === 'taxi' ? taxiRideId : null,
+    currentUserId: currentUser?.id ?? null,
+    onBookingUpdated: (booking) => {
+      if (booking.userId === currentUser?.id) upsertTaxiBooking(booking);
+    },
+    onCancelled: () => {
+      taxiFeature.actions.setBooking(null);
+      navigateTo('taxi');
+      setMessage('Taxi booking cancelled.');
+    },
   });
   const hotelsFeature = useHotelsFeature({
     currentUser,
@@ -179,6 +196,7 @@ function App() {
 
   useEffect(() => {
     api.setSessionExpiredHandler(() => {
+      ownerEditStateRef.current = { dirty: false, busy: false };
       setCurrentUser(null);
       hotelsFeature.actions.booking.setBooking(null);
       taxiFeature.actions.setBooking(null);
@@ -186,7 +204,6 @@ function App() {
       setTaxiBookings([]);
       setSavedPaymentCards([]);
       setPayingBookingId(null);
-      setPayingTaxiBookingId(null);
     });
 
     return () => api.setSessionExpiredHandler(null);
@@ -205,6 +222,10 @@ function App() {
     currentPathRef.current = canonicalUrl;
 
     function handleBrowserBack() {
+      if (currentPathRef.current.startsWith('/owner') && !beforeOwnerNavigation()) {
+        window.history.pushState({ page: 'owner' }, '', currentPathRef.current);
+        return;
+      }
       if (hotelEditOpenRef.current && currentPathRef.current.startsWith('/hotels')) {
         const currentPath = currentPathRef.current;
         window.history.pushState(
@@ -233,26 +254,49 @@ function App() {
   }, []);
 
   useEffect(() => {
+    function beforeUnload(event: BeforeUnloadEvent) {
+      if (ownerEditStateRef.current.dirty || ownerEditStateRef.current.busy) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, []);
+
+  useEffect(() => {
+    taxiListRequestRef.current?.abort();
     if (!currentUser) {
       setBookings([]);
       setTaxiBookings([]);
       setSavedPaymentCards([]);
-      setPayingTaxiBookingId(null);
       return;
     }
 
     void loadBookings();
-    void loadTaxiBookings();
     void loadPaymentCards();
   }, [currentUser?.id]);
 
   useEffect(() => {
-    if (loading || currentUser || (page !== 'profile' && page !== 'trips')) {
+    if (!currentUser || !['taxi', 'trips', 'profile'].includes(page) || (page === 'taxi' && taxiRideId !== null)) {
+      return;
+    }
+
+    void loadTaxiBookings(true);
+    const intervalId = window.setInterval(() => void loadTaxiBookings(), 10_000);
+    return () => {
+      window.clearInterval(intervalId);
+      taxiListRequestRef.current?.abort();
+    };
+  }, [currentUser?.id, page, taxiRideId]);
+
+  useEffect(() => {
+    if (loading || currentUser || (page !== 'owner' && page !== 'profile' && page !== 'trips' && !(page === 'taxi' && taxiRideId !== null))) {
       return;
     }
 
     requireAuth('Please sign in to view this page.');
-  }, [currentUser, loading, page]);
+  }, [currentUser, loading, page, taxiRideId]);
 
   const initialDataLoading = loading || taxiFeature.model.loading || hotelsFeature.model.loading;
 
@@ -338,7 +382,7 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (page !== 'taxi' || requestedTaxiSearch.serviceId === null || taxiFeature.model.loading) {
+    if (page !== 'taxi' || taxiRideId !== null || requestedTaxiSearch.serviceId === null || taxiFeature.model.loading) {
       return;
     }
 
@@ -369,6 +413,7 @@ function App() {
     }
   }, [
     page,
+    taxiRideId,
     requestedTaxiSearch,
     taxiFeature.model.loading,
     taxiFeature.model.selectedTaxiCarClass?.name,
@@ -387,8 +432,10 @@ function App() {
   }, [message]);
 
   function applyParsedRoute(route: ParsedRoute) {
+    if (route.page === 'auth') authReturnToRef.current = route.returnTo ?? null;
     setPage(route.page);
     setHotelDetailId(route.hotelId);
+    setTaxiRideId(route.taxiRideId);
     setHotelSearch(route.hotels);
     setRequestedHotelRoomId(route.hotels.roomId);
     setRequestedTaxiSearch(route.taxi);
@@ -420,7 +467,10 @@ function App() {
   }
 
   function navigateTo(nextPage: Page) {
+    if (nextPage === 'owner' && page === 'owner') return;
+    if (!beforeOwnerNavigation()) return;
     setPage(nextPage);
+    setTaxiRideId(null);
     setHotelDetailId(null);
     setHotelDetailLoading(false);
     setHotelDetailNotFound(false);
@@ -451,6 +501,16 @@ function App() {
     }
 
     pushRoute(nextPath, { page: nextPage });
+  }
+
+  function openTaxiRide(bookingId: number) {
+    setPage('taxi');
+    setTaxiRideId(bookingId);
+    setHotelDetailId(null);
+    setRequestedTaxiSearch(emptyTaxiRouteSearch);
+    setMessage('');
+    pushRoute(buildTaxiRideUrl(bookingId), { page: 'taxi', taxiRideId: bookingId });
+    window.scrollTo({ top: 0, left: 0 });
   }
 
   function searchHotels(search: Partial<HotelRouteSearch>) {
@@ -541,7 +601,7 @@ function App() {
     setAuthMode(nextMode);
     setPage('auth');
     setHotelDetailId(null);
-    pushRoute(buildAuthUrl(nextMode), { page: 'auth' });
+    pushRoute(buildAuthUrl(nextMode, taxiRideId, authReturnToRef.current), { page: 'auth' });
   }
 
   async function loadBookings() {
@@ -556,17 +616,22 @@ function App() {
     }
   }
 
-  async function loadTaxiBookings() {
-    setTaxiBookingsLoading(true);
+  async function loadTaxiBookings(showLoading = false) {
+    taxiListRequestRef.current?.abort();
+    const controller = new AbortController();
+    taxiListRequestRef.current = controller;
+    if (showLoading) setTaxiBookingsLoading(true);
 
     try {
-      setTaxiBookings(await api.getTaxiBookings(true));
+      const loadedBookings = await api.getTaxiBookings(true, controller.signal);
+      if (controller.signal.aborted) return;
+      setTaxiBookings(loadedBookings);
     } catch (error) {
-      if (!getErrorMessage(error).includes('status 404')) {
+      if (!controller.signal.aborted && showLoading && !getErrorMessage(error).includes('status 404')) {
         setMessage(getErrorMessage(error));
       }
     } finally {
-      setTaxiBookingsLoading(false);
+      if (taxiListRequestRef.current === controller) setTaxiBookingsLoading(false);
     }
   }
 
@@ -591,6 +656,8 @@ function App() {
   }
 
   function upsertTaxiBooking(nextBooking: TaxiBooking) {
+    taxiListRequestRef.current?.abort();
+    setTaxiBookingsLoading(false);
     setTaxiBookings((currentBookings) => [
       nextBooking,
       ...currentBookings.filter((currentBooking) => currentBooking.id !== nextBooking.id),
@@ -651,44 +718,6 @@ function App() {
     }
   }
 
-  async function submitTaxiBookingPayment(event: FormEvent<HTMLFormElement>, targetBooking: TaxiBooking) {
-    event.preventDefault();
-
-    setSubmitting(true);
-    setPaymentProcessing(true);
-    setPaymentSuccess(false);
-    setMessage('');
-
-    try {
-      const payment = createPaymentPayload();
-      await delay(3000);
-      const paidBooking = await api.payTaxiBooking(targetBooking.id, payment);
-
-      setPaymentProcessing(false);
-      setPaymentSuccess(true);
-      await delay(3000);
-
-      if (taxiFeature.model.taxiBooking?.id === paidBooking.id) {
-        taxiFeature.actions.setBooking(paidBooking);
-      }
-
-      if (paymentMode === 'new' && paymentForm.saveCard) {
-        await loadPaymentCards();
-      }
-
-      upsertTaxiBooking(paidBooking);
-      resetPaymentForm();
-      setPayingTaxiBookingId(null);
-      setMessage('Payment completed.');
-    } catch (error) {
-      setMessage(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-      setPaymentProcessing(false);
-      setPaymentSuccess(false);
-    }
-  }
-
   async function cancelBooking(targetBooking: Booking) {
     setSubmitting(true);
     setMessage('');
@@ -730,20 +759,22 @@ function App() {
       };
 
       if (taxiFeature.model.taxiBooking?.id === targetBooking.id) {
-        taxiFeature.actions.setBooking(cancelledBooking);
+        taxiFeature.actions.setBooking(null);
       }
 
       upsertTaxiBooking(cancelledBooking);
-      setPayingTaxiBookingId(null);
       setMessage('Taxi booking cancelled.');
     } catch (error) {
       setMessage(getErrorMessage(error));
+      void loadTaxiBookings();
     } finally {
       setSubmitting(false);
     }
   }
 
   function resetAccountData() {
+    ownerEditStateRef.current = { dirty: false, busy: false };
+    taxiListRequestRef.current?.abort();
     hotelsFeature.actions.booking.setBooking(null);
     setBookings([]);
     setTaxiBookings([]);
@@ -751,7 +782,6 @@ function App() {
     setPaymentCardForm(emptyPaymentCardForm);
     setShowPaymentCardForm(false);
     setPayingBookingId(null);
-    setPayingTaxiBookingId(null);
     navigateTo('home');
   }
 
@@ -803,11 +833,14 @@ function App() {
   }
 
   function openAuth() {
+    if (!beforeOwnerNavigation()) return;
+    if (page !== 'auth') authReturnToRef.current = page === 'home' ? null : safeReturnTo(currentPathRef.current);
     setAuthModeFromUrl('register');
     setMessage('');
   }
 
   function requireAuth(message: string) {
+    if (page !== 'auth') authReturnToRef.current = safeReturnTo(currentPathRef.current);
     setAuthModeFromUrl('login');
     setMessage(message);
   }
@@ -822,14 +855,14 @@ function App() {
 
   function openPaymentForm(bookingId: number) {
     setPayingBookingId(bookingId);
-    setPayingTaxiBookingId(null);
     resetPaymentForm();
   }
 
-  function openTaxiPaymentForm(bookingId: number) {
-    setPayingTaxiBookingId(bookingId);
-    setPayingBookingId(null);
-    resetPaymentForm();
+  function beforeOwnerNavigation() {
+    const state = ownerEditStateRef.current;
+    if (state.busy) return false;
+    if (state.dirty && !window.confirm('Discard your unsaved changes?')) return false;
+    return true;
   }
 
   function toPaymentCardCreate(form: PaymentCardForm): PaymentCardCreate {
@@ -842,27 +875,19 @@ function App() {
     };
   }
 
-  function renderPaymentForm(targetBooking: Booking | TaxiBooking, bookingKind: 'hotel' | 'taxi' = 'hotel') {
+  function renderPaymentForm(targetBooking: Booking) {
     return (
       <PaymentFormComponent
         cardNumberPattern={cardNumberPattern}
         currentYear={currentYear}
         cvvPattern={cvvPattern}
         onCancel={() => {
-          if (bookingKind === 'taxi') {
-            void cancelTaxiBooking(targetBooking as TaxiBooking);
-          } else {
-            void cancelBooking(targetBooking as Booking);
-          }
+          void cancelBooking(targetBooking);
         }}
         onPaymentFormChange={setPaymentForm}
         onPaymentModeChange={setPaymentMode}
         onSubmit={(event) => {
-          if (bookingKind === 'taxi') {
-            void submitTaxiBookingPayment(event, targetBooking as TaxiBooking);
-          } else {
-            void submitBookingPayment(event, targetBooking as Booking);
-          }
+          void submitBookingPayment(event, targetBooking);
         }}
         paymentForm={paymentForm}
         paymentMode={paymentMode}
@@ -873,10 +898,10 @@ function App() {
   }
 
   return (
-    <main className="app">
+    <main className={`app${page === 'owner' ? ' owner-app' : ''}`}>
       <SiteHeader
         currentUser={currentUser}
-        onLogout={account.logout}
+        onLogout={() => { if (beforeOwnerNavigation()) return account.logout(); }}
         onNavigate={navigateTo}
         onOpenAuth={openAuth}
         page={page}
@@ -912,6 +937,11 @@ function App() {
         </div>
       )}
 
+      {page === 'owner' && currentUser && (currentUser.role === 'HotelOwner' ? (
+        <OwnerWorkspacePage key={`${currentUser.id}:${currentUser.role}`} accountKey={`${currentUser.id}:${currentUser.role}`}
+          beforeNavigate={beforeOwnerNavigation} onStateChange={(state) => { ownerEditStateRef.current = state; }} />
+      ) : <main className="container owner-workspace"><div className="owner-empty"><h1>Hotel owner access required</h1><p>This workspace is available to assigned hotel owners.</p></div></main>)}
+
       {page === 'home' && (
         <HomePage
           cities={hotelsFeature.model.cities}
@@ -921,18 +951,45 @@ function App() {
         />
       )}
 
-      {page === 'taxi' && (
-        <TaxiPage
-          currentUser={currentUser}
-          feature={taxiFeature}
-          loading={initialDataLoading}
+      {page === 'taxi' && taxiRideId !== null && currentUser && (
+        <TaxiRidePage
+          key={`${currentUser.id}:${taxiRideId}`}
+          booking={taxiRide.booking}
+          currentUserId={currentUser.id}
+          error={taxiRide.error}
+          loading={taxiRide.loading}
+          unavailable={taxiRide.unavailable}
+          submitting={taxiRide.submitting}
+          onCancel={taxiRide.cancel}
+          onSubmitReview={taxiRide.submitReview}
+          onRetry={taxiRide.refresh}
           onNavigate={navigateTo}
           onOpenAuth={openAuth}
           onShowDestinations={showDestinations}
+        />
+      )}
+
+      {page === 'taxi' && taxiRideId === null && (
+        <TaxiPage
+          cardNumberPattern={cardNumberPattern}
+          currentYear={currentYear}
+          currentUser={currentUser}
+          cvvPattern={cvvPattern}
+          feature={taxiFeature}
+          loading={initialDataLoading}
+          taxiBookings={taxiBookings}
+          onOpenRide={openTaxiRide}
+          onNavigate={navigateTo}
+          onOpenAuth={openAuth}
+          onPaymentFormChange={setPaymentForm}
+          onPaymentModeChange={setPaymentMode}
+          onShowDestinations={showDestinations}
           onTaxiRouteChange={updateTaxiRouteSearch}
+          paymentForm={paymentForm}
+          paymentMode={paymentMode}
           phoneNumberPattern={phoneNumberPattern}
           pricePattern={pricePattern}
-          renderPaymentForm={renderPaymentForm}
+          savedPaymentCards={savedPaymentCards}
           submitting={submitting}
         />
       )}
@@ -1006,27 +1063,20 @@ function App() {
           cvvPattern={cvvPattern}
           editingProfile={editingProfile}
           formatTaxiCarClassName={formatTaxiCarClassName}
-          onCancelBooking={cancelBooking}
           onCancelPaymentCardForm={() => {
             setPaymentCardForm(emptyPaymentCardForm);
             setShowPaymentCardForm(false);
           }}
           onCancelProfileEdit={() => setEditingProfile(false)}
-          onCancelTaxiBooking={cancelTaxiBooking}
           onDeletePaymentCard={deletePaymentCard}
           onDeleteProfile={account.deleteProfile}
-          onOpenPaymentForm={openPaymentForm}
           onOpenProfileEditor={account.openProfileEditor}
-          onOpenTaxiPaymentForm={openTaxiPaymentForm}
           onPaymentCardFormChange={setPaymentCardForm}
           onProfileFormChange={setProfileForm}
           onShowPaymentCardForm={setShowPaymentCardForm}
           onSubmitPaymentCard={(event) => void submitPaymentCard(event)}
           onSubmitProfile={(event) => void account.submitProfile(event)}
-          payingBookingId={payingBookingId}
-          payingTaxiBookingId={payingTaxiBookingId}
           paymentCardForm={paymentCardForm}
-          renderPaymentForm={renderPaymentForm}
           savedPaymentCards={savedPaymentCards}
           profileForm={profileForm}
           showPaymentCardForm={showPaymentCardForm}
@@ -1044,10 +1094,9 @@ function App() {
           onCancelBooking={cancelBooking}
           onCancelTaxiBooking={cancelTaxiBooking}
           onNavigate={navigateTo}
+          onOpenRide={openTaxiRide}
           onOpenPaymentForm={openPaymentForm}
-          onOpenTaxiPaymentForm={openTaxiPaymentForm}
           payingBookingId={payingBookingId}
-          payingTaxiBookingId={payingTaxiBookingId}
           renderPaymentForm={renderPaymentForm}
           submitting={submitting}
           taxiBookings={taxiBookings}
@@ -1056,31 +1105,7 @@ function App() {
       )}
 
       {page === 'admin' && (currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
-        <AdminPage
-          adminCandidates={adminUsers.adminCandidates}
-          admins={adminUsers.admins}
-          canManageUsers={currentUser.role === 'SuperAdmin'}
-          hotelCandidates={ownerAssignments.hotelCandidates}
-          hotels={ownerAssignments.hotels}
-          onBlock={adminUsers.block}
-          onAssignHotel={ownerAssignments.assignHotel}
-          onAssignTaxi={ownerAssignments.assignTaxi}
-          onManageTaxiDrivers={(taxiService) => {
-            taxiFeature.actions.service.select(taxiService);
-            navigateTo('taxi');
-          }}
-          onDelete={adminUsers.remove}
-          onDemote={adminUsers.demote}
-          onPromote={adminUsers.promote}
-          onRegularUsersSearchChange={adminUsers.setRegularUsersSearch}
-          onUnblock={adminUsers.unblock}
-          regularUsersLoading={adminUsers.regularUsersLoading}
-          regularUsersSearch={adminUsers.regularUsersSearch}
-          regularUsersTotalItems={adminUsers.regularUsersTotalItems}
-          submitting={submitting}
-          taxiCandidates={ownerAssignments.taxiCandidates}
-          taxiServices={ownerAssignments.taxiServices}
-        />
+        <AdminPage currentUser={currentUser} />
       )}
     </main>
   );

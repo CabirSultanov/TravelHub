@@ -4,7 +4,7 @@ import type { Booking } from '../../../types';
 
 type HotelBookingResultProps = {
   booking: Booking | null;
-  renderPaymentForm: (booking: Booking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
+  renderPaymentForm: (booking: Booking) => ReactNode;
   onReset: () => void;
 };
 

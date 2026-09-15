@@ -34,7 +34,7 @@ export default function TaxiServiceList({
       </div>
 
       {canManageTaxi && !showTaxiForm && (
-        <button className="primary" onClick={actions.startCreate} type="button">
+        <button className="primary" disabled={submitting} onClick={actions.startCreate} type="button">
           Create taxi service
         </button>
       )}
@@ -42,7 +42,7 @@ export default function TaxiServiceList({
       <div className="hotel-list taxi-service-list">
         {taxiServices.map((taxi) => (
           <article className={`hotel-card ${selectedTaxiService?.id === taxi.id && !showTaxiForm ? 'active' : ''}`} key={taxi.id}>
-            <button className="hotel-card-main" onClick={() => actions.select(taxi)} type="button">
+            <button className="hotel-card-main" disabled={submitting} onClick={() => actions.select(taxi)} type="button">
               <img src={taxi.imageUrl || fallbackImage(taxi.companyName, 'taxi')} alt="" />
               <span>
                 <strong>{taxi.companyName}</strong>

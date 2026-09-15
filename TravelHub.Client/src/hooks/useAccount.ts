@@ -11,7 +11,7 @@ type Options = {
   initialAuthMode: AuthMode;
   setMessage: (message: string) => void;
   setSubmitting: (submitting: boolean) => void;
-  onAuthenticated: () => void;
+  onAuthenticated: (user: AuthUser) => void;
   onSignedOut: () => void;
 };
 
@@ -52,7 +52,7 @@ export function useAccount({ initialAuthMode, setMessage, setSubmitting, onAuthe
         return;
       }
 
-      setCurrentUser(response.user); setAuthForm(emptyAuthForm); setMessage('Logged in.'); onAuthenticated();
+      setCurrentUser(response.user); setAuthForm(emptyAuthForm); setMessage('Logged in.'); onAuthenticated(response.user);
     } catch (error) { setMessage(getErrorMessage(error)); } finally { setSubmitting(false); }
   }
 
@@ -62,7 +62,7 @@ export function useAccount({ initialAuthMode, setMessage, setSubmitting, onAuthe
     setMessage(''); setSubmitting(true);
     try {
       const response = await api.verifyEmail({ email: emailConfirmation.email, code: verificationCode });
-      setCurrentUser(response.user); setAuthForm(emptyAuthForm); setEmailConfirmation(null); setVerificationCode(''); setMessage('Email verified. Welcome to TravelHub!'); onAuthenticated();
+      setCurrentUser(response.user); setAuthForm(emptyAuthForm); setEmailConfirmation(null); setVerificationCode(''); setMessage('Email verified. Welcome to TravelHub!'); onAuthenticated(response.user);
     } catch (error) { setMessage(getErrorMessage(error)); } finally { setSubmitting(false); }
   }
 
