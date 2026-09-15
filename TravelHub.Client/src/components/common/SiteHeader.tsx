@@ -59,6 +59,9 @@ export default function SiteHeader({
             </svg>
             <span>Taxi</span>
           </button>
+        {currentUser?.role === 'HotelOwner' && (
+          <button className={`nav-link${page === 'owner' ? ' is-active' : ''}`} onClick={() => onNavigate('owner')} type="button">My hotels</button>
+        )}
         {(currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin') && (
           <button className={`nav-link${page === 'admin' ? ' is-active' : ''}`} onClick={() => onNavigate('admin')} type="button">
             Admin

@@ -15,6 +15,7 @@ import MyTripsPage from './pages/MyTrips/MyTripsPage';
 import ProfilePage from './pages/Profile/ProfilePage';
 import TaxiPage from './pages/Taxi/TaxiPage';
 import TaxiRidePage from './pages/Taxi/TaxiRidePage';
+import OwnerWorkspacePage from './pages/Owner/OwnerWorkspacePage';
 import { formatTaxiCarClassName } from './utils/formatting';
 import { getErrorMessage } from './utils/errors';
 import { accountPhonePrefix } from './utils/account';
@@ -32,6 +33,7 @@ import {
   normalizeTaxiRouteSearch,
   pageRoutes,
   parseAppRoute,
+  safeReturnTo,
   type HotelRouteSearch,
   type ParsedRoute,
   type TaxiRouteSearch,
@@ -79,6 +81,8 @@ function App() {
   const initialRouteRef = useRef<ParsedRoute | null>(null);
   initialRouteRef.current ??= parseAppRoute(window.location.pathname, window.location.search);
   const initialRoute = initialRouteRef.current;
+  const authReturnToRef = useRef(initialRoute.returnTo ?? null);
+  const ownerEditStateRef = useRef({ dirty: false, busy: false });
   const [page, setPage] = useState<Page>(initialRoute.page);
   const [hotelDetailId, setHotelDetailId] = useState<number | null>(initialRoute.hotelId);
   const [taxiRideId, setTaxiRideId] = useState<number | null>(initialRoute.taxiRideId);
@@ -110,7 +114,17 @@ function App() {
     initialAuthMode: initialRoute.authMode,
     setMessage,
     setSubmitting,
-    onAuthenticated: () => taxiRideId !== null ? openTaxiRide(taxiRideId) : navigateTo('home'),
+    onAuthenticated: (user) => {
+      const returnTo = safeReturnTo(authReturnToRef.current);
+      authReturnToRef.current = null;
+      if (returnTo) {
+        const url = new URL(returnTo, window.location.origin);
+        const route = parseAppRoute(url.pathname, url.search);
+        applyParsedRoute(route);
+        pushRoute(buildParsedRouteUrl(route), { page: route.page });
+      } else if (taxiRideId !== null) openTaxiRide(taxiRideId);
+      else navigateTo(user.role === 'HotelOwner' ? 'owner' : 'home');
+    },
     onSignedOut: resetAccountData,
   });
   const { currentUser, setCurrentUser, authMode, setAuthMode, authForm, setAuthForm, profileForm, setProfileForm, editingProfile, setEditingProfile, loading, emailConfirmation, verificationCode, setVerificationCode, resendSeconds } = account;
@@ -182,6 +196,7 @@ function App() {
 
   useEffect(() => {
     api.setSessionExpiredHandler(() => {
+      ownerEditStateRef.current = { dirty: false, busy: false };
       setCurrentUser(null);
       hotelsFeature.actions.booking.setBooking(null);
       taxiFeature.actions.setBooking(null);
@@ -207,6 +222,10 @@ function App() {
     currentPathRef.current = canonicalUrl;
 
     function handleBrowserBack() {
+      if (currentPathRef.current.startsWith('/owner') && !beforeOwnerNavigation()) {
+        window.history.pushState({ page: 'owner' }, '', currentPathRef.current);
+        return;
+      }
       if (hotelEditOpenRef.current && currentPathRef.current.startsWith('/hotels')) {
         const currentPath = currentPathRef.current;
         window.history.pushState(
@@ -232,6 +251,17 @@ function App() {
 
     window.addEventListener('popstate', handleBrowserBack);
     return () => window.removeEventListener('popstate', handleBrowserBack);
+  }, []);
+
+  useEffect(() => {
+    function beforeUnload(event: BeforeUnloadEvent) {
+      if (ownerEditStateRef.current.dirty || ownerEditStateRef.current.busy) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    }
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
   }, []);
 
   useEffect(() => {
@@ -261,7 +291,7 @@ function App() {
   }, [currentUser?.id, page, taxiRideId]);
 
   useEffect(() => {
-    if (loading || currentUser || (page !== 'profile' && page !== 'trips' && !(page === 'taxi' && taxiRideId !== null))) {
+    if (loading || currentUser || (page !== 'owner' && page !== 'profile' && page !== 'trips' && !(page === 'taxi' && taxiRideId !== null))) {
       return;
     }
 
@@ -402,6 +432,7 @@ function App() {
   }, [message]);
 
   function applyParsedRoute(route: ParsedRoute) {
+    if (route.page === 'auth') authReturnToRef.current = route.returnTo ?? null;
     setPage(route.page);
     setHotelDetailId(route.hotelId);
     setTaxiRideId(route.taxiRideId);
@@ -436,6 +467,8 @@ function App() {
   }
 
   function navigateTo(nextPage: Page) {
+    if (nextPage === 'owner' && page === 'owner') return;
+    if (!beforeOwnerNavigation()) return;
     setPage(nextPage);
     setTaxiRideId(null);
     setHotelDetailId(null);
@@ -568,7 +601,7 @@ function App() {
     setAuthMode(nextMode);
     setPage('auth');
     setHotelDetailId(null);
-    pushRoute(buildAuthUrl(nextMode, taxiRideId), { page: 'auth' });
+    pushRoute(buildAuthUrl(nextMode, taxiRideId, authReturnToRef.current), { page: 'auth' });
   }
 
   async function loadBookings() {
@@ -740,6 +773,7 @@ function App() {
   }
 
   function resetAccountData() {
+    ownerEditStateRef.current = { dirty: false, busy: false };
     taxiListRequestRef.current?.abort();
     hotelsFeature.actions.booking.setBooking(null);
     setBookings([]);
@@ -799,11 +833,14 @@ function App() {
   }
 
   function openAuth() {
+    if (!beforeOwnerNavigation()) return;
+    if (page !== 'auth') authReturnToRef.current = page === 'home' ? null : safeReturnTo(currentPathRef.current);
     setAuthModeFromUrl('register');
     setMessage('');
   }
 
   function requireAuth(message: string) {
+    if (page !== 'auth') authReturnToRef.current = safeReturnTo(currentPathRef.current);
     setAuthModeFromUrl('login');
     setMessage(message);
   }
@@ -819,6 +856,13 @@ function App() {
   function openPaymentForm(bookingId: number) {
     setPayingBookingId(bookingId);
     resetPaymentForm();
+  }
+
+  function beforeOwnerNavigation() {
+    const state = ownerEditStateRef.current;
+    if (state.busy) return false;
+    if (state.dirty && !window.confirm('Discard your unsaved changes?')) return false;
+    return true;
   }
 
   function toPaymentCardCreate(form: PaymentCardForm): PaymentCardCreate {
@@ -854,10 +898,10 @@ function App() {
   }
 
   return (
-    <main className="app">
+    <main className={`app${page === 'owner' ? ' owner-app' : ''}`}>
       <SiteHeader
         currentUser={currentUser}
-        onLogout={account.logout}
+        onLogout={() => { if (beforeOwnerNavigation()) return account.logout(); }}
         onNavigate={navigateTo}
         onOpenAuth={openAuth}
         page={page}
@@ -892,6 +936,11 @@ function App() {
           </div>
         </div>
       )}
+
+      {page === 'owner' && currentUser && (currentUser.role === 'HotelOwner' ? (
+        <OwnerWorkspacePage key={`${currentUser.id}:${currentUser.role}`} accountKey={`${currentUser.id}:${currentUser.role}`}
+          beforeNavigate={beforeOwnerNavigation} onStateChange={(state) => { ownerEditStateRef.current = state; }} />
+      ) : <main className="container owner-workspace"><div className="owner-empty"><h1>Hotel owner access required</h1><p>This workspace is available to assigned hotel owners.</p></div></main>)}
 
       {page === 'home' && (
         <HomePage

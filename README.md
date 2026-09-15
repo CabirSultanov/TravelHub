@@ -39,6 +39,19 @@ TravelHub/
 
 ---
 
+## Hotel owner workspace
+
+HotelOwner accounts have a **My hotels** link to `/owner`. Normal login opens the workspace; signing in for a specific page preserves that destination. An administrator still assigns hotels and creates/deletes hotel properties.
+
+- **Overview:** planned paid arrivals/departures using the Baku calendar date, pending payments for current/upcoming stays, and the next five paid arrivals. These are scheduled stays, not actual check-in events or bank revenue.
+- **Bookings:** server-scoped, paginated read-only guest reservations, contact details, date/status/search filters and saved totals. No owner payment/cancellation actions or card details.
+- **Hotels & rooms:** existing hotel/photo/room editors, including open/closed sales. Price edits affect new bookings only. Types with booking history cannot be deleted; current/future paid and pending bookings protect room stock and saved capacity. Existing minimum room-type/guest-place rules remain.
+- **Reviews:** read-only existing ratings and paginated feedback for a selected owned hotel.
+
+Overview and the open booking list refresh every 30 seconds while the browser tab is visible. Other reads refresh on entry/return and manually. Cancelled hotel bookings are retained; the previous hourly-age cleanup worker is no longer registered. Previously deleted bookings cannot be recovered.
+
+Protected read APIs: `GET /api/owner/hotels`, `/api/owner/overview`, `/api/owner/bookings`, `/api/owner/bookings/{id}`. Ownership comes from the authenticated account and current hotel assignment. This feature adds no migration or dependency. Test with isolated data; do not start the API against the working database for verification because startup may apply pending migrations from other features.
+
 ## Technology Stack
 
 | Area | Implementation |

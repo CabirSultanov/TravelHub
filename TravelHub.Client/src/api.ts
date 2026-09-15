@@ -30,6 +30,15 @@ import type {
   PasswordCodeVerified,
   ResetPasswordRequest,
 } from './types';
+import type { OwnerBooking, OwnerBookingFilters, OwnerOverview } from './pages/Owner/ownerTypes';
+
+function ownerQuery(filters: Record<string, string | number | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  }
+  return query.toString();
+}
 
 const refreshUrl = '/api/auth/refresh';
 const authEndpoints = new Set([
@@ -185,6 +194,14 @@ async function refreshAccessToken(): Promise<AuthResponse | null> {
 }
 
 export const api = {
+  getOwnerHotels: (filters: { search?: string; page?: number; pageSize?: number } = {}, signal?: AbortSignal) =>
+    request<PagedResponse<Hotel>>(`/api/owner/hotels?${ownerQuery(filters)}`, { signal }),
+  getOwnerOverview: (hotelId?: number, signal?: AbortSignal) =>
+    request<OwnerOverview>(`/api/owner/overview?${ownerQuery({ hotelId })}`, { signal }),
+  getOwnerBookings: (filters: OwnerBookingFilters = {}, signal?: AbortSignal) =>
+    request<PagedResponse<OwnerBooking>>(`/api/owner/bookings?${ownerQuery(filters)}`, { signal }),
+  getOwnerBooking: (id: number, signal?: AbortSignal) =>
+    request<OwnerBooking>(`/api/owner/bookings/${id}`, { signal }),
   setSessionExpiredHandler: (handler: (() => void) | null) => {
     sessionExpiredHandler = handler;
   },
@@ -323,8 +340,8 @@ export const api = {
     return request<PagedResponse<Hotel>>(`/api/hotels?${search}`);
   },
   getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
-  getHotelReviews: (hotelId: number, page = 1, pageSize = 3) =>
-    request<HotelReviewsResponse>(`/api/hotels/${hotelId}/reviews?page=${page}&pageSize=${pageSize}`),
+  getHotelReviews: (hotelId: number, page = 1, pageSize = 3, signal?: AbortSignal) =>
+    request<HotelReviewsResponse>(`/api/hotels/${hotelId}/reviews?page=${page}&pageSize=${pageSize}`, { signal }),
   getMyHotelReview: async (hotelId: number) => {
     try {
       return await request<HotelReview>(`/api/hotels/${hotelId}/reviews/mine`);

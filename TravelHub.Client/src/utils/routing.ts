@@ -21,6 +21,7 @@ export type ParsedRoute = {
   hotels: HotelRouteSearch;
   taxi: TaxiRouteSearch;
   authMode: AuthMode;
+  returnTo?: string;
 };
 
 export const pageRoutes: Record<Page, string> = {
@@ -31,6 +32,7 @@ export const pageRoutes: Record<Page, string> = {
   admin: '/admin',
   profile: '/profile',
   trips: '/my-trips',
+  owner: '/owner',
 };
 
 const appPages = Object.keys(pageRoutes) as Page[];
@@ -147,6 +149,7 @@ export function parseAppRoute(pathname: string, search = ''): ParsedRoute {
           })
         : emptyTaxiRouteSearch,
     authMode: page === 'auth' && (authModeParam === 'login' || authModeParam === 'register') ? authModeParam : 'register',
+    ...(page === 'auth' && safeReturnTo(params.get('returnTo')) ? { returnTo: safeReturnTo(params.get('returnTo'))! } : {}),
   };
 }
 
@@ -209,8 +212,15 @@ export function buildTaxiUrl(search: Partial<TaxiRouteSearch> = {}) {
   return withParams('/taxi', params);
 }
 
-export function buildAuthUrl(mode: AuthMode = 'register', returnRideId: number | null = null) {
-  return `/auth?mode=${mode}${returnRideId !== null ? `&ride=${returnRideId}` : ''}`;
+export function safeReturnTo(value: string | null | undefined): string | null {
+  // Only existing, same-site destinations; never redirect to arbitrary URLs.
+  if (!value || !/^\/(?:owner|profile|my-trips|admin|hotels(?:\/\d+)?|taxi(?:\/rides\/[1-9]\d*)?)?(?:\?[^#\\]*)?$/.test(value)) return null;
+  return value;
+}
+
+export function buildAuthUrl(mode: AuthMode = 'register', returnRideId: number | null = null, returnTo?: string | null) {
+  const target = safeReturnTo(returnTo);
+  return `/auth?mode=${mode}${returnRideId !== null ? `&ride=${returnRideId}` : ''}${target ? `&returnTo=${encodeURIComponent(target)}` : ''}`;
 }
 
 export function buildParsedRouteUrl(route: ParsedRoute) {
@@ -231,7 +241,7 @@ export function buildParsedRouteUrl(route: ParsedRoute) {
   }
 
   if (route.page === 'auth') {
-    return buildAuthUrl(route.authMode, route.taxiRideId);
+    return buildAuthUrl(route.authMode, route.taxiRideId, route.returnTo);
   }
 
   return pageRoutes[route.page];

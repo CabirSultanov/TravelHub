@@ -24,7 +24,6 @@ public static class ServiceCollectionExtensions
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(connectionString));
-        services.AddHostedService<CancelledBookingCleanupService>();
         services.AddOptions<GoogleMapsOptions>()
             .Bind(configuration.GetSection(GoogleMapsOptions.SectionName));
         services.AddOptions<EmailOptions>()
