@@ -2459,6 +2459,7 @@ h3 {
 select,
 input {
   width: 100%;
+  min-width: 0;
   min-height: 44px;
   border: 1px solid #c8d2dc;
   border-radius: 8px;
@@ -2800,7 +2801,7 @@ input[type='number']::-webkit-outer-spin-button {
 .hotel-card-main,
 .room-card-main {
   display: grid;
-  grid-template-columns: 88px 1fr;
+  grid-template-columns: 88px minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   width: 100%;
@@ -3117,6 +3118,7 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 .trip-driver {
+  grid-column: 1 / -1;
   color: #183845;
 }
 
@@ -3321,7 +3323,7 @@ input[type='number']::-webkit-outer-spin-button {
 
 .phone-field {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   overflow: hidden;
   border: 1px solid #c8d2dc;
@@ -3855,7 +3857,7 @@ small {
 
   .hotel-card-main,
   .room-card-main {
-    grid-template-columns: 72px 1fr;
+    grid-template-columns: 72px minmax(0, 1fr);
   }
 
   .hotel-card img,
@@ -4397,10 +4399,6 @@ small {
 
   .hero-card {
     min-height: 360px;
-  }
-
-  .header-actions .btn-secondary {
-    display: none;
   }
 
   .trips-shell,

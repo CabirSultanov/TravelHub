@@ -35,8 +35,8 @@
 .owner-metrics button span { font-size: 13px; font-weight: 700; }
 .owner-metrics strong { font-size: 37px; font-weight: 700; color: #006a78; }
 .owner-metrics small { color: #5e7d85; line-height: 1.5; }
-.owner-arrivals { display: grid; }
-.owner-arrivals article { display: flex; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid #e5edef; }
+.owner-arrivals { display: grid; grid-template-columns: minmax(0, 1fr); }
+.owner-arrivals article { display: flex; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid #e5edef; min-width: 0; overflow-wrap: anywhere; }
 .owner-arrivals article > div { display: grid; gap: 6px; min-width: 0; }
 .owner-arrivals span, .owner-arrivals small { font-size: 13px; color: #637d85; }
 .owner-arrivals article > div:last-child { text-align: right; }
