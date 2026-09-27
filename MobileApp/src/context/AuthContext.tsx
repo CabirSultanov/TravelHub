@@ -1,7 +1,7 @@
 import { createContext, type PropsWithChildren, useContext, useEffect, useState } from 'react';
 
 import { api } from '@/services/api';
-import { deleteToken, getToken, saveToken } from '@/services/auth';
+import { deleteToken, saveToken } from '@/services/auth';
 import type { AuthUser } from '@/types/auth';
 import { canAccessMobileApp } from '@/utils/mobileAccess';
 
@@ -29,28 +29,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   useEffect(() => {
-    async function restoreSession() {
-      try {
-        const token = await getToken();
-        if (!token) {
-          return;
-        }
-
-        const currentUser = await api.getCurrentUser(token);
-        if (!canAccessMobileApp(currentUser.role)) {
-          await clearSession();
-          return;
-        }
-
-        setUser(currentUser);
-      } catch {
-        await clearSession();
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    void restoreSession();
+    let mounted = true;
+    setUser(null);
+    setIsLoading(true);
+    // A fresh app runtime requires sign-in; normal background/foreground keeps this session.
+    void deleteToken().catch(() => {
+      // Never restore the old token, even if secure storage is temporarily unavailable.
+    }).finally(() => {
+      if (mounted) setIsLoading(false);
+    });
+    return () => { mounted = false; };
   }, []);
 
   async function signIn(email: string, password: string) {

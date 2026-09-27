@@ -2,6 +2,8 @@
 
 Expo React Native application for TravelHub taxi drivers, using the same API and database as the website. Access tokens remain in SecureStore.
 
+A fresh app launch or full reload requires sign-in. The previous saved token is discarded without waiting for an API session-restore request. Switching tabs or briefly backgrounding the running app (for example, to call a passenger) keeps the current session. This does not change website sign-in.
+
 ## Driver workflow
 
 - **Available**: route, class and fare first. Accept opens Active; Decline removes the request only for this driver. An existing active ride takes priority over new requests.
@@ -21,6 +23,9 @@ From `MobileApp`:
 npm run typecheck
 node scripts/test-driver-state.cjs
 node scripts/test-driver-feed.cjs
+node scripts/test-admin-control.cjs
+node scripts/test-auth-session.cjs
+node scripts/test-api-config.cjs
 ```
 
 The checks use Node and the installed TypeScript compiler, with isolated data and no live API/database. On an emulator, verify Accept → Active → I've arrived → Complete confirmation → result → History, then Profile → Log out, using designated test orders only.
@@ -65,6 +70,24 @@ If you created `MobileApp/.env` for an older setup, delete or rename it to use a
 Sign in with a `TaxiDriver`, `Admin`, or `SuperAdmin` account. Other TravelHub roles are intentionally denied access to the Driver app.
 
 ## Troubleshooting
+
+### Android emulator: reliable local connection
+
+Start the emulator first and wait for Android to finish booting. In `MobileApp`, run:
+
+```powershell
+npx expo start --localhost
+```
+
+Press `a` to open the project. Expo CLI forwards Metro's port through ADB; the app automatically uses Android Emulator's built-in host alias `http://10.0.2.2:5207` for the API when Metro uses localhost. No `.env` is needed. Keep the same backend running in its separate terminal. Physical phones should continue using the LAN instructions above.
+
+`a` opens the app, but is not a guaranteed fresh launch: Android/Expo Go can bring an existing app or emulator snapshot back to the foreground. Use `r` for a full reload and a fresh sign-in. Fast Refresh while editing is not a full reload either.
+
+If `Cannot connect to Expo CLI` appears after restarting Metro or restoring an emulator snapshot, the old Fast Refresh connection has been lost. Dismissing the warning does not reconnect it. Open the project from the current terminal with `a`, then reload with `r`. If the terminal says `No apps connected`, close Expo Go from Android's recent apps and reopen with `a`. Do not clear Expo Go's app data or change the database.
+
+This fixes the development connection path, not all emulator performance problems. Check host memory and emulator resources separately if scrolling remains slow.
+
+`netsimd` is part of Android Emulator; lines marked `I` are informational logs, not TravelHub errors. On Windows, letting Expo start a stopped emulator can open additional console windows. Start the emulator from Android Studio's Device Manager before pressing `a`. When finished, stop Expo with `Ctrl+C`, then close the emulator. Do not delete SDK components or disable networking to hide the window.
 
 ### QR code does not open
 

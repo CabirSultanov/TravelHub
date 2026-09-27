@@ -6,7 +6,7 @@ function loadTypeScript(relativePath, imports = {}, timers = {}) {
   const filename = path.resolve(__dirname, relativePath);
   const { outputText } = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     fileName: filename,
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   });
   const loaded = { exports: {} };
   new Function('module', 'exports', 'require', 'setTimeout', 'clearTimeout', 'fetch', outputText)(
