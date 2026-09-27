@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getApiDebugInfo } from '@/config/apiConfig';
 import { api, isEmailConfirmationRequired } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
+import { getMobileHome } from '@/utils/mobileAccess';
 
 export default function LoginScreen() {
   const { user, isSigningIn, signIn } = useAuth();
@@ -46,7 +47,7 @@ export default function LoginScreen() {
   }, []);
 
   if (user) {
-    return <Redirect href="/(driver)/available" />;
+    return <Redirect href={getMobileHome(user.role)} />;
   }
 
   async function submit() {

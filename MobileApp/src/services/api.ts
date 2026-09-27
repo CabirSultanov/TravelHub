@@ -1,4 +1,5 @@
 import type { AuthResponse, AuthUser, DriverRide, LoginRequest } from '@/types/auth';
+import type { AdminRide, PagedResponse, TaxiFleet } from '@/types/admin';
 import { getApiBaseUrl } from '@/config/apiConfig';
 
 export class ApiError extends Error {
@@ -98,7 +99,20 @@ export const api = {
     body: JSON.stringify(requestBody),
   }),
   getCurrentUser: (accessToken: string) => request<AuthUser>('/api/auth/me', {}, accessToken),
-  getTaxiService: (id: number, accessToken: string, signal?: AbortSignal) => request<{ id: number; companyName: string; city: string; phoneNumber: string }>(`/api/taxi-services/${id}`, { signal }, accessToken),
+  getTaxiService: (id: number, accessToken: string, signal?: AbortSignal) => request<TaxiFleet>(`/api/taxi-services/${id}`, { signal }, accessToken),
+  getAdminRides: (token: string, signal?: AbortSignal) => request<AdminRide[]>('/api/taxi-bookings', { signal }, token),
+  getAdminRide: (id: number, token: string, signal?: AbortSignal) => request<AdminRide>(`/api/taxi-bookings/${id}`, { signal }, token),
+  getTaxiFleets: (token: string, signal?: AbortSignal) => request<TaxiFleet[]>('/api/taxi-services', { signal }, token),
+  getOwnerCandidates: (token: string, signal?: AbortSignal) => request<AuthUser[]>('/api/ownership/users?role=taxi', { signal }, token),
+  assignFleetOwner: (id: number, ownerId: number | null, token: string, signal?: AbortSignal) => request<void>(`/api/taxi-services/${id}/owner`, {
+    method: 'PUT', body: JSON.stringify({ ownerId }), signal,
+  }, token),
+  getFleetDrivers: (id: number, token: string, signal?: AbortSignal) => request<AuthUser[]>(`/api/taxi-services/${id}/drivers`, { signal }, token),
+  getDriverCandidates: (id: number, search: string, token: string, signal?: AbortSignal) => request<AuthUser[]>(`/api/taxi-services/${id}/drivers/candidates?search=${encodeURIComponent(search.trim())}`, { signal }, token),
+  assignFleetDriver: (id: number, userId: number, token: string, signal?: AbortSignal) => request<void>(`/api/taxi-services/${id}/drivers/${userId}`, { method: 'PUT', signal }, token),
+  removeFleetDriver: (id: number, userId: number, token: string, signal?: AbortSignal) => request<void>(`/api/taxi-services/${id}/drivers/${userId}`, { method: 'DELETE', signal }, token),
+  getAdminUsers: (search: string, page: number, token: string, signal?: AbortSignal) => request<PagedResponse<AuthUser>>(`/api/admins/users?search=${encodeURIComponent(search.trim())}&page=${page}&pageSize=20`, { signal }, token),
+  setUserBlocked: (id: number, blocked: boolean, token: string, signal?: AbortSignal) => request<AuthUser>(`/api/admins/${id}/${blocked ? 'block' : 'unblock'}`, { method: 'PUT', signal }, token),
   getAvailableRides: (accessToken: string, signal?: AbortSignal) => request<DriverRide[]>('/api/driver/taxi-bookings/available', { signal }, accessToken),
   getActiveRide: async (accessToken: string, signal?: AbortSignal) => {
     try {
