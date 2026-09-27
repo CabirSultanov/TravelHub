@@ -1,16 +1,21 @@
-# TravelHub - Hotel & Taxi Booking Platform
+# TravelHub - Web & Mobile Hotel and Taxi Platform
 
-TravelHub is a full-stack travel platform that combines hotel accommodation and taxi services in a single application. Users can search for hotels, book rooms, arrange taxi rides, manage bookings, and use Google Maps for location-based taxi routes.
+TravelHub is a full-stack travel platform that combines hotel accommodation and taxi services in one system. It includes a React website for customers and business owners, an Expo React Native app for taxi drivers, and a shared ASP.NET Core API backed by one SQL database.
+
+> **Project scope:** payment flows are educational simulations. TravelHub records payment state and masked card details, but it does not connect to a real bank or payment gateway.
 
 ## Project Benefits
 
 - **All-in-One Travel:** Hotels and taxi services are available in one platform.
 - **Hotel Booking:** Users can search hotels, view rooms, select dates, and create bookings.
 - **Taxi Booking:** Users can choose a taxi service, car class, pickup point, and dropoff point.
+- **Live Taxi Dispatch:** Requests are offered to drivers from the selected taxi service; the first successful acceptance assigns the ride, and the customer sees each trip stage.
+- **Driver Mobile App:** Taxi drivers can accept or decline requests, mark arrival, complete rides, review history, and manage their session from Expo Go or an Android emulator.
 - **Interactive Maps:** Google Maps supports taxi pickup/dropoff selection and route preview.
-- **User Accounts:** Registration, login, profile editing, saved cards, and booking history are included.
+- **Role-Based Workspaces:** Customers, hotel owners, taxi owners, drivers, administrators, and super administrators receive interfaces suited to their responsibilities.
+- **User Accounts:** Registration, email confirmation, password recovery, profile editing, saved cards, and booking history are included.
 - **Booking Management:** Hotel and taxi bookings show payment and cancellation statuses.
-- **Administration:** Admin and SuperAdmin users can manage hotels, rooms, taxi services, and user access.
+- **Administration:** Admin and SuperAdmin users can manage hotels, rooms, taxi services, owners, drivers, and user access.
 
 ---
 
@@ -29,9 +34,9 @@ TravelHub/
 ├── TravelHub.Client/           # React + TypeScript frontend
 │   ├── public/                 # Static assets and favicon
 │   └── src/                    # Pages, features, API client, utilities
-├── MobileApp/                   # Expo React Native app for taxi drivers
+├── MobileApp/                  # Expo Router + React Native driver application
 ├── .github/workflows/          # GitHub Actions CI
-├── images/                     # Uploaded/static images served by API
+├── images/                     # Legacy local uploads served by the API when present
 ├── docs/                       # Additional project documentation
 ├── TravelHub.sln               # .NET solution
 └── README.md
@@ -52,17 +57,30 @@ Overview and the open booking list refresh every 30 seconds while the browser ta
 
 Protected read APIs: `GET /api/owner/hotels`, `/api/owner/overview`, `/api/owner/bookings`, `/api/owner/bookings/{id}`. Ownership comes from the authenticated account and current hotel assignment. This feature adds no migration or dependency. Test with isolated data; do not start the API against the working database for verification because startup may apply pending migrations from other features.
 
+## User roles
+
+| Role | Main responsibility |
+| --- | --- |
+| `User` | Search, book, pay, track trips, and leave reviews |
+| `HotelOwner` | Manage assigned hotels and rooms; monitor bookings and reviews |
+| `TaxiOwner` | Manage drivers assigned to an owned taxi service |
+| `TaxiDriver` | Accept and complete rides in the mobile application |
+| `Admin` | Manage hotels, taxi services, owners, and drivers |
+| `SuperAdmin` | Full administration plus user and administrator management |
+
 ## Technology Stack
 
 | Area | Implementation |
 | --- | --- |
-| Frontend | React 19 + TypeScript |
-| Build Tool | Vite |
+| Web frontend | React 19 + TypeScript 5 + Vite 6 |
+| Mobile app | Expo 57 + Expo Router + React Native 0.86 + TypeScript 6 |
 | Backend | ASP.NET Core Web API (.NET 8) |
-| ORM | Entity Framework Core |
+| Data access | Entity Framework Core 8 |
 | Database | SQL Server / Azure SQL |
 | Maps | Google Maps JavaScript API + Google Routes API |
-| Authentication | JWT access tokens + refresh tokens |
+| Authentication | JWT access tokens, rotating refresh tokens, role-based authorization |
+| Secure mobile storage | Expo SecureStore |
+| Media and email | Cloudinary + MailKit / Gmail SMTP |
 | Testing | xUnit, EF Core InMemory, Vitest |
 | CI | GitHub Actions |
 
@@ -111,7 +129,14 @@ The Vite dev server proxies `/api`, `/health`, and `/images` to the backend.
 
 ### 4) Mobile Driver App
 
-`MobileApp` is an Expo React Native application for users with the `TaxiDriver` role. It is login-only in the current phase; ride management is not implemented yet.
+`MobileApp` is the Expo React Native application used for taxi dispatch. An assigned `TaxiDriver` receives four tabs:
+
+- **Available:** ride requests from the driver's taxi service, with `Accept` and `Decline` actions.
+- **Active:** the accepted ride, passenger contact details, `I've arrived`, and `Complete ride`.
+- **History:** completed rides and their details.
+- **Profile:** account, role, assigned taxi service, and local logout.
+
+Available and active rides refresh while their screens are open. Ride acceptance is protected on the server, so if several drivers see the same request, only the first successful acceptance receives it. Admin and SuperAdmin accounts may authenticate in the current app but cannot perform driver ride actions.
 
 Run web and mobile against the same local API using three terminals.
 
@@ -201,7 +226,7 @@ New hotel, room, and taxi image uploads use Cloudinary. Configure the `Cloudinar
 
 ### Hotels
 
-- Search hotels by city and stay dates.
+- Browse hotels by city and select stay dates when booking a room.
 - View public hotel ratings, average scores, and paginated guest reviews.
 - Registered users can rate hotels and add or edit an optional written review.
 - Validate date ranges so check-out must be after check-in.
@@ -217,12 +242,24 @@ New hotel, room, and taxi image uploads use Cloudinary. Configure the `Cloudinar
 - Select taxi car classes with different prices per kilometer.
 - Choose pickup and dropoff points on Google Maps.
 - Preview route distance and estimated price.
-- Create taxi bookings.
-- Pay or cancel pending taxi bookings.
+- Request a ride and track `Finding driver`, `Driver on the way`, `Driver arrived`, and `Completed` stages on a dedicated page.
+- Show the assigned driver's name and phone after acceptance.
+- Allow cancellation only while a request is waiting for a driver.
+- Record the simulated payment when a driver accepts the ride; no real bank transaction is performed.
+- Rate a completed ride with stars and an optional comment.
+
+### Taxi Driver App
+
+- Show only requests from the driver's assigned taxi service.
+- Atomically assign a request to the first driver who accepts it.
+- Let a driver decline a request without hiding it from other drivers.
+- Progress an accepted ride through arrival and completion.
+- Keep access tokens in Expo SecureStore and restore valid sessions securely.
 
 ### User Account
 
 - Register and log in.
+- Confirm email with a six-digit code and recover a forgotten password by email.
 - View and edit profile data.
 - Change password when needed.
 - Save and delete payment cards.
@@ -231,31 +268,29 @@ New hotel, room, and taxi image uploads use Cloudinary. Configure the `Cloudinar
 
 ### Administration
 
-- Admin and SuperAdmin users can create, edit, and delete hotels.
-- Admin and SuperAdmin users can create, edit, and delete hotel rooms.
-- Admin and SuperAdmin users can upload hotel and room images.
-- Admin and SuperAdmin users can manage taxi services and car classes.
-- SuperAdmin users can create admins, block/unblock users, delete accounts, and demote admins.
+- Admin and SuperAdmin users can manage hotels, rooms, taxi services, and car classes.
+- Administrators can assign hotel owners, taxi owners, and taxi drivers through dedicated management sections.
+- Taxi owners retain driver management for their own service.
+- SuperAdmin users can view all account roles, create or demote admins, block or unblock eligible users, and delete accounts where allowed.
 
 ---
 
 ## System Architecture
 
 ```text
-React + TypeScript Client
-          |
-          | REST / HTTP
-          v
-ASP.NET Core Web API
-          |
-          | EF Core
-          v
-SQL Server / Azure SQL
+React + TypeScript Web (:5173)       Expo React Native Mobile
+               \                     /
+                \    REST / HTTP    /
+                 ASP.NET Core API (:5207)
+                           |
+                        EF Core
+                           |
+                  SQL Server / Azure SQL
 
-Google Maps API
+          Google Maps / Routes API · Cloudinary · SMTP
 ```
 
-TravelHub uses a client-server architecture. The React client handles the UI and sends REST requests to the ASP.NET Core API. The backend owns authentication, validation, booking rules, payment status changes, Google Routes calls, and database access. EF Core stores application data in SQL Server.
+The website and MobileApp are separate clients of the same ASP.NET Core API and the same database. The backend owns authentication, authorization, validation, booking and dispatch rules, simulated payment status changes, Google Routes calls, media integration, and database access. The mobile application never uses a second backend or database.
 
 ---
 
@@ -264,8 +299,10 @@ TravelHub uses a client-server architecture. The React client handles the UI and
 - JWT authentication is used for protected API requests.
 - Refresh tokens are stored through HTTP-only cookies and rotated by the backend.
 - Passwords are hashed with ASP.NET Core `PasswordHasher<AppUser>`.
-- Roles are `User`, `Admin`, and `SuperAdmin`.
+- Roles are `User`, `HotelOwner`, `TaxiOwner`, `TaxiDriver`, `Admin`, and `SuperAdmin`.
 - Backend authorization protects admin-only actions.
+- Driver endpoints verify the `TaxiDriver` role and the driver's assigned taxi service.
+- Email confirmation and password recovery codes are time-limited and stored as hashes.
 - Emails are normalized, unique, and limited to `@gmail.com`.
 - Passwords require length, uppercase, lowercase, number, and special character rules.
 - Azerbaijan phone numbers are normalized to `+994`.
@@ -279,13 +316,16 @@ TravelHub uses a client-server architecture. The React client handles the UI and
 ```text
 AppUser
 RefreshToken
+PasswordRecovery
 Hotel
 HotelRoom
 BookingRequest
+HotelReview
 SavedPaymentCard
 TaxiService
 TaxiCarClass
 TaxiBooking
+TaxiBookingDriverDecline
 ```
 
 ---
@@ -294,15 +334,17 @@ TaxiBooking
 
 | API Area | Purpose |
 | --- | --- |
-| Auth | Registration, login, refresh, logout, profile |
-| Admin | Admin creation, blocking, account management |
+| Auth | Registration, email confirmation, login, refresh, logout, profile, password recovery |
+| Admin | Hotel/taxi ownership, driver assignment, admin creation, blocking, account management |
+| Owner | Hotel-owner overview, bookings, hotels, rooms, and reviews |
 | Hotels | Hotel listing and hotel management |
 | Rooms | Hotel room listing and room management |
 | Bookings | Hotel booking, payment, cancellation, history |
 | Payment Cards | Saved card creation, list, deletion |
 | Taxi Services | Taxi service and car class management |
 | Taxi Routes | Taxi route preview with Google Routes |
-| Taxi Bookings | Taxi booking, payment, cancellation, history |
+| Taxi Bookings | Customer requests, live status, cancellation, history, ride reviews |
+| Driver Taxi Bookings | Available, active, history, accept, decline, arrive, complete |
 | Health | API and database health checks |
 
 ---
@@ -315,6 +357,8 @@ TravelHub keeps meaningful page state in the URL so search and navigation can be
 /hotels?city=Baku&checkIn=2026-09-05&checkOut=2026-09-06
 /hotels/{id}?roomId={id}&checkIn=2026-09-05&checkOut=2026-09-06
 /taxi?serviceId={id}&class=Comfort
+/taxi/rides/{id}
+/owner
 /auth?mode=login
 ```
 
@@ -342,6 +386,15 @@ Frontend build:
 ```bash
 cd TravelHub.Client
 npm run build
+```
+
+Mobile application:
+
+```bash
+cd MobileApp
+npm run typecheck
+node scripts/test-driver-state.cjs
+node scripts/test-driver-feed.cjs
 ```
 
 ---
