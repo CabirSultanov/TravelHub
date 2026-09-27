@@ -1,4 +1,4 @@
-export type Page = 'home' | 'taxi' | 'hotels' | 'auth' | 'admin' | 'profile' | 'trips';
+export type Page = 'home' | 'taxi' | 'hotels' | 'auth' | 'admin' | 'profile' | 'trips' | 'owner';
 export type AuthMode = 'login' | 'register';
 export type PaymentMode = 'saved' | 'new';
 
@@ -44,8 +44,9 @@ export type DeleteTarget = {
 
 export type BookingGuestMode = 'self' | 'other';
 
-export type UserRole = 'User' | 'Admin' | 'SuperAdmin';
+export type UserRole = 'User' | 'Admin' | 'SuperAdmin' | 'HotelOwner' | 'TaxiOwner' | 'TaxiDriver';
 export type BookingStatus = 'PendingPayment' | 'Paid' | 'Cancelled';
+export type TaxiBookingStatus = 'PendingPayment' | 'Paid' | 'Cancelled' | 'AwaitingDriver' | 'DriverAssigned' | 'DriverArrived' | 'Completed';
 
 export type AuthUser = {
   id: number;
@@ -54,6 +55,7 @@ export type AuthUser = {
   phoneNumber: string;
   role: UserRole;
   isBlocked: boolean;
+  taxiServiceId?: number | null;
 };
 
 export type PagedResponse<T> = {
@@ -68,6 +70,18 @@ export type AuthResponse = {
   user: AuthUser;
   accessToken: string;
   accessTokenExpiresAt: string;
+};
+
+export type EmailConfirmationRequired = {
+  emailConfirmationRequired: true;
+  email: string;
+  expiresAt: string;
+  resendAvailableAt?: string | null;
+};
+
+export type VerifyEmailRequest = {
+  email: string;
+  code: string;
 };
 
 export type RegisterRequest = {
@@ -101,9 +115,34 @@ export type HotelUpdateInput = {
 
 export type Hotel = HotelUpdateInput & {
   id: number;
+  ownerId?: number | null;
   roomTypesCount: number;
   totalRoomsCount: number;
   totalGuestPlaces: number;
+  averageRating: number | null;
+  reviewCount: number;
+};
+
+export type HotelReview = {
+  id: number;
+  hotelId: number;
+  userId: number;
+  userName: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+export type HotelReviewInput = {
+  rating: number;
+  comment: string | null;
+};
+
+export type HotelReviewsResponse = PagedResponse<HotelReview> & {
+  averageRating: number | null;
+  reviewCount: number;
+  currentUserReviewCount: number | null;
 };
 
 export type HotelRoom = {
@@ -137,6 +176,7 @@ export type TaxiCarClassInput = Omit<TaxiCarClass, 'id'>;
 
 export type TaxiService = {
   id: number;
+  ownerId?: number | null;
   companyName: string;
   city: string;
   phoneNumber: string;
@@ -226,10 +266,19 @@ export type TaxiBooking = {
   distanceKm: number;
   pricePerKm: number;
   totalPrice: number;
-  status: BookingStatus;
+  status: TaxiBookingStatus;
   paidAt?: string | null;
   cancelledAt?: string | null;
   savedCardLast4?: string | null;
+  driverId?: number | null;
+  driverName?: string | null;
+  driverPhoneNumber?: string | null;
+  acceptedAt?: string | null;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
+  rating: number | null;
+  reviewComment: string | null;
+  reviewedAt: string | null;
 };
 
 export type TaxiBookingCreate = {
@@ -244,6 +293,7 @@ export type TaxiBookingCreate = {
   pickupLongitude: number;
   dropoffLatitude: number;
   dropoffLongitude: number;
+  payment: BookingPayment;
 };
 
 export type TaxiRoutePreviewRequest = {
@@ -258,3 +308,6 @@ export type TaxiRoutePreview = {
   durationSeconds: number;
   encodedPolyline: string;
 };
+export type PasswordCodeSent = { message: string; resendAfterSeconds: number };
+export type PasswordCodeVerified = { resetToken: string; expiresAt: string };
+export type ResetPasswordRequest = { email: string; resetToken: string; newPassword: string; confirmNewPassword: string };

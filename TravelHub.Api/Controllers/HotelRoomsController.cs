@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -39,7 +40,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return ToResponse(room);
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrHotelOwner)]
     [HttpPost]
     public async Task<ActionResult<HotelRoomResponseDto>> CreateHotelRoom(HotelRoomCreateDto roomDto)
     {
@@ -54,9 +55,16 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             return BadRequest(validationError);
         }
 
-        if (!await db.Hotels.AnyAsync(hotel => hotel.Id == roomDto.HotelId))
+        var hotel = await db.Hotels.AsNoTracking().FirstOrDefaultAsync(hotel => hotel.Id == roomDto.HotelId);
+
+        if (hotel is null)
         {
             return BadRequest("Hotel does not exist.");
+        }
+
+        if (!OwnershipRules.CanManageHotel(User, hotel))
+        {
+            return Forbid();
         }
 
         var roomType = roomDto.RoomType.Trim();
@@ -92,7 +100,7 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetHotelRoom), new { id = room.Id }, ToResponse(room));
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrHotelOwner)]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdateHotelRoom(int id, HotelRoomUpdateDto roomDto)
     {
@@ -107,6 +115,10 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             return BadRequest(validationError);
         }
 
+        // Match booking creation: room inventory and its bookings must stay consistent until commit.
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
         var room = await db.HotelRooms.FindAsync(id);
 
         if (room is null)
@@ -114,9 +126,47 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
             return NotFound();
         }
 
+        var sourceHotel = await db.Hotels.AsNoTracking().FirstOrDefaultAsync(hotel => hotel.Id == room.HotelId);
+
+        if (sourceHotel is null)
+        {
+            return BadRequest("Hotel does not exist.");
+        }
+
+        if (!OwnershipRules.CanManageHotel(User, sourceHotel))
+        {
+            return Forbid();
+        }
+
+        if (!OwnershipRules.IsAdministrator(User) && room.HotelId != roomDto.HotelId)
+        {
+            return Forbid();
+        }
+
         if (!await db.Hotels.AnyAsync(hotel => hotel.Id == roomDto.HotelId))
         {
             return BadRequest("Hotel does not exist.");
+        }
+
+        if (room.HotelId != roomDto.HotelId && await db.BookingRequests.AnyAsync(booking => booking.HotelRoomId == id))
+        {
+            return Conflict("A room type with bookings cannot be moved to another hotel.");
+        }
+
+        var today = HotelBookingRules.TodayInBaku(DateTimeOffset.UtcNow);
+        var activeBookings = await db.BookingRequests.AsNoTracking()
+            .Where(booking => booking.HotelRoomId == id && booking.Status != BookingStatus.Cancelled && booking.CheckOutDate > today)
+            .Select(booking => new { booking.CheckInDate, booking.CheckOutDate, booking.GuestsCount })
+            .ToListAsync();
+        if (activeBookings.Any(booking => booking.GuestsCount > roomDto.Capacity))
+        {
+            return Conflict("Capacity cannot be lower than the guest count of an existing current or future booking.");
+        }
+        var maximumOccupiedRooms = HotelBookingRules.MaximumConcurrentBookings(activeBookings.Select(booking =>
+            (booking.CheckInDate < today ? today : booking.CheckInDate, booking.CheckOutDate)));
+        if (roomDto.TotalRooms < maximumOccupiedRooms)
+        {
+            return Conflict($"TotalRooms cannot be lower than {maximumOccupiedRooms}, the rooms required by existing current or future bookings.");
         }
 
         var roomType = roomDto.RoomType.Trim();
@@ -163,18 +213,40 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
 
         await db.SaveChangesAsync();
 
+        if (transaction is not null) await transaction.CommitAsync();
+
         return NoContent();
     }
 
-    [Authorize(Roles = UserRoles.AdminOrSuperAdmin)]
+    [Authorize(Roles = UserRoles.AdminOrSuperAdminOrHotelOwner)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteHotelRoom(int id)
     {
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+            : null;
         var room = await db.HotelRooms.FindAsync(id);
 
         if (room is null)
         {
             return NotFound();
+        }
+
+        var hotel = await db.Hotels.AsNoTracking().FirstOrDefaultAsync(hotel => hotel.Id == room.HotelId);
+
+        if (hotel is null)
+        {
+            return BadRequest("Hotel does not exist.");
+        }
+
+        if (!OwnershipRules.CanManageHotel(User, hotel))
+        {
+            return Forbid();
+        }
+
+        if (await db.BookingRequests.AnyAsync(booking => booking.HotelRoomId == id))
+        {
+            return Conflict("A room type with bookings cannot be deleted. Close it to new bookings instead.");
         }
 
         var roomSetError = await ValidateHotelRoomsAsync(room.HotelId, null, room.Id);
@@ -186,6 +258,8 @@ public class HotelRoomsController(AppDbContext db) : ControllerBase
 
         db.HotelRooms.Remove(room);
         await db.SaveChangesAsync();
+
+        if (transaction is not null) await transaction.CommitAsync();
 
         return NoContent();
     }

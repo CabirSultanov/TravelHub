@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Booking, Page, TaxiBooking } from '../../types';
 import { formatMoney } from '../../utils/formatting';
+import { getTaxiRideStatusLabel } from '../../utils/taxiRide';
 
 type MyTripsPageProps = {
   bookings: Booking[];
@@ -9,13 +10,12 @@ type MyTripsPageProps = {
   taxiBookingsLoading: boolean;
   submitting: boolean;
   payingBookingId: number | null;
-  payingTaxiBookingId: number | null;
   formatTaxiCarClassName: (name: string) => string;
-  renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
+  renderPaymentForm: (booking: Booking) => ReactNode;
   onNavigate: (page: Page) => void;
+  onOpenRide: (bookingId: number) => void;
   onOpenPaymentForm: (bookingId: number) => void;
   onCancelBooking: (booking: Booking) => void | Promise<void>;
-  onOpenTaxiPaymentForm: (bookingId: number) => void;
   onCancelTaxiBooking: (booking: TaxiBooking) => void | Promise<void>;
 };
 
@@ -26,22 +26,21 @@ export default function MyTripsPage({
   taxiBookingsLoading,
   submitting,
   payingBookingId,
-  payingTaxiBookingId,
   formatTaxiCarClassName,
   renderPaymentForm,
   onNavigate,
+  onOpenRide,
   onOpenPaymentForm,
   onCancelBooking,
-  onOpenTaxiPaymentForm,
   onCancelTaxiBooking,
 }: MyTripsPageProps) {
   const allCount = bookings.length + taxiBookings.length;
   const pendingCount =
     bookings.filter((booking) => booking.status === 'PendingPayment').length +
-    taxiBookings.filter((booking) => booking.status === 'PendingPayment').length;
+    taxiBookings.filter((booking) => booking.status === 'AwaitingDriver').length;
   const paidCount =
     bookings.filter((booking) => booking.status === 'Paid').length +
-    taxiBookings.filter((booking) => booking.status === 'Paid').length;
+    taxiBookings.filter((booking) => ['Paid', 'DriverAssigned', 'DriverArrived', 'Completed'].includes(booking.status)).length;
 
   return (
     <div className="page-shell trips-page">
@@ -66,7 +65,7 @@ export default function MyTripsPage({
                 Taxi rides <span className="trip-count">{taxiBookings.length}</span>
               </button>
               <button type="button">
-                Payment due <span className="trip-count">{pendingCount}</span>
+                Awaiting driver <span className="trip-count">{pendingCount}</span>
               </button>
             </nav>
           </aside>
@@ -82,7 +81,7 @@ export default function MyTripsPage({
                 <strong>{paidCount}</strong>
               </div>
               <div className="summary-cell">
-                <span>Pending</span>
+                <span>Awaiting driver</span>
                 <strong>{pendingCount}</strong>
               </div>
             </div>
@@ -134,8 +133,8 @@ export default function MyTripsPage({
                   <img src="/assets/destination-ganja.jpg" alt={booking.taxiServiceName} />
                   <div>
                     <div className="trip-meta">
-                      <span className={`status ${booking.status === 'PendingPayment' ? 'pending' : 'upcoming'}`}>
-                        {booking.status}
+                      <span className={`status ${booking.status === 'AwaitingDriver' ? 'pending' : 'upcoming'}`}>
+                        {getTaxiRideStatusLabel(booking.status)}
                       </span>
                       <span className="muted">Taxi booking #{booking.id}</span>
                     </div>
@@ -149,23 +148,24 @@ export default function MyTripsPage({
                     </small>
                   </div>
                   <div className="trip-actions">
-                    {booking.status === 'PendingPayment' && payingTaxiBookingId !== booking.id && (
-                      <>
-                        <button className="btn btn-primary" disabled={submitting} onClick={() => onOpenTaxiPaymentForm(booking.id)} type="button">
-                          Pay now
-                        </button>
-                        <button className="btn btn-secondary" disabled={submitting} onClick={() => void onCancelTaxiBooking(booking)} type="button">
-                          Cancel
-                        </button>
-                      </>
+                    {booking.status === 'AwaitingDriver' && (
+                      <button className="btn btn-secondary" disabled={submitting} onClick={() => void onCancelTaxiBooking(booking)} type="button">
+                        Cancel request
+                      </button>
                     )}
-                    {booking.status !== 'PendingPayment' && (
+                    {booking.status !== 'Cancelled' && (
+                      <button className="btn btn-primary" onClick={() => onOpenRide(booking.id)} type="button">
+                        {booking.status === 'Completed' && booking.rating == null ? 'Rate ride' : 'View ride'}
+                      </button>
+                    )}
+                    {booking.status !== 'AwaitingDriver' && (
                       <button className="btn btn-secondary" onClick={() => onNavigate('taxi')} type="button">
                         Book taxi
                       </button>
                     )}
                   </div>
-                  {booking.status === 'PendingPayment' && payingTaxiBookingId === booking.id && renderPaymentForm(booking, 'taxi')}
+                  {booking.driverName && <small className="trip-driver">Driver: {booking.driverName}{booking.driverPhoneNumber ? ` / ${booking.driverPhoneNumber}` : ''}</small>}
+                  {booking.rating != null && <small className="trip-driver">Your rating: {booking.rating} / 5</small>}
                 </article>
               ))}
 

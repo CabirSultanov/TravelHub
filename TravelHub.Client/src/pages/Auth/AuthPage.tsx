@@ -1,10 +1,14 @@
-import { useState, type FormEvent } from 'react';
-import type { AuthForm, AuthMode } from '../../types';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import type { AuthForm, AuthMode, EmailConfirmationRequired } from '../../types';
 import { getPasswordRequirements } from '../../utils/authValidation';
+import PasswordRecoveryForm from './PasswordRecoveryForm';
 
 type AuthPageProps = {
   authMode: AuthMode;
   authForm: AuthForm;
+  emailConfirmation: EmailConfirmationRequired | null;
+  verificationCode: string;
+  resendSeconds: number;
   submitting: boolean;
   message: string;
   accountPhonePrefix: string;
@@ -12,11 +16,18 @@ type AuthPageProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onAuthFormChange: (form: AuthForm) => void;
   onToggleMode: () => void;
+  onVerificationCodeChange: (code: string) => void;
+  onVerifyEmail: (event: FormEvent<HTMLFormElement>) => void;
+  onResendEmail: () => void;
+  onReturnToLogin: () => void;
 };
 
 export default function AuthPage({
   authMode,
   authForm,
+  emailConfirmation,
+  verificationCode,
+  resendSeconds,
   submitting,
   message,
   accountPhonePrefix,
@@ -24,12 +35,19 @@ export default function AuthPage({
   onSubmit,
   onAuthFormChange,
   onToggleMode,
+  onVerificationCodeChange,
+  onVerifyEmail,
+  onResendEmail,
+  onReturnToLogin,
 }: AuthPageProps) {
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [recoveringPassword, setRecoveringPassword] = useState(false);
+  const forgotButton = useRef<HTMLButtonElement>(null);
   const passwordRequirements = getPasswordRequirements(authForm.password);
+  useEffect(() => { if (authMode !== 'login') setRecoveringPassword(false); }, [authMode]);
 
   return (
-    <section className="auth-page od-auth-page">
+    <section className={`auth-page od-auth-page${recoveringPassword ? ' is-recovering' : ''}`}>
       <main className="auth-wrap">
         <section className="auth-shell">
           <div className="auth-media">
@@ -39,7 +57,44 @@ export default function AuthPage({
           </div>
 
           <div className="auth-panel">
-            <p className="eyebrow">Account</p>
+            {!recoveringPassword && <p className="eyebrow">Account</p>}
+            {recoveringPassword && authMode === 'login' ? (
+              <PasswordRecoveryForm initialEmail={authForm.email} onClose={(email) => {
+                setRecoveringPassword(false);
+                onReturnToLogin();
+                onAuthFormChange({ ...authForm, email, password: '' });
+                window.requestAnimationFrame(() => forgotButton.current?.focus());
+              }} />
+            ) : emailConfirmation ? (
+              <section className="email-verification" aria-labelledby="email-verification-title">
+                <h2 id="email-verification-title">Verify your email</h2>
+                <p>We sent a 6-digit verification code to:</p>
+                <strong>{maskEmail(emailConfirmation.email)}</strong>
+                <form className="auth-form" onSubmit={onVerifyEmail}>
+                  <label className="field-box">
+                    <span>Verification code</span>
+                    <input
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                      maxLength={6}
+                      pattern="[0-9]{6}"
+                      placeholder="6-digit code"
+                      value={verificationCode}
+                      onChange={(event) => onVerificationCodeChange(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      required
+                    />
+                  </label>
+                  {message && <p className="auth-message">{message}</p>}
+                  <button className="btn btn-primary btn-wide" disabled={submitting || verificationCode.length !== 6} type="submit">Verify</button>
+                </form>
+                <p className="email-verification-resend">Didn't receive the code?</p>
+                <button className="btn btn-secondary btn-wide" disabled={submitting || resendSeconds > 0} onClick={onResendEmail} type="button">
+                  {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend code'}
+                </button>
+                <button className="link-button" disabled={submitting} onClick={onReturnToLogin} type="button">Return to Sign in</button>
+              </section>
+            ) : (
+              <>
             <h2>{authMode === 'register' ? 'Create account' : 'Sign in to TravelHub'}</h2>
             <div className="auth-tabs" role="tablist">
               <button className={authMode === 'login' ? 'is-active' : ''} onClick={authMode === 'register' ? onToggleMode : undefined} type="button">
@@ -125,14 +180,25 @@ export default function AuthPage({
                   </div>
                 )}
               </div>
+              {authMode === 'login' && <button ref={forgotButton} className="link-button auth-forgot-password" type="button" disabled={submitting} onClick={() => {
+                onAuthFormChange({ ...authForm, password: '' });
+                setRecoveringPassword(true);
+              }}>Forgot password?</button>}
               {message && <p className="auth-message">{message}</p>}
               <button className="btn btn-primary btn-wide" disabled={submitting} type="submit">
                 {authMode === 'register' ? 'Create account' : 'Sign in'}
               </button>
             </form>
+              </>
+            )}
           </div>
         </section>
       </main>
     </section>
   );
+}
+
+function maskEmail(email: string) {
+  const [localPart, domain] = email.split('@');
+  return `${localPart?.slice(0, 1) ?? ''}***@${domain ?? ''}`;
 }

@@ -3,11 +3,12 @@ import HotelBookingForm from '../../features/hotels/components/HotelBookingForm'
 import HotelBookingResult from '../../features/hotels/components/HotelBookingResult';
 import HotelForm from '../../features/hotels/components/HotelForm';
 import HotelList from '../../features/hotels/components/HotelList';
+import HotelReviews from '../../features/hotels/components/HotelReviews';
 import RoomForm from '../../features/hotels/components/RoomForm';
 import RoomList, { RoomPhotoStrip } from '../../features/hotels/components/RoomList';
 import ImageCarousel from '../../components/common/ImageCarousel';
 import SiteFooter from '../../components/common/SiteFooter';
-import type { AuthUser, Booking, Hotel, Page, TaxiBooking } from '../../types';
+import type { AuthUser, Booking, Hotel, Page } from '../../types';
 import {
   clearInvalidHotelCheckOut,
   hotelDateRangeErrorMessage,
@@ -18,6 +19,7 @@ import {
 import { hotelImageUrls, hotelMainImage } from '../../utils/images';
 import type { HotelRouteSearch } from '../../utils/routing';
 import type { HotelsFeature } from '../../features/hotels/hotels.types';
+import { useHotelReviews } from '../../features/hotels/hooks/useHotelReviews';
 
 type HotelsPageProps = {
   feature: HotelsFeature;
@@ -25,8 +27,11 @@ type HotelsPageProps = {
   submitting: boolean;
   loading: boolean;
   phoneNumberPattern: string;
-  renderPaymentForm: (booking: Booking | TaxiBooking, bookingKind?: 'hotel' | 'taxi') => ReactNode;
+  renderPaymentForm: (booking: Booking) => ReactNode;
   onOpenAuth: () => void;
+  onRequireAuth: (message: string) => void;
+  setMessage: (message: string) => void;
+  setSubmitting: (submitting: boolean) => void;
   hotelDetailId: number | null;
   hotelDetailLoading: boolean;
   hotelDetailNotFound: boolean;
@@ -49,6 +54,9 @@ export default function HotelsPage({
   phoneNumberPattern,
   renderPaymentForm,
   onOpenAuth,
+  onRequireAuth,
+  setMessage,
+  setSubmitting,
   hotelDetailId,
   hotelDetailLoading,
   hotelDetailNotFound,
@@ -73,6 +81,14 @@ export default function HotelsPage({
   const todayDate = todayDateInputValue();
   const minCheckOutDate = minHotelCheckOutDate(searchDates.checkIn || todayDate);
   const hasOpenEditForm = model.showHotelForm || model.showRoomForm;
+  const reviewsFeature = useHotelReviews({
+    hotelId: isHotelDetailPage ? hotelDetailId : null,
+    currentUser,
+    onRequireAuth,
+    onStatsChange: actions.hotelList.updateStats,
+    setMessage,
+    setSubmitting,
+  });
 
   useEffect(() => {
     setShowRooms(false);
@@ -194,7 +210,7 @@ export default function HotelsPage({
             {!model.showHotelForm && model.selectedHotel && <span>{model.selectedHotel.city}</span>}
           </div>
 
-          {model.showHotelForm && model.canManageHotels ? (
+          {model.showHotelForm && (model.editingHotelId === null ? model.canManageHotels : model.canManageSelectedHotel) ? (
             <HotelForm
               actions={actions.hotelForm}
               editingHotelId={model.editingHotelId}
@@ -220,7 +236,7 @@ export default function HotelsPage({
                 </div>
               </div>
 
-              {model.canManageHotels && (
+              {model.canManageSelectedHotel && (
                 <>
                   {!model.showRoomForm && (
                     <div className="hotel-actions">
@@ -243,13 +259,15 @@ export default function HotelsPage({
                 </>
               )}
 
+              <HotelReviews currentUser={currentUser} feature={reviewsFeature} submitting={submitting} />
+
               {showRooms && (
                 <>
                   <div className="hotel-rooms-band">
                     <div className="hotel-rooms-band-inner">
                       <RoomList
                         actions={roomListActions}
-                        canManageHotels={model.canManageHotels}
+                        canManageHotels={model.canManageSelectedHotel}
                         rooms={model.rooms}
                         roomsLoading={model.roomsLoading}
                         selectedRoom={model.selectedRoom}

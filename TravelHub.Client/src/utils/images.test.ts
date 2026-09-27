@@ -12,6 +12,8 @@ const hotel: Hotel = {
   roomTypesCount: 2,
   totalRoomsCount: 40,
   totalGuestPlaces: 100,
+  averageRating: null,
+  reviewCount: 0,
 };
 
 const room: HotelRoom = {

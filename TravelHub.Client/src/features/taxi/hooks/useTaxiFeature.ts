@@ -3,8 +3,9 @@ import type { FormEvent } from 'react';
 import { api } from '../../../api';
 import { getErrorMessage } from '../../../utils/errors';
 import { splitTaxiCities, taxiCarClassOptions } from '../../../utils/taxi';
-import type { TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
+import type { BookingPayment, TaxiBooking, TaxiService, TaxiServiceInput } from '../../../types';
 import { createEmptyTaxiBookingForm, emptyTaxiForm } from '../taxi.constants';
+import { useTaxiDrivers } from './useTaxiDrivers';
 import {
   applyTaxiPointToCoordinates,
   applyTaxiPointToForm,
@@ -39,7 +40,6 @@ export function useTaxiFeature({
   onRequireAuth,
   onBookingCreated,
   onResetPayment,
-  onResetTaxiPayment,
 }: TaxiFeatureOptions): TaxiFeature {
   const [taxiServices, setTaxiServices] = useState<TaxiService[]>([]);
   const [taxiBooking, setTaxiBooking] = useState<TaxiBooking | null>(null);
@@ -120,8 +120,23 @@ export function useTaxiFeature({
   const taxiDistanceKm = taxiRouteState.status === 'success' ? taxiRouteState.distanceKm : 0;
   const taxiEstimatedTotal = selectedTaxiCarClass ? Math.round(taxiDistanceKm * selectedTaxiCarClass.pricePerKm * 100) / 100 : 0;
   const canManageTaxi = currentUser?.role === 'Admin' || currentUser?.role === 'SuperAdmin';
+  const canEditTaxiService = (taxiService: TaxiService) =>
+    canManageTaxi || (currentUser?.role === 'TaxiOwner' && taxiService.ownerId === currentUser.id);
+  const managedTaxiService = editingTaxiId === null
+    ? selectedTaxiService
+    : taxiServices.find((taxiService) => taxiService.id === editingTaxiId) ?? null;
+  const canManageSelectedTaxi = Boolean(managedTaxiService && canEditTaxiService(managedTaxiService));
+  const taxiDrivers = useTaxiDrivers({
+    active: canManageSelectedTaxi && !showTaxiForm,
+    taxiServiceId: selectedTaxiService?.id ?? null,
+    setSubmitting,
+  });
 
   function startCreateTaxiService() {
+    if (!canManageTaxi) {
+      return;
+    }
+
     setTaxiForm(emptyTaxiForm);
     setEditingTaxiId(null);
     setShowTaxiForm(true);
@@ -136,7 +151,7 @@ export function useTaxiFeature({
   async function submitTaxiService(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canManageTaxi) {
+    if (editingTaxiId === null ? !canManageTaxi : !canManageSelectedTaxi) {
       return;
     }
 
@@ -175,6 +190,10 @@ export function useTaxiFeature({
   }
 
   function editTaxiService(taxiService: TaxiService) {
+    if (!canEditTaxiService(taxiService)) {
+      return;
+    }
+
     setEditingTaxiId(taxiService.id);
     setTaxiForm({
       companyName: taxiService.companyName,
@@ -251,7 +270,7 @@ export function useTaxiFeature({
   }
 
   async function uploadTaxiImage(file: File) {
-    if (!canManageTaxi) {
+    if (editingTaxiId === null ? !canManageTaxi : !canManageSelectedTaxi) {
       return;
     }
 
@@ -259,7 +278,7 @@ export function useTaxiFeature({
     setMessage('');
 
     try {
-      const { imageUrl } = await api.uploadHotelImage(file);
+      const { imageUrl } = await api.uploadTaxiImage(file);
       setTaxiForm((form) => ({ ...form, imageUrl: toAbsoluteImageUrl(imageUrl) }));
       setMessage('Taxi image uploaded.');
     } catch (error) {
@@ -302,7 +321,6 @@ export function useTaxiFeature({
       carClassName: selectedCarClassName,
     });
     setTaxiBooking(null);
-    onResetTaxiPayment();
     setEditingTaxiId(null);
     setTaxiForm(emptyTaxiForm);
     setShowTaxiForm(false);
@@ -312,7 +330,6 @@ export function useTaxiFeature({
   function clearTaxiRoutePreview() {
     setTaxiBooking(null);
     setTaxiRouteState(idleTaxiRouteState);
-    onResetTaxiPayment();
   }
 
   function updateTaxiMapPoint(mode: 'pickup' | 'dropoff', coordinates: Coordinates, address: string) {
@@ -345,7 +362,7 @@ export function useTaxiFeature({
     }));
   }
 
-  async function submitTaxiBooking(event: FormEvent<HTMLFormElement>) {
+  async function submitTaxiBooking(event: FormEvent<HTMLFormElement>, payment: BookingPayment) {
     event.preventDefault();
 
     if (!currentUser) {
@@ -386,6 +403,7 @@ export function useTaxiFeature({
         pickupLongitude: pickupCoordinates.longitude,
         dropoffLatitude: dropoffCoordinates.latitude,
         dropoffLongitude: dropoffCoordinates.longitude,
+        payment,
       });
 
       setTaxiBooking(createdBooking);
@@ -404,7 +422,6 @@ export function useTaxiFeature({
     setTaxiBookingForm(createEmptyTaxiBookingForm(currentUser, selectedTaxiService ?? taxiServices[0]));
     setTaxiCoordinates({ pickup: null, dropoff: null });
     setTaxiRouteState(idleTaxiRouteState);
-    onResetTaxiPayment();
     setMessage('');
   }
 
@@ -423,8 +440,11 @@ export function useTaxiFeature({
       taxiDistanceKm,
       taxiEstimatedTotal,
       canManageTaxi,
+      canManageSelectedTaxi,
+      canEditTaxiService,
       editingTaxiId,
       showTaxiForm,
+      taxiDrivers,
       loading,
     },
     actions: {
@@ -453,7 +473,7 @@ export function useTaxiFeature({
         updatePoint: updateTaxiMapPoint,
         updatePointAddress: updateTaxiPointAddress,
         setRoute: updateTaxiRoute,
-        submit: (event) => void submitTaxiBooking(event),
+        submit: (event, payment) => void submitTaxiBooking(event, payment),
       },
       resetBooking: resetTaxiBooking,
       setBooking: setTaxiBooking,

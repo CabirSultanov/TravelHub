@@ -27,7 +27,28 @@ public class AppUser
 
     public bool IsBlocked { get; set; }
 
+    public bool EmailConfirmed { get; set; } = true;
+
+    [MaxLength(512)]
+    public string? EmailVerificationCodeHash { get; set; }
+
+    public DateTime? EmailVerificationExpiresAt { get; set; }
+
+    public DateTime? EmailVerificationSentAt { get; set; }
+
+    public int EmailVerificationAttemptCount { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    public ICollection<HotelReview> HotelReviews { get; set; } = new List<HotelReview>();
+
+    public ICollection<Hotel> OwnedHotels { get; set; } = new List<Hotel>();
+
+    public ICollection<TaxiService> OwnedTaxiServices { get; set; } = new List<TaxiService>();
+
+    public int? TaxiServiceId { get; set; }
+
+    public TaxiService? TaxiService { get; set; }
 }

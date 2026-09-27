@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace TravelHub.Api.Models;
 
@@ -23,6 +24,14 @@ public class TaxiService
 
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
+
+    public int? OwnerId { get; set; }
+
+    [JsonIgnore]
+    public AppUser? Owner { get; set; }
+
+    [JsonIgnore]
+    public ICollection<AppUser> Drivers { get; set; } = new List<AppUser>();
 
     public List<TaxiCarClass> CarClasses { get; set; } = new();
 }

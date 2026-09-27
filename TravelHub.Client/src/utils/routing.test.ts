@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { buildAuthUrl, buildHotelsUrl, buildTaxiUrl, parseAppRoute } from './routing';
+import { buildAuthUrl, buildHotelsUrl, buildTaxiUrl, buildTaxiRideUrl, buildParsedRouteUrl, parseAppRoute } from './routing';
 
 describe('routing helpers', () => {
+  it('preserves ride detail deep links instead of canonicalizing them to the booking form', () => {
+    expect(buildTaxiRideUrl(42)).toBe('/taxi/rides/42');
+    const route = parseAppRoute('/taxi/rides/42/', '?serviceId=3');
+    expect(route).toMatchObject({ page: 'taxi', taxiRideId: 42 });
+    expect(buildParsedRouteUrl(route)).toBe('/taxi/rides/42');
+    expect(parseAppRoute('/taxi').taxiRideId).toBeNull();
+  });
+
+  it('keeps only a validated internal ride ID as the return destination through login', () => {
+    expect(buildAuthUrl('login', 42)).toBe('/auth?mode=login&ride=42');
+    const route = parseAppRoute('/auth', '?mode=login&ride=42');
+    expect(route.taxiRideId).toBe(42);
+    expect(buildParsedRouteUrl(route)).toBe('/auth?mode=login&ride=42');
+    expect(parseAppRoute('/auth', '?ride=https://example.com').taxiRideId).toBeNull();
+  });
+
+  it.each(['0', '-1', 'abc', '1.5', '2147483648', '999999999999999999999'])('rejects invalid ride ID %s', (id) => {
+    expect(parseAppRoute(`/taxi/rides/${id}`).taxiRideId).toBeNull();
+    expect(parseAppRoute('/auth', `?ride=${id}`).taxiRideId).toBeNull();
+  });
+
   it('builds and parses hotel search query params', () => {
     const url = buildHotelsUrl({ city: 'Baku', checkIn: '2099-09-10', checkOut: '2099-09-12', page: 2 });
     const route = parseAppRoute('/hotels', '?city=Baku&checkIn=2099-09-10&checkOut=2099-09-12&page=2');

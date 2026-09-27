@@ -4,7 +4,11 @@ import type {
   Booking,
   BookingCreate,
   BookingPayment,
+  EmailConfirmationRequired,
   Hotel,
+  HotelReview,
+  HotelReviewInput,
+  HotelReviewsResponse,
   HotelInput,
   HotelRoom,
   HotelRoomInput,
@@ -21,7 +25,20 @@ import type {
   TaxiService,
   TaxiServiceInput,
   UpdateProfileRequest,
+  VerifyEmailRequest,
+  PasswordCodeSent,
+  PasswordCodeVerified,
+  ResetPasswordRequest,
 } from './types';
+import type { OwnerBooking, OwnerBookingFilters, OwnerOverview } from './pages/Owner/ownerTypes';
+
+function ownerQuery(filters: Record<string, string | number | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  }
+  return query.toString();
+}
 
 const refreshUrl = '/api/auth/refresh';
 const authEndpoints = new Set([
@@ -29,16 +46,19 @@ const authEndpoints = new Set([
   '/api/auth/login',
   '/api/auth/refresh',
   '/api/auth/logout',
+  '/api/auth/verify-email',
+  '/api/auth/resend-email-confirmation',
 ]);
 
 let accessToken: string | null = null;
 let refreshPromise: Promise<AuthResponse | null> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly body: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -71,8 +91,9 @@ async function fetchResponse(url: string, init: RequestInit | undefined, skipAcc
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const message = getApiErrorMessage(await response.text());
-    throw new ApiError(message || 'Request failed with status ' + response.status, response.status);
+    const body = await response.text();
+    const message = getApiErrorMessage(body);
+    throw new ApiError(message || 'Request failed with status ' + response.status, response.status, body);
   }
 
   if (response.status === 204) {
@@ -80,6 +101,21 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+function getEmailConfirmationRequired(error: unknown): EmailConfirmationRequired | null {
+  if (!(error instanceof ApiError) || error.status !== 403) {
+    return null;
+  }
+
+  try {
+    const response = JSON.parse(error.body) as Partial<EmailConfirmationRequired>;
+    return response.emailConfirmationRequired === true && typeof response.email === 'string' && typeof response.expiresAt === 'string'
+      ? response as EmailConfirmationRequired
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function getApiErrorMessage(body: string) {
@@ -158,11 +194,19 @@ async function refreshAccessToken(): Promise<AuthResponse | null> {
 }
 
 export const api = {
+  getOwnerHotels: (filters: { search?: string; page?: number; pageSize?: number } = {}, signal?: AbortSignal) =>
+    request<PagedResponse<Hotel>>(`/api/owner/hotels?${ownerQuery(filters)}`, { signal }),
+  getOwnerOverview: (hotelId?: number, signal?: AbortSignal) =>
+    request<OwnerOverview>(`/api/owner/overview?${ownerQuery({ hotelId })}`, { signal }),
+  getOwnerBookings: (filters: OwnerBookingFilters = {}, signal?: AbortSignal) =>
+    request<PagedResponse<OwnerBooking>>(`/api/owner/bookings?${ownerQuery(filters)}`, { signal }),
+  getOwnerBooking: (id: number, signal?: AbortSignal) =>
+    request<OwnerBooking>(`/api/owner/bookings/${id}`, { signal }),
   setSessionExpiredHandler: (handler: (() => void) | null) => {
     sessionExpiredHandler = handler;
   },
   register: async (account: RegisterRequest) => {
-    const response = await request<AuthResponse>(
+    return request<EmailConfirmationRequired>(
       '/api/auth/register',
       {
         method: 'POST',
@@ -170,22 +214,62 @@ export const api = {
       },
       { skipAuthRefresh: true },
     );
-    accessToken = response.accessToken;
-    return response;
   },
   login: async (account: LoginRequest) => {
+    try {
+      const response = await request<AuthResponse>(
+        '/api/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify(account),
+        },
+        { skipAuthRefresh: true },
+      );
+      accessToken = response.accessToken;
+      return response;
+    } catch (error) {
+      const confirmation = getEmailConfirmationRequired(error);
+      if (confirmation) {
+        return confirmation;
+      }
+
+      throw error;
+    }
+  },
+  verifyEmail: async (requestBody: VerifyEmailRequest) => {
     const response = await request<AuthResponse>(
-      '/api/auth/login',
+      '/api/auth/verify-email',
       {
         method: 'POST',
-        body: JSON.stringify(account),
+        body: JSON.stringify(requestBody),
       },
-      { skipAuthRefresh: true },
+      { skipAuthRefresh: true, skipAccessToken: true },
     );
     accessToken = response.accessToken;
     return response;
   },
+  resendEmailConfirmation: (email: string) =>
+    request<EmailConfirmationRequired>(
+      '/api/auth/resend-email-confirmation',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      },
+      { skipAuthRefresh: true, skipAccessToken: true },
+    ),
   refresh: refreshAccessToken,
+  requestPasswordCode: (email: string, signal?: AbortSignal) =>
+    request<PasswordCodeSent>('/api/auth/forgot-password', {
+      method: 'POST', body: JSON.stringify({ email }), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
+  verifyPasswordCode: (email: string, code: string, signal?: AbortSignal) =>
+    request<PasswordCodeVerified>('/api/auth/verify-password-code', {
+      method: 'POST', body: JSON.stringify({ email, code }), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
+  resetPassword: (body: ResetPasswordRequest, signal?: AbortSignal) =>
+    request<void>('/api/auth/reset-password', {
+      method: 'POST', body: JSON.stringify(body), signal,
+    }, { skipAuthRefresh: true, skipAccessToken: true }),
   logout: async () => {
     try {
       await request<void>(
@@ -210,11 +294,15 @@ export const api = {
     accessToken = null;
   },
   getAdmins: () => request<AuthUser[]>('/api/admins'),
-  getAdminCandidates: (page = 1, pageSize = 10) => {
+  getAdminUsers: (searchTerm = '', page = 1, pageSize = 100) => {
     const search = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),
     });
+
+    if (searchTerm.trim()) {
+      search.set('search', searchTerm.trim());
+    }
 
     return request<PagedResponse<AuthUser>>(`/api/admins/users?${search}`);
   },
@@ -238,6 +326,7 @@ export const api = {
     request<void>(`/api/admins/${userId}/account`, {
       method: 'DELETE',
     }),
+  getOwnerCandidates: (role: 'hotel' | 'taxi') => request<AuthUser[]>(`/api/ownership/users?role=${role}`),
   getHotels: ({ page = 1, pageSize = 3, city = '' }: { page?: number; pageSize?: number; city?: string } = {}) => {
     const search = new URLSearchParams({
       page: String(page),
@@ -251,6 +340,33 @@ export const api = {
     return request<PagedResponse<Hotel>>(`/api/hotels?${search}`);
   },
   getHotel: (hotelId: number) => request<Hotel>(`/api/hotels/${hotelId}`),
+  getHotelReviews: (hotelId: number, page = 1, pageSize = 3, signal?: AbortSignal) =>
+    request<HotelReviewsResponse>(`/api/hotels/${hotelId}/reviews?page=${page}&pageSize=${pageSize}`, { signal }),
+  getMyHotelReview: async (hotelId: number) => {
+    try {
+      return await request<HotelReview>(`/api/hotels/${hotelId}/reviews/mine`);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
+
+      throw error;
+    }
+  },
+  createHotelReview: (hotelId: number, review: HotelReviewInput) =>
+    request<HotelReview>(`/api/hotels/${hotelId}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(review),
+    }),
+  updateHotelReview: (hotelId: number, reviewId: number, review: HotelReviewInput) =>
+    request<HotelReview>(`/api/hotels/${hotelId}/reviews/${reviewId}`, {
+      method: 'PUT',
+      body: JSON.stringify(review),
+    }),
+  deleteHotelReview: (hotelId: number, reviewId: number) =>
+    request<void>(`/api/hotels/${hotelId}/reviews/${reviewId}`, {
+      method: 'DELETE',
+    }),
   getHotelCities: () => request<string[]>('/api/hotels/cities'),
   uploadHotelImage: (file: File) => {
     const formData = new FormData();
@@ -270,6 +386,15 @@ export const api = {
       body: formData,
     });
   },
+  uploadTaxiImage: (file: File) => {
+    const formData = new FormData();
+    formData.set('file', file);
+
+    return request<{ imageUrl: string }>('/api/taxi-images', {
+      method: 'POST',
+      body: formData,
+    });
+  },
   createHotel: (hotel: HotelInput) =>
     request<Hotel>('/api/hotels', {
       method: 'POST',
@@ -283,6 +408,11 @@ export const api = {
   deleteHotel: (hotelId: number) =>
     request<void>(`/api/hotels/${hotelId}`, {
       method: 'DELETE',
+    }),
+  updateHotelOwner: (hotelId: number, ownerId: number | null) =>
+    request<void>(`/api/hotels/${hotelId}/owner`, {
+      method: 'PUT',
+      body: JSON.stringify({ ownerId }),
     }),
   getHotelRooms: (hotelId: number) => request<HotelRoom[]>(`/api/hotel-rooms?hotelId=${hotelId}`),
   createHotelRoom: (room: HotelRoomInput) =>
@@ -324,7 +454,33 @@ export const api = {
     request<void>(`/api/taxi-services/${taxiServiceId}`, {
       method: 'DELETE',
     }),
-  getTaxiBookings: (mine = false) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`),
+  updateTaxiServiceOwner: (taxiServiceId: number, ownerId: number | null) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}/owner`, {
+      method: 'PUT',
+      body: JSON.stringify({ ownerId }),
+    }),
+  getTaxiDrivers: (taxiServiceId: number) => request<AuthUser[]>(`/api/taxi-services/${taxiServiceId}/drivers`),
+  getTaxiDriverCandidates: (taxiServiceId: number, searchTerm = '') => {
+    const search = new URLSearchParams();
+    if (searchTerm.trim()) {
+      search.set('search', searchTerm.trim());
+    }
+
+    return request<AuthUser[]>(`/api/taxi-services/${taxiServiceId}/drivers/candidates${search.size ? `?${search}` : ''}`);
+  },
+  assignTaxiDriver: (taxiServiceId: number, userId: number) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'PUT' }),
+  removeTaxiDriver: (taxiServiceId: number, userId: number) =>
+    request<void>(`/api/taxi-services/${taxiServiceId}/drivers/${userId}`, { method: 'DELETE' }),
+  getTaxiBookings: (mine = false, signal?: AbortSignal) => request<TaxiBooking[]>(`/api/taxi-bookings${mine ? '?mine=true' : ''}`, { signal }),
+  getTaxiBooking: (bookingId: number, signal?: AbortSignal) =>
+    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}`, { signal }),
+  reviewTaxiBooking: (bookingId: number, review: { rating: number; comment?: string }, signal?: AbortSignal) =>
+    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(review),
+      signal,
+    }),
   createTaxiBooking: (booking: TaxiBookingCreate) =>
     request<TaxiBooking>('/api/taxi-bookings', {
       method: 'POST',
@@ -336,14 +492,10 @@ export const api = {
       body: JSON.stringify(route),
       signal,
     }),
-  payTaxiBooking: (bookingId: number, payment: BookingPayment) =>
-    request<TaxiBooking>(`/api/taxi-bookings/${bookingId}/pay`, {
-      method: 'POST',
-      body: JSON.stringify(payment),
-    }),
-  cancelTaxiBooking: (bookingId: number) =>
+  cancelTaxiBooking: (bookingId: number, signal?: AbortSignal) =>
     request<void>(`/api/taxi-bookings/${bookingId}/cancel`, {
       method: 'PUT',
+      signal,
     }),
   getBookings: (mine = false) => request<Booking[]>(`/api/booking-requests${mine ? '?mine=true' : ''}`),
   createBooking: (booking: BookingCreate) =>

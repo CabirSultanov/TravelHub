@@ -13,8 +13,8 @@ namespace TravelHub.Api.Controllers;
 [Route("api/admins")]
 public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordHasher) : ControllerBase
 {
-    private const int DefaultRegularUsersPageSize = 10;
-    private const int MaxRegularUsersPageSize = 100;
+    private const int DefaultUsersPageSize = 10;
+    private const int MaxUsersPageSize = 100;
 
     [HttpGet]
     public async Task<ActionResult<List<AuthUserDto>>> GetAdmins(string? role)
@@ -38,16 +38,27 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
     }
 
     [HttpGet("users")]
-    public async Task<ActionResult<PagedResponseDto<AuthUserDto>>> GetRegularUsers(int page = 1, int pageSize = DefaultRegularUsersPageSize)
+    public async Task<ActionResult<PagedResponseDto<AuthUserDto>>> GetUsers(string? search = null, int page = 1, int pageSize = DefaultUsersPageSize)
     {
         var normalizedPage = Math.Max(1, page);
-        var normalizedPageSize = Math.Clamp(pageSize, 1, MaxRegularUsersPageSize);
-        var query = db.Users.AsNoTracking().Where(user => user.Role == UserRoles.User);
+        var normalizedPageSize = Math.Clamp(pageSize, 1, MaxUsersPageSize);
+        var query = db.Users.AsNoTracking();
+        var normalizedSearch = search?.Trim();
+        if (!string.IsNullOrEmpty(normalizedSearch))
+        {
+            var searchTerm = normalizedSearch.ToUpper();
+            query = query.Where(user =>
+                user.Name.ToUpper().Contains(searchTerm) ||
+                user.Email.ToUpper().Contains(searchTerm) ||
+                user.PhoneNumber.ToUpper().Contains(searchTerm));
+        }
+
         var totalItems = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalItems / (double)normalizedPageSize);
         var effectivePage = totalPages == 0 ? 1 : Math.Min(normalizedPage, totalPages);
         var items = await query
-            .OrderBy(user => user.Id)
+            .OrderBy(user => user.Name)
+            .ThenBy(user => user.Email)
             .Skip((effectivePage - 1) * normalizedPageSize)
             .Take(normalizedPageSize)
             .Select(user => new AuthUserDto
@@ -89,7 +100,8 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
             Name = name,
             Email = email,
             PhoneNumber = phoneNumber,
-            Role = UserRoles.Admin
+            Role = UserRoles.Admin,
+            EmailConfirmed = true
         };
         user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
 

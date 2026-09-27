@@ -14,9 +14,15 @@ public class HotelResponseDto
 
     public List<string> ImageUrls { get; set; } = new();
 
+    public int? OwnerId { get; set; }
+
     public int RoomTypesCount { get; set; }
 
     public int TotalRoomsCount { get; set; }
 
     public int TotalGuestPlaces { get; set; }
+
+    public double? AverageRating { get; set; }
+
+    public int ReviewCount { get; set; }
 }

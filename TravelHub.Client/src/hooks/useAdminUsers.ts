@@ -1,129 +1,62 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { AuthUser } from '../types';
 import { getErrorMessage } from '../utils/errors';
 
-type UseAdminUsersOptions = {
-  active: boolean;
-  setMessage: (message: string) => void;
-  setSubmitting: (submitting: boolean) => void;
-};
+export const ADMIN_USERS_PAGE_SIZE = 20;
 
-const REGULAR_USERS_PAGE_SIZE = 10;
-
-export function useAdminUsers({ active, setMessage, setSubmitting }: UseAdminUsersOptions) {
+export function useAdminUsers(active: boolean) {
   const [admins, setAdmins] = useState<AuthUser[]>([]);
-  const [adminCandidates, setAdminCandidates] = useState<AuthUser[]>([]);
-  const [regularUsersPage, setRegularUsersPage] = useState(1);
-  const [regularUsersTotalItems, setRegularUsersTotalItems] = useState(0);
-  const [regularUsersTotalPages, setRegularUsersTotalPages] = useState(0);
-  const [regularUsersLoading, setRegularUsersLoading] = useState(false);
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [query, setQuery] = useState({ search: '', page: 1 });
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const revision = useRef(0);
+
+  const refresh = useCallback(async () => {
+    if (!active) return;
+    const request = ++revision.current;
+    setLoading(true);
+    setError('');
+    try {
+      const [nextAdmins, response] = await Promise.all([
+        api.getAdmins(), api.getAdminUsers(query.search.trim(), query.page, ADMIN_USERS_PAGE_SIZE),
+      ]);
+      if (request !== revision.current) return;
+      if (query.page > Math.max(1, response.totalPages)) {
+        setQuery((current) => ({ ...current, page: Math.max(1, response.totalPages) }));
+        return;
+      }
+      setAdmins(nextAdmins);
+      setUsers(response.items);
+      setTotalItems(response.totalItems);
+      setTotalPages(response.totalPages);
+    } catch (reason) {
+      if (request === revision.current) setError(getErrorMessage(reason));
+      throw reason;
+    } finally {
+      if (request === revision.current) setLoading(false);
+    }
+  }, [active, query]);
 
   useEffect(() => {
-    if (!active) return;
+    setLoading(true);
+    const timer = window.setTimeout(() => void refresh().catch(() => undefined), 300);
+    return () => { window.clearTimeout(timer); revision.current += 1; };
+  }, [refresh]);
 
-    void loadAdmins().catch((error) => setMessage(getErrorMessage(error)));
-  }, [active, setMessage]);
-
-  useEffect(() => {
-    if (!active) return;
-
-    let ignore = false;
-    setRegularUsersLoading(true);
-
-    void api
-      .getAdminCandidates(regularUsersPage, REGULAR_USERS_PAGE_SIZE)
-      .then((response) => {
-        if (ignore) {
-          return;
-        }
-
-        setAdminCandidates(response.items);
-        setRegularUsersPage(response.page);
-        setRegularUsersTotalItems(response.totalItems);
-        setRegularUsersTotalPages(response.totalPages);
-      })
-      .catch((error) => {
-        if (!ignore) {
-          setMessage(getErrorMessage(error));
-        }
-      })
-      .finally(() => {
-        if (!ignore) {
-          setRegularUsersLoading(false);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [active, regularUsersPage, setMessage]);
-
-  async function loadAdmins() {
-    setAdmins(await api.getAdmins());
-  }
-
-  async function loadRegularUsers(page = regularUsersPage) {
-    setRegularUsersLoading(true);
-
-    try {
-      const response = await api.getAdminCandidates(page, REGULAR_USERS_PAGE_SIZE);
-      setAdminCandidates(response.items);
-      setRegularUsersPage(response.page);
-      setRegularUsersTotalItems(response.totalItems);
-      setRegularUsersTotalPages(response.totalPages);
-    } finally {
-      setRegularUsersLoading(false);
-    }
-  }
-
-  async function refreshAdminData() {
-    await Promise.all([loadAdmins(), loadRegularUsers()]);
-  }
-
-  async function run(action: () => Promise<void>) {
-    setSubmitting(true);
-    setMessage('');
-    try {
-      await action();
-    } catch (error) {
-      setMessage(getErrorMessage(error));
-    } finally {
-      setSubmitting(false);
-    }
+  function changeQuery(next: typeof query) {
+    revision.current += 1;
+    setLoading(true);
+    setUsers([]);
+    setQuery(next);
   }
 
   return {
-    admins,
-    adminCandidates,
-    regularUsersPage,
-    regularUsersTotalItems,
-    regularUsersTotalPages,
-    regularUsersLoading,
-    setRegularUsersPage,
-    promote: (userId: number) => run(async () => {
-      await api.promoteUserToAdmin(userId);
-      await refreshAdminData();
-      setMessage('User promoted to admin.');
-    }),
-    demote: (userId: number) => run(async () => {
-      await api.demoteAdminToUser(userId);
-      await refreshAdminData();
-      setMessage('Admin demoted to user.');
-    }),
-    block: (userId: number) => run(async () => {
-      await api.blockUser(userId);
-      await refreshAdminData();
-      setMessage('User blocked.');
-    }),
-    unblock: (userId: number) => run(async () => {
-      await api.unblockUser(userId);
-      await refreshAdminData();
-      setMessage('User unblocked.');
-    }),
-    remove: (userId: number) => run(async () => {
-      await api.deleteAccount(userId);
-      await refreshAdminData();
-      setMessage('Account deleted.');
-    }),
+    admins, users, ...query, totalItems, totalPages, loading, error, refresh,
+    setSearch: (search: string) => changeQuery({ search, page: 1 }),
+    setPage: (page: number) => changeQuery({ ...query, page }),
   };
 }

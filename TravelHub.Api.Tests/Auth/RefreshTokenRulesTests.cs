@@ -28,4 +28,24 @@ public class RefreshTokenRulesTests
         Assert.Equal(replacementHash, token.ReplacedByTokenHash);
         Assert.False(RefreshTokenRules.TryRevokeForRotation(token, "another-hash", now));
     }
+
+    [Fact]
+    public void CanReplayWithinGracePeriod_AllowsOnlyRecentProtectedRotations()
+    {
+        var now = new DateTime(2026, 8, 8, 12, 0, 0, DateTimeKind.Utc);
+        var token = new RefreshToken
+        {
+            ExpiresAt = now.AddMinutes(5),
+            RevokedAt = now.AddSeconds(-9),
+            ReplacedByTokenHash = "replacement-hash",
+            ProtectedReplacementToken = "protected-replacement"
+        };
+
+        Assert.True(RefreshTokenRules.CanReplayWithinGracePeriod(token, now, TimeSpan.FromSeconds(10)));
+        token.RevokedAt = now.AddSeconds(-11);
+        Assert.False(RefreshTokenRules.CanReplayWithinGracePeriod(token, now, TimeSpan.FromSeconds(10)));
+        token.RevokedAt = now.AddSeconds(-1);
+        token.ExpiresAt = now.AddSeconds(-1);
+        Assert.False(RefreshTokenRules.CanReplayWithinGracePeriod(token, now, TimeSpan.FromSeconds(10)));
+    }
 }

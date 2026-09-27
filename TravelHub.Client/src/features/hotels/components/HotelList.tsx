@@ -67,6 +67,9 @@ export default function HotelList({
                 </div>
               </div>
               {hotel.description && <p className="hresult-desc">{hotel.description}</p>}
+              <span className="hotel-rating">
+                {hotel.averageRating === null ? 'No reviews yet' : `★ ${hotel.averageRating.toFixed(1)} (${hotel.reviewCount} reviews)`}
+              </span>
               <div className="amenity-row">
                 <span className="amenity-tag">{hotel.totalGuestPlaces} guest places</span>
                 <span className="amenity-tag">{hotel.roomTypesCount} room types</span>

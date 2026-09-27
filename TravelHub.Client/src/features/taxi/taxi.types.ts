@@ -1,6 +1,8 @@
 import type { FormEvent } from 'react';
+import type { ActionFeedback } from '../../hooks/useSavedAction';
 import type {
   AuthUser,
+  BookingPayment,
   BookingGuestMode,
   TaxiBooking,
   TaxiBookingCreate,
@@ -40,7 +42,7 @@ export type TaxiRouteState = {
   encodedPolyline?: string;
 };
 
-export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId'> & {
+export type TaxiBookingForm = Omit<TaxiBookingCreate, 'taxiServiceId' | 'payment'> & {
   taxiServiceId: string;
 };
 
@@ -57,6 +59,22 @@ export type TaxiServiceFormActions = {
   cancel: () => void;
 };
 
+export type TaxiDriverManagement = {
+  drivers: AuthUser[];
+  candidates: AuthUser[];
+  search: string;
+  setSearch: (search: string) => void;
+  assign: (userId: number) => Promise<boolean>;
+  remove: (userId: number) => Promise<boolean>;
+  loading: boolean;
+  error: string;
+  busy: boolean;
+  feedback: ActionFeedback | null;
+  needsRefresh: boolean;
+  retry: () => Promise<void>;
+  clearFeedback: () => void;
+};
+
 export type TaxiBookingFormActions = {
   setForm: (form: TaxiBookingForm) => void;
   selectGuestMode: (mode: BookingGuestMode) => void;
@@ -64,7 +82,7 @@ export type TaxiBookingFormActions = {
   updatePoint: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
   updatePointAddress: (mode: TaxiPointMode, coordinates: Coordinates, address: string) => void;
   setRoute: (route: TaxiRouteState) => void;
-  submit: (event: FormEvent<HTMLFormElement>) => void;
+  submit: (event: FormEvent<HTMLFormElement>, payment: BookingPayment) => void;
 };
 
 export type TaxiFeatureModel = {
@@ -81,8 +99,11 @@ export type TaxiFeatureModel = {
   taxiDistanceKm: number;
   taxiEstimatedTotal: number;
   canManageTaxi: boolean;
+  canManageSelectedTaxi: boolean;
+  canEditTaxiService: (taxiService: TaxiService) => boolean;
   editingTaxiId: number | null;
   showTaxiForm: boolean;
+  taxiDrivers: TaxiDriverManagement;
   loading: boolean;
 };
 
@@ -113,5 +134,4 @@ export type TaxiFeatureOptions = {
   onRequireAuth: (message: string) => void;
   onBookingCreated: (booking: TaxiBooking) => void;
   onResetPayment: () => void;
-  onResetTaxiPayment: () => void;
 };
