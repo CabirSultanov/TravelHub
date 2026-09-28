@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TravelHub.Api.Data;
 using TravelHub.Api.DTO;
 using TravelHub.Api.Models;
+using TravelHub.Api.Services;
 
 namespace TravelHub.Api.Controllers;
 
@@ -197,12 +198,10 @@ public class AdminsController(AppDbContext db, PasswordHasher<AppUser> passwordH
             return BadRequest("Super admin cannot be deleted here.");
         }
 
-        await db.BookingRequests
-            .Where(booking => booking.UserId == id)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(booking => booking.UserId, (int?)null));
-
-        db.Users.Remove(user);
-        await db.SaveChangesAsync();
+        if (!await AccountDeletion.TryDeleteAsync(db, user))
+        {
+            return Conflict(AccountDeletion.ActiveRideError);
+        }
 
         return NoContent();
     }
