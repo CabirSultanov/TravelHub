@@ -407,12 +407,10 @@ public class AuthController(
             return BadRequest("Super admin profile cannot be deleted.");
         }
 
-        await db.BookingRequests
-            .Where(booking => booking.UserId == userId.Value)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(booking => booking.UserId, (int?)null));
-
-        db.Users.Remove(user);
-        await db.SaveChangesAsync();
+        if (!await AccountDeletion.TryDeleteAsync(db, user))
+        {
+            return Conflict(AccountDeletion.ActiveRideError);
+        }
         DeleteRefreshTokenCookie();
 
         return NoContent();
